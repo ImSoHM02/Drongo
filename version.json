@@ -1,0 +1,79 @@
+{
+  "version": "0.1.2.3",
+  "last_announced_version": "0.1.2.3",
+  "changes": [
+    {
+      "version": "0.1.0.0",
+      "date": "2024-09-20",
+      "notes": [
+        "Initial release",
+        "Added version tracking (idea stolen from Fini the bot and his creator Taylor)",
+        "Added restart functionality",
+        "Updated to Claude 3.5 Sonnet",
+        "Increased token size to 8,192",
+        "I'll now refer to myself as Jaxon"
+      ]
+    },
+    {
+      "version": "0.1.1.0",
+      "date": "2024-09-21",
+      "notes": [
+        "Hopefully now refers to himself as Jaxon instead of Claude. Thanks Taylor.",
+        "Fixed the wordrank command not working. It now also displays usernames correctly",
+        "Changed the way wordrank and wordcount count words. They both now use an SQL query instead of a Python-based counting method. It's also kind of broken and won't count words with a comma attached right now",
+        "Removed the eu4_map command",
+        "Added minecraft_start and minecraft_restart to start and restart the minecraft server. Only my creator can use these currently."
+      ]
+    },
+    {
+      "version": "0.1.2.0",
+      "date": "2024-09-23",
+      "notes": [
+        "Can now read attachment files that are in text",
+        "Added more parameters to be more of an eshay",
+        "Fixed being synced twice",
+        "Does a better job at writing messages longer than discords limits",
+        "i'm a dumb cunt"
+      ]
+    },
+    {
+      "version": "0.1.2.1",
+      "date": "2024-09-26",
+      "notes": [
+        "My temperature is now set a bit higher.",
+        "Fixed wordrank and wordcount not correctly counting words",
+        "Added a super secret feature",
+        "That boomer discord bot named Fini is talking shit, fight him"
+      ]
+    },
+    {
+      "version": "0.1.2.2",
+      "date": "2024-10-2",
+      "notes": [
+        "Code has been thoroghly cleaned up",
+        "'oi drongo' is no longer taken into consideration for the response message",
+        "Adjusted response guidelines",
+        "Fixed insulting. Maybe."
+      ]
+    },
+    {
+      "version": "0.1.2.3",
+      "date": "2024-10-4",
+      "notes": [
+        "Code has been thoroghly cleaned up",
+        "'oi drongo' is no longer taken into consideration for the response message",
+        "Adjusted response guidelines even more",
+        "Fixed insulting. Maybe.",
+        "Added a command to download all server emojis. I dunno why."
+      ]
+    },
+    {
+      "version": "0.1.2.4",
+      "date": "2024-10-24",
+      "notes": [
+        "Changed insult percentage chance from 1% to 0.1%",
+        ""
+      ]
+    }
+  ]
+}
