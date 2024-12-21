@@ -1,6 +1,6 @@
 {
-  "version": "0.1.2.3",
-  "last_announced_version": "0.1.2.3",
+  "version": "0.1.2.6",
+  "last_announced_version": "0.1.2.6",
   "changes": [
     {
       "version": "0.1.0.0",
@@ -69,10 +69,25 @@
     },
     {
       "version": "0.1.2.4",
-      "date": "2024-10-24",
+      "date": "2024-10-26",
       "notes": [
-        "Changed insult percentage chance from 1% to 0.1%",
-        ""
+        "Changed insult percentage chance from 1% to 0.2%, but Jaxon will also sometimes compliment you instead. It's 50/50 really",
+        "General bug fixes and improvements"
+      ]
+    },
+    {
+      "version": "0.1.2.5",
+      "date": "2024-11-2",
+      "notes": [
+        "Jaxon can now see images",
+        "Updated to latest AI model"
+      ]
+    },
+    {
+      "version": "0.1.2.6",
+      "date": "2024-11-7",
+      "notes": [
+        "Jaxon now has modes that change his compliment/insult ratios and % chances."
       ]
     }
   ]

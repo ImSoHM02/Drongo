@@ -1,0 +1,146 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 600" width="420" height="600">
+  <!-- Parchment background with gradient -->
+  <defs>
+    <linearGradient id="parchment" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f4f0e5;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#e7e0d0;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Main background and border -->
+  <rect width="420" height="600" fill="url(#parchment)" rx="10" ry="10"/>
+  <rect x="2" y="2" width="416" height="596" fill="none" stroke="#8B7355" stroke-width="1" rx="9" ry="9"/>
+
+  <!-- Title Section -->
+  <text x="20" y="35" font-family="Nodesto Caps Condensed" font-size="20" fill="#822000" font-weight="bold">{{name}}</text>
+  
+  <!-- Red divider line moved up -->
+  <line x1="10" y1="40" x2="410" y2="40" stroke="#822000" stroke-width="1"/>
+
+  <text x="22" y="55" font-family="Scaly Sans" font-style="italic" font-size="13" fill="#666666">{{size}} {{type}}, {{alignment}}</text>
+  
+  <!-- Core Stats -->
+  <g font-family="Scaly Sans" font-size="13">
+    <text x="20" y="75">
+      <tspan font-weight="bold" fill="#822000">AC</tspan>
+      <tspan x="45" fill="#822000">{{ac}}</tspan>
+      <tspan x="200" font-weight="bold" fill="#822000">Initiative</tspan>
+      <tspan x="270" fill="#822000">{{initiative}}</tspan>
+    </text>
+    
+    <text x="20" y="95">
+      <tspan font-weight="bold" fill="#822000">HP</tspan>
+      <tspan x="45" fill="#822000">{{hp}}</tspan>
+    </text>
+    
+    <text x="20" y="115">
+      <tspan font-weight="bold" fill="#822000">Speed</tspan>
+      <tspan x="70" fill="#822000">{{speed}}</tspan>
+    </text>
+  </g>
+
+  <!-- MOD SAVE Headers -->
+  <text x="105" y="135" text-anchor="middle" font-family="Scaly Sans" font-size="10" fill="#666666">MOD SAVE</text>
+  <text x="240" y="135" text-anchor="middle" font-family="Scaly Sans" font-size="10" fill="#666666">MOD SAVE</text>
+  <text x="375" y="135" text-anchor="middle" font-family="Scaly Sans" font-size="10" fill="#666666">MOD SAVE</text>
+
+  <!-- Stats Backgrounds -->
+  <rect x="15" y="142" width="120" height="22" fill="#f0f0f0" rx="2" ry="2"/>
+  <rect x="150" y="142" width="120" height="22" fill="#f0f0f0" rx="2" ry="2"/>
+  <rect x="285" y="142" width="120" height="22" fill="#f0f0f0" rx="2" ry="2"/>
+  
+  <rect x="15" y="167" width="120" height="22" fill="#f0f0f0" rx="2" ry="2"/>
+  <rect x="150" y="167" width="120" height="22" fill="#f0f0f0" rx="2" ry="2"/>
+  <rect x="285" y="167" width="120" height="22" fill="#f0f0f0" rx="2" ry="2"/>
+
+  <!-- First Row Stats -->
+  <g font-family="Scaly Sans" font-size="13">
+    <!-- STR Group -->
+    <text x="20" y="158" fill="#822000" font-weight="bold">STR</text>
+    <text x="55" y="158">{{str}}</text>
+    <text x="80" y="158">{{strMod}}</text>
+    <text x="110" y="158">{{strSave}}</text>
+
+    <!-- DEX Group -->
+    <text x="155" y="158" fill="#822000" font-weight="bold">DEX</text>
+    <text x="190" y="158">{{dex}}</text>
+    <text x="215" y="158">{{dexMod}}</text>
+    <text x="245" y="158">{{dexSave}}</text>
+
+    <!-- CON Group -->
+    <text x="290" y="158" fill="#822000" font-weight="bold">CON</text>
+    <text x="325" y="158">{{con}}</text>
+    <text x="350" y="158">{{conMod}}</text>
+    <text x="380" y="158">{{conSave}}</text>
+  </g>
+
+  <!-- Second Row Stats -->
+  <g font-family="Scaly Sans" font-size="13">
+    <!-- INT Group -->
+    <text x="20" y="183" fill="#822000" font-weight="bold">INT</text>
+    <text x="55" y="183">{{int}}</text>
+    <text x="80" y="183">{{intMod}}</text>
+    <text x="110" y="183">{{intSave}}</text>
+
+    <!-- WIS Group -->
+    <text x="155" y="183" fill="#822000" font-weight="bold">WIS</text>
+    <text x="190" y="183">{{wis}}</text>
+    <text x="215" y="183">{{wisMod}}</text>
+    <text x="245" y="183">{{wisSave}}</text>
+
+    <!-- CHA Group -->
+    <text x="290" y="183" fill="#822000" font-weight="bold">CHA</text>
+    <text x="325" y="183">{{cha}}</text>
+    <text x="350" y="183">{{chaMod}}</text>
+    <text x="380" y="183">{{chaSave}}</text>
+  </g>
+
+  <!-- Additional Info Section -->
+  <g font-family="Scaly Sans" font-size="13">    
+    <text x="20" y="225">
+      <tspan font-weight="bold" fill="#822000">Resistances</tspan>
+      <tspan x="115" fill="#822000">{{damage_resistances}}</tspan>
+    </text>
+    
+    <text x="20" y="245">
+      <tspan font-weight="bold" fill="#822000">Senses</tspan>
+      <tspan x="80" fill="#822000">{{senses}}</tspan>
+    </text>
+    
+    <text x="20" y="265">
+      <tspan font-weight="bold" fill="#822000">Languages</tspan>
+      <tspan x="105" fill="#822000">{{languages}}</tspan>
+    </text>
+    
+    <text x="20" y="285">
+      <tspan font-weight="bold" fill="#822000">CR</tspan>
+      <tspan x="45" fill="#822000">{{challenge}} ({{xp}} XP, PB +{{proficiencyBonus}})</tspan>
+    </text>
+  </g>
+
+  <!-- Traits Section -->
+  <text x="20" y="325" font-family="Nodesto Caps Condensed" font-size="16" fill="#822000">Traits</text>
+  <line x1="10" y1="330" x2="410" y2="330" stroke="#822000" stroke-width="1"/>
+  
+  <g font-family="Scaly Sans" font-size="13">
+    <text x="20" y="350">
+      <tspan font-weight="bold" font-style="italic">{{traitName}}.</tspan>
+    </text>
+    <foreignObject x="20" y="355" width="370" height="100">
+      <p xmlns="http://www.w3.org/1999/xhtml" style="margin: 0; font-family: 'Scaly Sans'; font-size: 13px; color: #822000;">{{traitDesc}}</p>
+    </foreignObject>
+  </g>
+
+  <!-- Actions Section -->
+  <text x="20" y="415" font-family="Nodesto Caps Condensed" font-size="16" fill="#822000">Actions</text>
+  <line x1="10" y1="420" x2="410" y2="420" stroke="#822000" stroke-width="1"/>
+  
+  <g font-family="Scaly Sans" font-size="13">
+    <text x="20" y="440">
+      <tspan font-weight="bold" font-style="italic">{{actionName}}.</tspan>
+    </text>
+    <foreignObject x="20" y="445" width="370" height="100">
+      <p xmlns="http://www.w3.org/1999/xhtml" style="margin: 0; font-family: 'Scaly Sans'; font-size: 13px; color: #822000;">{{actionDesc}}</p>
+    </foreignObject>
+  </g>
+</svg>

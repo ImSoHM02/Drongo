@@ -11,7 +11,8 @@ from database import (create_table, store_message, get_db_connection,
                       set_last_message_id, get_last_message_id,
                       create_game_tracker_tables)
 from dotenv import load_dotenv
-from modules import game_tracker, message_stats, message_management, eu4, wordcount, minecraft_info, clearchat, wordrank, ai, emoji_downloader
+from modules import (game_tracker, message_stats, message_management, eu4, wordcount, 
+                    minecraft_info, clearchat, wordrank, ai, emoji_downloader, dnd_statblock)
 from modules.stats_display import StatsDisplay
 from discord import Client
 from modules.ai import AIHandler
@@ -39,7 +40,7 @@ load_dotenv('id.env')
 
 token = os.getenv("DISCORD_BOT_TOKEN")
 client_id = os.getenv("DISCORD_CLIENT_ID")
-guild_id = os.getenv("DISCORD_GUILD_ID")
+primary_guild_id = os.getenv("DISCORD_GUILD_ID").split(',')[0].strip()  # Get first guild ID for logging
 authorized_user_id = os.getenv("AUTHORIZED_USER_ID")
 my_user_id = os.getenv("BLACKTHENWHITE_USER_ID")
 anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
@@ -116,20 +117,22 @@ class DrongoBot(commands.Bot):
             await self.load_extension("modules.version_tracker")
             self.logger.info('Processing chat messages...')
             for guild in self.guilds:
-                for channel in guild.text_channels:
-                    last_message_id = await get_last_message_id(conn, channel.id)
-                    if last_message_id:
-                        messages = [message async for message in channel.history(limit=200, after=discord.Object(id=last_message_id))]
-                    else:
-                        messages = [message async for message in channel.history(limit=200)]
+                # Only process messages for the primary guild
+                if str(guild.id) == primary_guild_id:
+                    for channel in guild.text_channels:
+                        last_message_id = await get_last_message_id(conn, channel.id)
+                        if last_message_id:
+                            messages = [message async for message in channel.history(limit=200, after=discord.Object(id=last_message_id))]
+                        else:
+                            messages = [message async for message in channel.history(limit=200)]
 
-                    for message in reversed(messages):
-                        if message.author != self.user and not message.author.bot:
-                            attachment_urls = ' '.join([attachment.url for attachment in message.attachments])
-                            full_message_content = f"{message.clean_content} {attachment_urls}".strip()
-                            await store_message(conn, message, full_message_content)
-                    if messages:
-                        await set_last_message_id(conn, channel.id, messages[-1].id)
+                        for message in reversed(messages):
+                            if message.author != self.user and not message.author.bot:
+                                attachment_urls = ' '.join([attachment.url for attachment in message.attachments])
+                                full_message_content = f"{message.clean_content} {attachment_urls}".strip()
+                                await store_message(conn, message, full_message_content)
+                        if messages:
+                            await set_last_message_id(conn, channel.id, messages[-1].id)
 
             self.logger.info("Finished processing all channels.")
 
@@ -144,6 +147,7 @@ class DrongoBot(commands.Bot):
             wordrank.setup(self)
             ai.setup(self)
             emoji_downloader.setup(self)
+            dnd_statblock.setup(self)
             
             self.logger.info("Loaded all command modules.")
 
@@ -157,19 +161,21 @@ class DrongoBot(commands.Bot):
         # Update message count
         self.stats_display.update_stats("Messages Processed", self.stats_display.stats["Messages Processed"] + 1)
 
-        full_message_content = await self.ai_handler.process_message(message)
+        # Only process messages from the primary guild for AI and database storage
+        if str(message.guild.id) == primary_guild_id:
+            full_message_content = await self.ai_handler.process_message(message)
 
-        conn = await get_db_connection()
-        try:
-            if full_message_content:
-                await store_message(conn, message, full_message_content)
-                await set_last_message_id(conn, message.channel.id, message.id)
-                
-                # Log the message in the stats display
-                self.stats_display.log_message(message.author, message.guild.name, message.channel.name)
+            conn = await get_db_connection()
+            try:
+                if full_message_content:
+                    await store_message(conn, message, full_message_content)
+                    await set_last_message_id(conn, message.channel.id, message.id)
+                    
+                    # Log the message in the stats display
+                    self.stats_display.log_message(message.author, message.guild.name, message.channel.name)
 
-        finally:
-            await conn.close()
+            finally:
+                await conn.close()
 
         await self.process_commands(message)
 
