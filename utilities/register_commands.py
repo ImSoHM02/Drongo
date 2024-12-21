@@ -131,18 +131,6 @@ def get_commands():
             "description": "Clear your chat history with the bot"
         },
         {
-            "name": "minecraft_info",
-            "description": "Get the current IP and statistics for the Minecraft server"
-        },
-        {
-            "name": "minecraft_start",
-            "description": "Start the Minecraft server"
-        },
-        {
-            "name": "minecraft_restart",
-            "description": "Restart the Minecraft server"
-        },
-        {
             "name": "restart",
             "description": "Restart the bot and refresh its code"
         },

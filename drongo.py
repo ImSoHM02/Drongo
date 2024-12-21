@@ -12,7 +12,7 @@ from database import (create_table, store_message, get_db_connection,
                       create_game_tracker_tables)
 from dotenv import load_dotenv
 from modules import (game_tracker, message_stats, message_management, eu4, wordcount, 
-                    minecraft_info, clearchat, wordrank, ai, emoji_downloader, dnd_statblock)
+                    clearchat, wordrank, emoji_downloader)
 from modules.stats_display import StatsDisplay
 from discord import Client
 from modules.ai import AIHandler
@@ -20,7 +20,26 @@ from modules.ai import AIHandler
 console = Console()
 
 # Set up logging
-logging.basicConfig(level=logging.ERROR, handlers=[RichHandler()])
+log_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+# File handler for error.log
+file_handler = logging.FileHandler('logs/error.log')
+file_handler.setLevel(logging.INFO)  # Changed to INFO to capture all logs
+file_handler.setFormatter(log_formatter)
+
+# Rich console handler
+console_handler = RichHandler()
+console_handler.setLevel(logging.INFO)  # Changed to INFO to capture all logs
+
+# Configure root logger
+root_logger = logging.getLogger()
+root_logger.setLevel(logging.INFO)  # Changed to INFO to capture all logs
+root_logger.addHandler(file_handler)
+root_logger.addHandler(console_handler)
+
+# Set logging level for noisy modules
+logging.getLogger('discord').setLevel(logging.WARNING)
+logging.getLogger('asyncio').setLevel(logging.WARNING)
 
 # Custom logger that only logs to the stats display
 class StatsLogger:
@@ -81,7 +100,6 @@ class DrongoBot(commands.Bot):
 
     async def setup_hook(self):
         self.stats_display.start()
-        self.ai_handler = AIHandler(self, self.anthropic_api_key)  # Initialize ai_handler here
 
     async def on_ready(self):
         self.stats_display.set_status("Connected")
@@ -142,12 +160,11 @@ class DrongoBot(commands.Bot):
             message_management.setup(self)
             eu4.setup(self)
             wordcount.setup(self)
-            minecraft_info.setup(self)
             clearchat.setup(self)
             wordrank.setup(self)
-            ai.setup(self)
+            # Initialize AI handler
+            self.ai_handler = AIHandler(self, self.anthropic_api_key)
             emoji_downloader.setup(self)
-            dnd_statblock.setup(self)
             
             self.logger.info("Loaded all command modules.")
 
