@@ -89,6 +89,15 @@
       "notes": [
         "Jaxon now has modes that change his compliment/insult ratios and % chances."
       ]
+    },
+    {
+      "version": "0.1.2.7",
+      "date": "22-12-2024",
+      "notes": [
+        "Removed a bunch of useless commands",
+        "Code refactoring",
+        ""
+      ]
     }
   ]
 }
