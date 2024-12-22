@@ -1,5 +1,5 @@
 {
-  "version": "0.1.2.6",
+  "version": "0.1.2.7",
   "last_announced_version": "0.1.2.6",
   "changes": [
     {
@@ -95,8 +95,8 @@
       "date": "22-12-2024",
       "notes": [
         "Removed a bunch of useless commands",
-        "Code refactoring",
-        ""
+        "Command updates",
+        "Code refactoring"
       ]
     }
   ]

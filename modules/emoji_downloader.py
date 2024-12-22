@@ -28,7 +28,7 @@ async def download_and_zip_emojis(guild: discord.Guild, interaction: discord.Int
                 progress = (i + 1) / total_emojis * 100
                 try:
                     await interaction.edit_original_response(
-                        content=f"Downloading emojis: {progress:.1f}% complete ({i + 1}/{total_emojis})"
+                        content=f"stealin' emojis: {progress:.1f}% complete ({i + 1}/{total_emojis})"
                     )
                 except discord.errors.NotFound:
                     print("Interaction not found during progress update. It might have expired.")
@@ -62,7 +62,7 @@ def setup(bot):
         await interaction.response.defer(thinking=True)
 
         try:
-            await interaction.edit_original_response(content="Starting emoji download...")
+            await interaction.edit_original_response(content="Starting emoji stealin'...")
             zip_buffer = await download_and_zip_emojis(interaction.guild, interaction)
 
             # Check if zip_buffer is None, indicating a potential error during download
@@ -70,7 +70,7 @@ def setup(bot):
                 await interaction.followup.send("An error occurred during emoji download. Please check the logs.")
                 return
 
-            await interaction.edit_original_response(content="Emojis downloaded! Sending zip file...")
+            await interaction.edit_original_response(content="Emojis jacked! Sending zip file...")
             await interaction.followup.send(
                 "Here are all the emojis from this server:",
                 file=discord.File(zip_buffer, filename="server_emojis.zip"),
