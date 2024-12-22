@@ -11,7 +11,7 @@ from database import (create_table, store_message, get_db_connection,
                       set_last_message_id, get_last_message_id,
                       create_game_tracker_tables)
 from dotenv import load_dotenv
-from modules import (game_tracker, message_stats, message_management, eu4, wordcount, 
+from modules import (game_tracker, message_stats, message_management, wordcount, 
                     clearchat, wordrank, emoji_downloader)
 from modules.stats_display import StatsDisplay
 from discord import Client
@@ -158,7 +158,6 @@ class DrongoBot(commands.Bot):
             game_tracker.setup(self)
             message_stats.setup(self)
             message_management.setup(self)
-            eu4.setup(self)
             wordcount.setup(self)
             clearchat.setup(self)
             wordrank.setup(self)

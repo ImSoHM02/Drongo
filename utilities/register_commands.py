@@ -59,34 +59,6 @@ def get_commands():
             ]
         },
         {
-            "name": "eu4",
-            "description": "Fetches an EU4 session screenshot.",
-            "options": [
-                {
-                    "name": "session_id",
-                    "description": "The session ID",
-                    "type": 3,
-                    "required": True
-                },
-                {
-                    "name": "session_number",
-                    "description": "The session number or identifier",
-                    "type": 3,
-                    "required": True
-                },
-                {
-                    "name": "title",
-                    "description": "A title for your message (optional)",
-                    "type": 3,
-                    "required": False
-                }
-            ]
-        },
-        {
-            "name": "current_eu4",
-            "description": "Current games with their session id, previous session number and next session number."
-        },
-        {
             "name": "delete_messages",
             "description": "Deletes the specified number of bot messages.",
             "options": [
