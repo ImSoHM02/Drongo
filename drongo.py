@@ -132,7 +132,6 @@ class DrongoBot(commands.Bot):
             await create_table(conn)
             await create_game_tracker_tables(conn)
             await self.load_extension("modules.restart")
-            await self.load_extension("modules.version_tracker")
             self.logger.info('Processing chat messages...')
             for guild in self.guilds:
                 # Only process messages for the primary guild
@@ -163,6 +162,9 @@ class DrongoBot(commands.Bot):
             # Initialize AI handler
             self.ai_handler = AIHandler(self, self.anthropic_api_key)
             emoji_downloader.setup(self)
+            
+            # Load version tracker after AI handler is initialized
+            await self.load_extension("modules.version_tracker")
             
             self.logger.info("Loaded all command modules.")
 
