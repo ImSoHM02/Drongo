@@ -1,3 +1,5 @@
+# modules/web_link.py
+
 import socket
 import discord
 from discord import app_commands
@@ -29,16 +31,10 @@ def setup(bot):
     @bot.tree.command(name="webstats")
     async def webstats(interaction: discord.Interaction):
         """Get the link to the web statistics interface"""
-        try:
-            ip = get_ip()
-            await interaction.response.send_message(
-                f"Web Statistics Interface: http://{ip}:5000\n"
-                f"Admin Interface: http://{ip}:5000/admin",
-                ephemeral=True
-            )
-            bot.stats_display.update_stats("Commands Executed", bot.stats_display.stats["Commands Executed"] + 1)
-        except Exception as e:
-            await interaction.response.send_message(
-                "Error getting web interface links. Please try again later.",
-                ephemeral=True
-            )
+        ip = get_ip()
+        await interaction.response.send_message(
+            f"Web Statistics Interface: http://{ip}:5000\n"
+            f"Admin Interface: http://{ip}:5000/admin",
+            ephemeral=True
+        )
+        bot.stats_display.update_stats("Commands Executed", bot.stats_display.stats["Commands Executed"] + 1)
