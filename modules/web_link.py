@@ -15,21 +15,17 @@ def get_ip():
         s.close()
     return IP
 
-class WebLink(app_commands.Group):
-    def __init__(self):
-        super().__init__(name="web", description="Web interface related commands")
-
-    @app_commands.command(
-        name="stats",
-        description="Get the link to the web statistics interface"
+@app_commands.command(
+    name="webstats",
+    description="Get the link to the web statistics interface"
+)
+async def webstats(interaction: discord.Interaction):
+    ip = get_ip()
+    await interaction.response.send_message(
+        f"Web Statistics Interface: http://{ip}:5000\n"
+        f"Admin Interface: http://{ip}:5000/admin",
+        ephemeral=True
     )
-    async def stats(self, interaction: discord.Interaction):
-        ip = get_ip()
-        await interaction.response.send_message(
-            f"Web Statistics Interface: http://{ip}:5000\n"
-            f"Admin Interface: http://{ip}:5000/admin",
-            ephemeral=True
-        )
 
 async def setup(bot):
-    bot.tree.add_command(WebLink())
+    bot.tree.add_command(webstats)
