@@ -12,7 +12,7 @@ from database import (create_table, store_message, get_db_connection,
                       create_game_tracker_tables)
 from dotenv import load_dotenv
 from modules import (message_stats, message_management, wordcount, 
-                    clearchat, wordrank, emoji_downloader)
+                    clearchat, wordrank, emoji_downloader, web_link)
 from modules.stats_display import StatsDisplay
 from discord import Client
 from modules.ai import AIHandler
@@ -159,9 +159,10 @@ class DrongoBot(commands.Bot):
             wordcount.setup(self)
             clearchat.setup(self)
             wordrank.setup(self)
-            # Initialize AI handler
             self.ai_handler = AIHandler(self, self.anthropic_api_key)
             emoji_downloader.setup(self)
+            # Web interface command
+            web_link.setup(self)
             
             # Load version tracker after AI handler is initialized
             await self.load_extension("modules.version_tracker")
