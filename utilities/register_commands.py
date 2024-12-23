@@ -128,6 +128,17 @@ def get_commands():
         {
             "name": "listmodes",
             "description": "List all available response modes"
+        },
+        {
+            "name": "web",
+            "description": "Web interface related commands",
+            "options": [
+                {
+                    "name": "stats",
+                    "description": "Get the link to the web statistics interface",
+                    "type": 1  # SUB_COMMAND
+                }
+            ]
         }
     ]
 
