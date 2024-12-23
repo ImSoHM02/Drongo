@@ -31,10 +31,9 @@ def setup(bot):
     @bot.tree.command(name="webstats")
     async def webstats(interaction: discord.Interaction):
         """Get the link to the web statistics interface"""
-        await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer()
         ip = get_ip()
         await interaction.followup.send(
-            f"Web Statistics Interface: http://{ip}:5000\n"
-            f"Admin Interface: http://{ip}:5000/admin"
+            f"Web Statistics Interface: http://{ip}:5000"
         )
         bot.stats_display.update_stats("Commands Executed", bot.stats_display.stats["Commands Executed"] + 1)
