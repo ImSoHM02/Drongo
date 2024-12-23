@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drongo Bot Admin - User Mappings</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .mapping-form {
+            background-color: var(--card-background);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .mapping-form input {
+            background-color: var(--background-color);
+            border: 1px solid var(--primary-color);
+            color: var(--text-color);
+            padding: 8px;
+            margin: 5px;
+            border-radius: 5px;
+        }
+
+        .mapping-form button {
+            background-color: var(--primary-color);
+            color: var(--text-color);
+            border: none;
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .mapping-form button:hover {
+            opacity: 0.9;
+        }
+
+        .current-mappings {
+            background-color: var(--card-background);
+            padding: 20px;
+            border-radius: 10px;
+        }
+
+        .mapping-entry {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .mapping-entry:last-child {
+            border-bottom: none;
+        }
+
+        .delete-btn {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+
+        .delete-btn:hover {
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>User ID Mappings</h1>
+        
+        <div class="mapping-form">
+            <h2>Add New Mapping</h2>
+            <form id="mappingForm">
+                <input type="text" id="userId" placeholder="User ID" required>
+                <input type="text" id="username" placeholder="Username" required>
+                <button type="submit">Add Mapping</button>
+            </form>
+        </div>
+
+        <div class="current-mappings">
+            <h2>Current Mappings</h2>
+            <div id="mappingsList">
+                Loading...
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Last Updated: <span id="last-updated">Loading...</span></p>
+        </div>
+    </div>
+
+    <script>
+        function loadMappings() {
+            fetch('/api/mappings')
+                .then(response => response.json())
+                .then(data => {
+                    const mappingsHtml = Object.entries(data).map(([userId, username]) => `
+                        <div class="mapping-entry">
+                            <div>
+                                <strong>${userId}</strong> → ${username}
+                            </div>
+                            <button class="delete-btn" onclick="deleteMapping('${userId}')">Delete</button>
+                        </div>
+                    `).join('');
+                    document.getElementById('mappingsList').innerHTML = mappingsHtml || 'No mappings found';
+                })
+                .catch(error => {
+                    console.error('Error loading mappings:', error);
+                    document.getElementById('mappingsList').innerHTML = 'Error loading mappings';
+                });
+        }
+
+        function deleteMapping(userId) {
+            fetch(`/api/mappings/${userId}`, {
+                method: 'DELETE'
+            })
+            .then(response => {
+                if (response.ok) {
+                    loadMappings();
+                } else {
+                    throw new Error('Failed to delete mapping');
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        document.getElementById('mappingForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const userId = document.getElementById('userId').value;
+            const username = document.getElementById('username').value;
+
+            fetch('/api/mappings', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    user_id: userId,
+                    username: username
+                })
+            })
+            .then(response => {
+                if (response.ok) {
+                    document.getElementById('userId').value = '';
+                    document.getElementById('username').value = '';
+                    loadMappings();
+                } else {
+                    throw new Error('Failed to add mapping');
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        });
+
+        // Load mappings on page load
+        loadMappings();
+    </script>
+</body>
+</html>

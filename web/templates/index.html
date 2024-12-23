@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drongo Bot Statistics</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Drongo Bot Statistics</h1>
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>Total Messages</h3>
+                <p id="total-messages">Loading...</p>
+            </div>
+            
+            <div class="stat-card">
+                <h3>Unique Users</h3>
+                <p id="unique-users">Loading...</p>
+            </div>
+            
+            <div class="stat-card">
+                <h3>Messages (24h)</h3>
+                <p id="recent-messages">Loading...</p>
+            </div>
+        </div>
+
+        <div class="leaderboard">
+            <h2>Top Users</h2>
+            <div id="top-users">
+                Loading...
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Last Updated: <span id="last-updated">Loading...</span></p>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
