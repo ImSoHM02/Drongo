@@ -15,17 +15,13 @@ def get_ip():
         s.close()
     return IP
 
-@app_commands.command(
-    name="webstats",
-    description="Get the link to the web statistics interface"
-)
-async def webstats(interaction: discord.Interaction):
-    ip = get_ip()
-    await interaction.response.send_message(
-        f"Web Statistics Interface: http://{ip}:5000\n"
-        f"Admin Interface: http://{ip}:5000/admin",
-        ephemeral=True
-    )
-
-async def setup(bot):
-    bot.tree.add_command(webstats)
+def setup(bot):
+    @bot.tree.command(name="webstats", description="Get the link to the web statistics interface")
+    async def webstats(interaction: discord.Interaction):
+        ip = get_ip()
+        await interaction.response.send_message(
+            f"Web Statistics Interface: http://{ip}:5000\n"
+            f"Admin Interface: http://{ip}:5000/admin",
+            ephemeral=True
+        )
+        bot.stats_display.update_stats("Commands Executed", bot.stats_display.stats["Commands Executed"] + 1)
