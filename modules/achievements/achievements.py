@@ -19,7 +19,7 @@ class AchievementSystem:
             "FIRST_REQUEST": Achievement(
                 "FIRST_REQUEST",
                 "Test Achievement",
-                "Earned by asking for an achievement using the 'iwantanachievement' command"
+                "Earned by asking for an achievement using the 'iwantanachievement' secret word"
             )
         }
 
