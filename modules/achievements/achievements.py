@@ -2,11 +2,26 @@ import sqlite3
 import discord
 from modules.ai.anthropic.ai_prompt import DEFAULT_SYSTEM_PROMPT
 
+class Achievement:
+    def __init__(self, id: str, name: str, description: str):
+        self.id = id
+        self.name = name
+        self.description = description
+
 class AchievementSystem:
     def __init__(self, bot: discord.Client, db_path='achievements.db'):
         self.bot = bot
         self.db_path = db_path
         self.setup_database()
+        
+        # Define achievements
+        self.achievements = {
+            "FIRST_REQUEST": Achievement(
+                "FIRST_REQUEST",
+                "Test Achievement",
+                "Earned by asking for an achievement using the 'iwantanachievement' command"
+            )
+        }
 
     def setup_database(self):
         """Initialize the achievements database."""
@@ -25,15 +40,16 @@ class AchievementSystem:
     async def check_achievement(self, message: discord.Message) -> bool:
         """Check if a message triggers any achievements."""
         if message.content.lower() == "iwantanachievement":
+            achievement = self.achievements["FIRST_REQUEST"]
             return await self.award_achievement(
                 message.author.id,
-                "FIRST_REQUEST",
+                achievement.id,
                 message.channel,
-                "Ay brah, you just earned your first achievement by askin' for one!"
+                achievement
             )
         return False
 
-    async def award_achievement(self, user_id: int, achievement_id: str, channel: discord.TextChannel, context: str) -> bool:
+    async def award_achievement(self, user_id: int, achievement_id: str, channel: discord.TextChannel, achievement: Achievement) -> bool:
         """Award an achievement to a user if they haven't already earned it."""
         if self.has_achievement(user_id, achievement_id):
             return False
@@ -54,10 +70,10 @@ class AchievementSystem:
                 system=DEFAULT_SYSTEM_PROMPT,
                 messages=[{
                     "role": "user", 
-                    "content": f"""Oi, this legend just earned an achievement! Here's what happened:
-{context}
+                    "content": f"""Oi, this legend just earned the "{achievement.name}" achievement! Here's what it's for:
+{achievement.description}
 
-Give a brief, excited eshay-style response announcing their achievement. Keep it under 2 sentences."""
+Give a brief, excited eshay-style response announcing their achievement, mentioning both the achievement name and why they got it. Keep it under 2 sentences."""
                 }],
                 temperature=0.7,
             )

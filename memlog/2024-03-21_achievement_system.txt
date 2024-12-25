@@ -4,7 +4,15 @@
 - Created new module `modules/achievements/` for achievement system
 - Implemented SQLite database storage for achievements in `achievements.db`
 - Integrated with existing AI system to use Jaxon's eshay character for achievement announcements
-- Added basic achievement trigger "iwantanachievement"
+- Added Achievement class to store achievement metadata (name, description)
+- Added "Test Achievement" with proper name and description
+- Enhanced AI responses to include achievement name and reason for earning it
+
+## Achievement Details
+- Name: "Test Achievement"
+- ID: FIRST_REQUEST
+- Description: "Earned by asking for an achievement using the 'iwantanachievement' command"
+- Trigger: User types "iwantanachievement" in any channel
 
 ## Technical Details
 - Database Schema:
