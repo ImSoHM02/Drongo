@@ -135,6 +135,7 @@ venv.bak/
 bot_env/
 chat_history.db
 id.env
+achievements.db
 
 # Spyder project settings
 .spyderproject
