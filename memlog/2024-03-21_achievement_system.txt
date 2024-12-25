@@ -1,0 +1,31 @@
+# Achievement System Implementation - 2024-03-21
+
+## Changes Made
+- Created new module `modules/achievements/` for achievement system
+- Implemented SQLite database storage for achievements in `achievements.db`
+- Integrated with existing AI system to use Jaxon's eshay character for achievement announcements
+- Added basic achievement trigger "iwantanachievement"
+
+## Technical Details
+- Database Schema:
+  ```sql
+  CREATE TABLE user_achievements (
+      user_id INTEGER,
+      achievement_id TEXT,
+      earned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (user_id, achievement_id)
+  )
+  ```
+- Uses bot's AIHandler for consistent eshay-style responses
+- Prevents duplicate achievements through SQLite's PRIMARY KEY constraint
+
+## Files Modified
+- Created: modules/achievements/achievements.py
+- Created: modules/achievements/__init__.py
+- Modified: drongo.py (added achievement system integration)
+
+## Multi-Server Support Fix
+- Moved AI response processing outside primary guild check
+- Moved achievement checking outside primary guild check
+- Now only database storage and stats tracking are limited to primary guild
+- Bot features (AI, achievements) now work in all servers

@@ -181,14 +181,12 @@ class DrongoBot(commands.Bot):
         # Update message count
         self.stats_display.update_stats("Messages Processed", self.stats_display.stats["Messages Processed"] + 1)
 
-        # Only process messages from the primary guild for AI and database storage
-        if str(message.guild.id) == primary_guild_id:
-            # Process AI response
-            full_message_content = await self.ai_handler.process_message(message)
-            
-            # Check for achievements
-            await self.achievement_system.check_achievement(message)
+        # Process AI response and achievements for all guilds
+        full_message_content = await self.ai_handler.process_message(message)
+        await self.achievement_system.check_achievement(message)
 
+        # Store messages and stats only for primary guild
+        if str(message.guild.id) == primary_guild_id:
             conn = await get_db_connection()
             try:
                 if full_message_content:
