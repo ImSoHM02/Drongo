@@ -11,10 +11,19 @@
 - Updated to use claude-3-5-sonnet-20241022 AI model
 
 ## Achievement Details
-- Name: "Test Achievement"
-- ID: FIRST_REQUEST
-- Description: "Earned by asking for an achievement using the 'iwantanachievement' command"
-- Trigger: User types "iwantanachievement" in any channel
+
+1. Test Achievement:
+   - Name: "Test Achievement"
+   - ID: FIRST_REQUEST
+   - Description: "Earned by asking for an achievement using the 'iwantanachievement' command"
+   - Trigger: User types "iwantanachievement" in any channel
+
+2. Chatterbox Achievement:
+   - Name: "Chatterbox"
+   - ID: CHATTY
+   - Description: "Sent 50 messages in a single day"
+   - Trigger: Automatically checks message count in chat_history.db for the last 24 hours
+   - Implementation: Uses SQL query with datetime functions to count messages within a rolling 24-hour window
 
 ## Technical Details
 - Database Schema:

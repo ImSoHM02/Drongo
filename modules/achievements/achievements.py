@@ -1,6 +1,7 @@
 import sqlite3
 import discord
 from modules.ai.anthropic.ai_prompt import DEFAULT_SYSTEM_PROMPT
+from database import get_db_connection
 
 class Achievement:
     def __init__(self, id: str, name: str, description: str):
@@ -20,6 +21,11 @@ class AchievementSystem:
                 "FIRST_REQUEST",
                 "Test Achievement",
                 "Earned by asking for an achievement using the 'iwantanachievement' secret word"
+            ),
+            "CHATTY": Achievement(
+                "CHATTY",
+                "Chatterbox",
+                "Sent 50 messages in a single day"
             )
         }
 
@@ -39,15 +45,45 @@ class AchievementSystem:
 
     async def check_achievement(self, message: discord.Message) -> bool:
         """Check if a message triggers any achievements."""
+        achievements_earned = False
+
+        # Check for the test achievement
         if message.content.lower() == "iwantanachievement":
             achievement = self.achievements["FIRST_REQUEST"]
-            return await self.award_achievement(
+            if await self.award_achievement(
                 message.author.id,
                 achievement.id,
                 message.channel,
                 achievement
-            )
-        return False
+            ):
+                achievements_earned = True
+
+        # Check for chatty achievement
+        if await self.check_daily_messages(message.author.id):
+            achievement = self.achievements["CHATTY"]
+            if await self.award_achievement(
+                message.author.id,
+                achievement.id,
+                message.channel,
+                achievement
+            ):
+                achievements_earned = True
+
+        return achievements_earned
+
+    async def check_daily_messages(self, user_id: str) -> bool:
+        """Check if a user has sent 50 messages in the last 24 hours."""
+        conn = await get_db_connection()
+        try:
+            async with conn.execute("""
+                SELECT COUNT(*) FROM messages 
+                WHERE user_id = ? 
+                AND datetime(timestamp) >= datetime('now', '-1 day')
+            """, (str(user_id),)) as cursor:
+                count = (await cursor.fetchone())[0]
+                return count >= 50
+        finally:
+            await conn.close()
 
     async def award_achievement(self, user_id: int, achievement_id: str, channel: discord.TextChannel, achievement: Achievement) -> bool:
         """Award an achievement to a user if they haven't already earned it."""
