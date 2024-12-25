@@ -13,7 +13,7 @@ function updateStats() {
                 <div class="user-entry">
                     <div>
                         <span class="rank">#${index + 1}</span>
-                        <span class="user-id">User ${user[0]}</span>
+                        <span class="user-id">${user[0]}</span>
                     </div>
                     <span class="message-count">${user[1].toLocaleString()} messages</span>
                 </div>
