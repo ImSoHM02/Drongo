@@ -13,6 +13,7 @@ from database import (create_table, store_message, get_db_connection,
 from dotenv import load_dotenv
 from modules import (message_stats, message_management, wordcount, 
                     clearchat, wordrank, emoji_downloader, web_link)
+from modules.achievements import AchievementSystem
 from modules.stats_display import StatsDisplay
 from discord import Client
 from modules.ai import AIHandler
@@ -97,6 +98,7 @@ class DrongoBot(commands.Bot):
         self.max_reconnect_attempts = 5
         self.anthropic_api_key = anthropic_api_key
         self.ai_handler = None  # Initialize ai_handler as None
+        self.achievement_system = AchievementSystem()  # Initialize achievement system
 
     async def setup_hook(self):
         self.stats_display.start()
@@ -181,7 +183,11 @@ class DrongoBot(commands.Bot):
 
         # Only process messages from the primary guild for AI and database storage
         if str(message.guild.id) == primary_guild_id:
+            # Process AI response
             full_message_content = await self.ai_handler.process_message(message)
+            
+            # Check for achievements
+            await self.achievement_system.check_achievement(message)
 
             conn = await get_db_connection()
             try:
