@@ -65,8 +65,8 @@ class AchievementSystem:
         # Generate AI response about the achievement
         async with channel.typing():
             response = await self.bot.ai_handler.anthropic_client.messages.create(
-                model="claude-3-opus-20240229",
-                max_tokens=100,
+                model="claude-3-5-sonnet-20241022",
+                max_tokens=8192,
                 system=DEFAULT_SYSTEM_PROMPT,
                 messages=[{
                     "role": "user", 
