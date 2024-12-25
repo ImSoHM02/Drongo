@@ -201,6 +201,17 @@ class DrongoBot(commands.Bot):
 
         await self.process_commands(message)
 
+    async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
+        """Handle reaction achievements."""
+        if payload.member.bot:
+            return
+
+        channel = self.get_channel(payload.channel_id)
+        message = await channel.fetch_message(payload.message_id)
+        reaction = discord.utils.get(message.reactions, emoji=payload.emoji)
+        
+        await self.achievement_system.check_achievement(message, reaction)
+
 intents = discord.Intents.default()
 intents.messages = True
 intents.message_content = True

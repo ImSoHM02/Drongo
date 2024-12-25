@@ -31,6 +31,26 @@ class AchievementSystem:
                 "LOVE_HOMIES",
                 "Showing some love to the homies <3",
                 "We love our homies"
+            ),
+            "BUMBAG": Achievement(
+                "BUMBAG",
+                "Bumbag",
+                "You adjusted your bumbag in public"
+            ),
+            "BIG_PUFF": Achievement(
+                "BIG_PUFF",
+                "Big Puff",
+                "Took a big puff of your ciggie"
+            ),
+            "TN_ROLL": Achievement(
+                "TN_ROLL",
+                "Rolled your first pair of TN's",
+                "Rolled a fuckin' nerd for his TN's"
+            ),
+            "NOT_A_PROGRAMMER": Achievement(
+                "NOT_A_PROGRAMMER",
+                "Not a programmer",
+                "Probably sarcastically told Sean he's not a programmer"
             )
         }
 
@@ -48,7 +68,7 @@ class AchievementSystem:
             ''')
             conn.commit()
 
-    async def check_achievement(self, message: discord.Message) -> bool:
+    async def check_achievement(self, message: discord.Message, reaction: discord.Reaction = None) -> bool:
         """Check if a message triggers any achievements."""
         achievements_earned = False
 
@@ -77,6 +97,54 @@ class AchievementSystem:
         # Check for love homies achievement
         if message.mentions and "i love you" in message.content.lower():
             achievement = self.achievements["LOVE_HOMIES"]
+            if await self.award_achievement(
+                message.author.id,
+                achievement.id,
+                message.channel,
+                achievement
+            ):
+                achievements_earned = True
+
+        # Check for reaction-based achievements if a reaction was provided
+        if reaction:
+            emoji_name = str(reaction.emoji)
+            
+            # Check for bumbag achievement
+            if emoji_name in ['🛍️', '👝']:  # pouch or clutch_bag
+                achievement = self.achievements["BUMBAG"]
+                if await self.award_achievement(
+                    reaction.member.id,
+                    achievement.id,
+                    reaction.message.channel,
+                    achievement
+                ):
+                    achievements_earned = True
+            
+            # Check for big puff achievement
+            elif emoji_name == '🚬':  # smoking
+                achievement = self.achievements["BIG_PUFF"]
+                if await self.award_achievement(
+                    reaction.member.id,
+                    achievement.id,
+                    reaction.message.channel,
+                    achievement
+                ):
+                    achievements_earned = True
+            
+        # Check for TN roll achievement
+            elif emoji_name in ['👟', '🏃']:  # athletic_shoe or running_shoe
+                achievement = self.achievements["TN_ROLL"]
+                if await self.award_achievement(
+                    reaction.member.id,
+                    achievement.id,
+                    reaction.message.channel,
+                    achievement
+                ):
+                    achievements_earned = True
+
+        # Check for "not a programmer" achievement
+        if "not a programmer" in message.content.lower():
+            achievement = self.achievements["NOT_A_PROGRAMMER"]
             if await self.award_achievement(
                 message.author.id,
                 achievement.id,

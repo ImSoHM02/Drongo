@@ -32,6 +32,40 @@
    - Trigger: Message contains a user mention and the phrase "i love you" (case insensitive)
    - Implementation: Checks message.mentions and does case-insensitive string matching
 
+4. Bumbag Achievement:
+   - Name: "Bumbag"
+   - ID: BUMBAG
+   - Description: "You adjusted your bumbag in public"
+   - Trigger: React to any message with 🛍️ (pouch) or 👝 (clutch_bag) emoji
+   - Implementation: Checks reaction emoji against target emojis
+
+5. Big Puff Achievement:
+   - Name: "Big Puff"
+   - ID: BIG_PUFF
+   - Description: "Took a big puff of your ciggie"
+   - Trigger: React to any message with 🚬 (smoking) emoji
+   - Implementation: Checks reaction emoji
+
+6. TN Roll Achievement:
+   - Name: "Rolled your first pair of TN's"
+   - ID: TN_ROLL
+   - Description: "Rolled a fuckin' nerd for his TN's"
+   - Trigger: React to any message with 👟 (athletic_shoe) or 🏃 (running_shoe) emoji
+   - Implementation: Checks reaction emoji against target emojis
+
+7. Not a programmer Achievement:
+   - Name: "Not a programmer"
+   - ID: NOT_A_PROGRAMMER
+   - Description: "Probably sarcastically told Sean he's not a programmer"
+   - Trigger: Message contains the phrase "not a programmer" (case insensitive)
+   - Implementation: Case-insensitive string matching on message content
+
+## Reaction System Implementation
+- Added on_raw_reaction_add event handler in DrongoBot class
+- Reactions trigger achievement checks just like messages
+- Each reaction is checked against specific emoji sets for different achievements
+- Uses Discord's raw reaction event to ensure all reactions are captured
+
 ## Technical Details
 - Database Schema:
   ```sql
