@@ -70,15 +70,15 @@ class AchievementSystem:
                 system=DEFAULT_SYSTEM_PROMPT,
                 messages=[{
                     "role": "user", 
-                    "content": f"""Oi, this legend just earned the "{achievement.name}" achievement! Here's what it's for:
-{achievement.description}
-
-Give a brief, excited eshay-style response announcing their achievement, mentioning both the achievement name and why they got it. Keep it under 2 sentences."""
+                    "content": f"""Oi, this legend just earned an achievement! Give a brief, excited eshay-style response announcing their achievement. Keep it under 2 sentences and I'll format it with the achievement details after."""
                 }],
                 temperature=0.7,
             )
             ai_response = response.content[0].text
-            await channel.send(ai_response)
+            
+            # Format the achievement announcement with Discord markdown
+            formatted_message = f"{ai_response}\n\n> 🏆 **{achievement.name}**\n> ```\n> {achievement.description}\n> ```"
+            await channel.send(formatted_message)
         return True
 
     def has_achievement(self, user_id: int, achievement_id: str) -> bool:

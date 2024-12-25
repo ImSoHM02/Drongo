@@ -7,6 +7,8 @@
 - Added Achievement class to store achievement metadata (name, description)
 - Added "Test Achievement" with proper name and description
 - Enhanced AI responses to include achievement name and reason for earning it
+- Added Discord markdown formatting for achievement announcements (indented block style with trophy emoji)
+- Updated to use claude-3-5-sonnet-20241022 AI model
 
 ## Achievement Details
 - Name: "Test Achievement"
