@@ -1,10 +1,10 @@
 import sqlite3
 import discord
-from modules.ai.anthropic.ai import get_ai_response
-from modules.ai.anthropic.ai_prompt import create_prompt
+from modules.ai.anthropic.ai_prompt import DEFAULT_SYSTEM_PROMPT
 
 class AchievementSystem:
-    def __init__(self, db_path='achievements.db'):
+    def __init__(self, bot: discord.Client, db_path='achievements.db'):
+        self.bot = bot
         self.db_path = db_path
         self.setup_database()
 
@@ -47,13 +47,22 @@ class AchievementSystem:
             conn.commit()
 
         # Generate AI response about the achievement
-        prompt = f"""Oi, this legend just earned an achievement! Here's what happened:
+        async with channel.typing():
+            response = await self.bot.ai_handler.anthropic_client.messages.create(
+                model="claude-3-opus-20240229",
+                max_tokens=100,
+                system=DEFAULT_SYSTEM_PROMPT,
+                messages=[{
+                    "role": "user", 
+                    "content": f"""Oi, this legend just earned an achievement! Here's what happened:
 {context}
 
 Give a brief, excited eshay-style response announcing their achievement. Keep it under 2 sentences."""
-
-        ai_response = await get_ai_response(create_prompt(prompt))
-        await channel.send(ai_response)
+                }],
+                temperature=0.7,
+            )
+            ai_response = response.content[0].text
+            await channel.send(ai_response)
         return True
 
     def has_achievement(self, user_id: int, achievement_id: str) -> bool:

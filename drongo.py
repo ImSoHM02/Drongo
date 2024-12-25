@@ -98,7 +98,7 @@ class DrongoBot(commands.Bot):
         self.max_reconnect_attempts = 5
         self.anthropic_api_key = anthropic_api_key
         self.ai_handler = None  # Initialize ai_handler as None
-        self.achievement_system = AchievementSystem()  # Initialize achievement system
+        self.achievement_system = AchievementSystem(self)  # Initialize achievement system with bot instance
 
     async def setup_hook(self):
         self.stats_display.start()
