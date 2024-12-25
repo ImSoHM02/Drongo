@@ -26,6 +26,11 @@ class AchievementSystem:
                 "CHATTY",
                 "Chatterbox",
                 "Sent 50 messages in a single day"
+            ),
+            "LOVE_HOMIES": Achievement(
+                "LOVE_HOMIES",
+                "Showing some love to the homies <3",
+                "We love our homies"
             )
         }
 
@@ -61,6 +66,17 @@ class AchievementSystem:
         # Check for chatty achievement
         if await self.check_daily_messages(message.author.id):
             achievement = self.achievements["CHATTY"]
+            if await self.award_achievement(
+                message.author.id,
+                achievement.id,
+                message.channel,
+                achievement
+            ):
+                achievements_earned = True
+
+        # Check for love homies achievement
+        if message.mentions and "i love you" in message.content.lower():
+            achievement = self.achievements["LOVE_HOMIES"]
             if await self.award_achievement(
                 message.author.id,
                 achievement.id,

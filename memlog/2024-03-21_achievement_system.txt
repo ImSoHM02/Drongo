@@ -25,6 +25,13 @@
    - Trigger: Automatically checks message count in chat_history.db for the last 24 hours
    - Implementation: Uses SQL query with datetime functions to count messages within a rolling 24-hour window
 
+3. Love Homies Achievement:
+   - Name: "Showing some love to the homies <3"
+   - ID: LOVE_HOMIES
+   - Description: "We love our homies"
+   - Trigger: Message contains a user mention and the phrase "i love you" (case insensitive)
+   - Implementation: Checks message.mentions and does case-insensitive string matching
+
 ## Technical Details
 - Database Schema:
   ```sql
