@@ -1,4 +1,4 @@
-# Achievement System Implementation - 2024-03-21
+# Achievement System Implementation - 2024-12-26
 
 ## Changes Made
 - Created new module `modules/achievements/` for achievement system
@@ -60,6 +60,13 @@
    - Trigger: Message contains the phrase "not a programmer" (case insensitive)
    - Implementation: Case-insensitive string matching on message content
 
+8. True Aussie Achievement:
+   - Name: "True Aussie"
+   - ID: TRUE_AUSSIE
+   - Description: "Used some true Aussie insults"
+   - Trigger: Message contains the word "cunt" (case insensitive)
+   - Implementation: Case-insensitive string matching on message content
+
 ## Reaction System Implementation
 - Added on_raw_reaction_add event handler in DrongoBot class
 - Reactions trigger achievement checks just like messages
@@ -89,3 +96,16 @@
 - Moved achievement checking outside primary guild check
 - Now only database storage and stats tracking are limited to primary guild
 - Bot features (AI, achievements) now work in all servers
+
+## Achievement Command Implementation - 2024-03-21
+- Added /achievements slash command for users to check their progress
+- Command shows:
+  * List of earned achievements with names and descriptions
+  * Total number of achievements earned
+  * Number of remaining achievements (without revealing what they are)
+- Responses are ephemeral (only visible to the command user)
+- Implementation Details:
+  * Added get_user_achievements method to AchievementSystem
+  * Created new achievement_commands.py module
+  * Updated register_commands.py to include the command
+  * Modified drongo.py to set up achievement commands

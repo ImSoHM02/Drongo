@@ -1,5 +1,5 @@
 {
-  "version": "0.1.2.7",
+  "version": "0.1.2.8",
   "last_announced_version": "0.1.2.7",
   "changes": [
     {
@@ -97,6 +97,15 @@
         "Removed a bunch of useless commands",
         "Command updates",
         "Code refactoring"
+      ]
+    },
+    {
+      "version": "0.1.2.8",
+      "date": "26-12-2024",
+      "notes": [
+        "Added achievement system with 8 unique achievements to discover",
+        "Added /achievements command to check your progress",
+        "Added a /webstats command to give a link to a local-hosted webpage showing some stats from the message database"
       ]
     }
   ]

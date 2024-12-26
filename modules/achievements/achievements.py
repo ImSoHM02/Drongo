@@ -51,6 +51,11 @@ class AchievementSystem:
                 "NOT_A_PROGRAMMER",
                 "Not a programmer",
                 "Probably sarcastically told Sean he's not a programmer"
+            ),
+            "TRUE_AUSSIE": Achievement(
+                "TRUE_AUSSIE",
+                "True Aussie",
+                "Used some true Aussie insults"
             )
         }
 
@@ -153,6 +158,17 @@ class AchievementSystem:
             ):
                 achievements_earned = True
 
+        # Check for "True Aussie" achievement
+        if "cunt" in message.content.lower():
+            achievement = self.achievements["TRUE_AUSSIE"]
+            if await self.award_achievement(
+                message.author.id,
+                achievement.id,
+                message.channel,
+                achievement
+            ):
+                achievements_earned = True
+
         return achievements_earned
 
     async def check_daily_messages(self, user_id: str) -> bool:
@@ -190,7 +206,7 @@ class AchievementSystem:
                 system=DEFAULT_SYSTEM_PROMPT,
                 messages=[{
                     "role": "user", 
-                    "content": f"""Oi, this legend just earned an achievement! Give a brief, excited eshay-style response announcing their achievement. Keep it under 2 sentences and I'll format it with the achievement details after."""
+                    "content": f"""Give a brief, excited eshay-style response announcing their achievement. Keep it under 2 sentences and I'll format it with the achievement details after."""
                 }],
                 temperature=0.7,
             )
