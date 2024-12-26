@@ -121,7 +121,7 @@ class AchievementSystem:
                     achievements_earned = True
             
             # Check for big puff achievement
-            elif emoji_name == '🚬':  # smoking
+            if emoji_name == '🚬':  # smoking
                 achievement = self.achievements["BIG_PUFF"]
                 if await self.award_achievement(
                     reaction.member.id,
@@ -131,8 +131,8 @@ class AchievementSystem:
                 ):
                     achievements_earned = True
             
-        # Check for TN roll achievement
-            elif emoji_name in ['👟', '🏃']:  # athletic_shoe or running_shoe
+            # Check for TN roll achievement
+            if emoji_name in ['👟', '🏃']:  # athletic_shoe or running_shoe
                 achievement = self.achievements["TN_ROLL"]
                 if await self.award_achievement(
                     reaction.member.id,

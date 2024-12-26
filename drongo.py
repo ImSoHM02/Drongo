@@ -208,8 +208,15 @@ class DrongoBot(commands.Bot):
 
         channel = self.get_channel(payload.channel_id)
         message = await channel.fetch_message(payload.message_id)
-        reaction = discord.utils.get(message.reactions, emoji=payload.emoji)
         
+        # Create a custom reaction object with the necessary attributes
+        class CustomReaction:
+            def __init__(self, emoji, member):
+                self.emoji = emoji
+                self.member = member
+                self.message = message
+
+        reaction = CustomReaction(payload.emoji, payload.member)
         await self.achievement_system.check_achievement(message, reaction)
 
 intents = discord.Intents.default()
