@@ -165,6 +165,9 @@ class DrongoBot(commands.Bot):
             emoji_downloader.setup(self)
             # Web interface command
             web_link.setup(self)
+            # Achievement commands
+            from modules import achievement_commands
+            achievement_commands.setup(self)
             
             # Load version tracker after AI handler is initialized
             await self.load_extension("modules.version_tracker")

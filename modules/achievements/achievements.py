@@ -210,3 +210,22 @@ class AchievementSystem:
                 (user_id, achievement_id)
             )
             return cursor.fetchone() is not None
+
+    def get_user_achievements(self, user_id: int) -> tuple[list[Achievement], int]:
+        """Get a user's earned achievements and total possible achievements count."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                'SELECT achievement_id FROM user_achievements WHERE user_id = ?',
+                (user_id,)
+            )
+            earned_ids = {row[0] for row in cursor.fetchall()}
+            
+            earned_achievements = [
+                achievement for id, achievement in self.achievements.items()
+                if id in earned_ids
+            ]
+            
+            total_achievements = len(self.achievements)
+            
+            return earned_achievements, total_achievements

@@ -132,6 +132,10 @@ def get_commands():
         {
             "name": "webstats",
             "description": "Get the link to the web statistics interface"
+        },
+        {
+            "name": "achievements",
+            "description": "Check your achievement progress"
         }
     ]
 
