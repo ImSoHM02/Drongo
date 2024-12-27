@@ -99,6 +99,8 @@ class DrongoBot(commands.Bot):
         self.anthropic_api_key = anthropic_api_key
         self.ai_handler = None  # Initialize ai_handler as None
         self.achievement_system = AchievementSystem(self)  # Initialize achievement system with bot instance
+        # Set achievement system start time (December 26, 2024)
+        self.achievement_start_time = 1703548800  # Unix timestamp for 2024-12-26 00:00:00 UTC
 
     async def setup_hook(self):
         self.stats_display.start()
@@ -184,9 +186,12 @@ class DrongoBot(commands.Bot):
         # Update message count
         self.stats_display.update_stats("Messages Processed", self.stats_display.stats["Messages Processed"] + 1)
 
-        # Process AI response and achievements for all guilds
+        # Process AI response for all guilds
         full_message_content = await self.ai_handler.process_message(message)
-        await self.achievement_system.check_achievement(message)
+        
+        # Only check achievements for messages after the system was implemented
+        if message.created_at.timestamp() > self.achievement_start_time:
+            await self.achievement_system.check_achievement(message)
 
         # Store messages and stats only for primary guild
         if str(message.guild.id) == primary_guild_id:
@@ -209,18 +214,20 @@ class DrongoBot(commands.Bot):
         if payload.member.bot:
             return
 
-        channel = self.get_channel(payload.channel_id)
-        message = await channel.fetch_message(payload.message_id)
-        
-        # Create a custom reaction object with the necessary attributes
-        class CustomReaction:
-            def __init__(self, emoji, member):
-                self.emoji = emoji
-                self.member = member
-                self.message = message
+        # Only process reactions that occurred after the achievement system was implemented
+        if payload.message_id > int((self.achievement_start_time * 1000 - 1420070400000) << 22):
+            channel = self.get_channel(payload.channel_id)
+            message = await channel.fetch_message(payload.message_id)
+            
+            # Create a custom reaction object with the necessary attributes
+            class CustomReaction:
+                def __init__(self, emoji, member):
+                    self.emoji = emoji
+                    self.member = member
+                    self.message = message
 
-        reaction = CustomReaction(payload.emoji, payload.member)
-        await self.achievement_system.check_achievement(message, reaction)
+            reaction = CustomReaction(payload.emoji, payload.member)
+            await self.achievement_system.check_achievement(message, reaction)
 
 intents = discord.Intents.default()
 intents.messages = True

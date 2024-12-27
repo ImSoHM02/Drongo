@@ -97,7 +97,7 @@
 - Now only database storage and stats tracking are limited to primary guild
 - Bot features (AI, achievements) now work in all servers
 
-## Achievement Command Implementation - 2024-03-21
+## Achievement Command Implementation - 2024-12-26
 - Added /achievements slash command for users to check their progress
 - Command shows:
   * List of earned achievements with names and descriptions
@@ -109,3 +109,19 @@
   * Created new achievement_commands.py module
   * Updated register_commands.py to include the command
   * Modified drongo.py to set up achievement commands
+
+## Achievement System Fix - 2024-12-26
+- Added timestamp check to prevent achievements from triggering on old content
+- Implementation Details:
+  * Added achievement_start_time (December 26, 2024 00:00:00 UTC)
+  * Messages are only checked if created after start time
+  * Reactions are only processed if the message was created after start time
+  * Uses Discord's Snowflake ID format to efficiently check message timestamps
+
+## Achievement Announcement Improvements - 2024-12-26
+- Enhanced achievement announcements to properly tag users and fix AI responses
+- Implementation Details:
+  * Added user mention at the start of achievement messages
+  * Modified AI prompt to include user's name
+  * Fixed AI responses to correctly indicate announcing someone else's achievement
+  * Added user lookup to ensure valid mentions

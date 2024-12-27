@@ -198,6 +198,11 @@ class AchievementSystem:
             )
             conn.commit()
 
+        # Get user mention
+        user = self.bot.get_user(user_id)
+        if not user:
+            return False
+
         # Generate AI response about the achievement
         async with channel.typing():
             response = await self.bot.ai_handler.anthropic_client.messages.create(
@@ -206,14 +211,14 @@ class AchievementSystem:
                 system=DEFAULT_SYSTEM_PROMPT,
                 messages=[{
                     "role": "user", 
-                    "content": f"""Give a brief, excited eshay-style response announcing their achievement. Keep it under 2 sentences and I'll format it with the achievement details after."""
+                    "content": f"""Oi, {user.name} just earned an achievement! Give a brief, excited eshay-style response announcing their achievement. Keep it under 2 sentences and I'll format it with the achievement details after."""
                 }],
                 temperature=0.7,
             )
             ai_response = response.content[0].text
             
             # Format the achievement announcement with Discord markdown
-            formatted_message = f"{ai_response}\n\n> 🏆 **{achievement.name}**\n> ```\n> {achievement.description}\n> ```"
+            formatted_message = f"{user.mention} {ai_response}\n\n> 🏆 **{achievement.name}**\n> ```\n> {achievement.description}\n> ```"
             await channel.send(formatted_message)
         return True
 
