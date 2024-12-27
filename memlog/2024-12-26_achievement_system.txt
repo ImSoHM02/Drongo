@@ -125,3 +125,4 @@
   * Modified AI prompt to include user's name
   * Fixed AI responses to correctly indicate announcing someone else's achievement
   * Added user lookup to ensure valid mentions
+  * Improved user lookup to use guild.get_member with bot.get_user fallback

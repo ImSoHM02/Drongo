@@ -198,10 +198,14 @@ class AchievementSystem:
             )
             conn.commit()
 
-        # Get user mention
-        user = self.bot.get_user(user_id)
+        # Get user mention from the guild member
+        guild = channel.guild
+        user = guild.get_member(user_id)
         if not user:
-            return False
+            # Fallback to bot.get_user if guild.get_member fails
+            user = self.bot.get_user(user_id)
+            if not user:
+                return False
 
         # Generate AI response about the achievement
         async with channel.typing():
