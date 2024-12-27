@@ -111,12 +111,12 @@
   * Modified drongo.py to set up achievement commands
 
 ## Achievement System Fix - 2024-12-26
-- Added timestamp check to prevent achievements from triggering on old content
+- Added time window check to prevent achievements from triggering on old content
 - Implementation Details:
-  * Added achievement_start_time (December 26, 2024 00:00:00 UTC)
-  * Messages are only checked if created after start time
-  * Reactions are only processed if the message was created after start time
-  * Uses Discord's Snowflake ID format to efficiently check message timestamps
+  * Messages and reactions are only processed if they occurred within the last hour
+  * Uses Discord's UTC timestamp utilities to calculate message age
+  * Prevents achievements from being triggered by historical content
+  * More dynamic approach compared to fixed start date
 
 ## Achievement Announcement Improvements - 2024-12-26
 - Enhanced achievement announcements to properly tag users and fix AI responses

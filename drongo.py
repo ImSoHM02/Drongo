@@ -99,8 +99,6 @@ class DrongoBot(commands.Bot):
         self.anthropic_api_key = anthropic_api_key
         self.ai_handler = None  # Initialize ai_handler as None
         self.achievement_system = AchievementSystem(self)  # Initialize achievement system with bot instance
-        # Set achievement system start time (December 26, 2024)
-        self.achievement_start_time = 1703548800  # Unix timestamp for 2024-12-26 00:00:00 UTC
 
     async def setup_hook(self):
         self.stats_display.start()
@@ -189,8 +187,9 @@ class DrongoBot(commands.Bot):
         # Process AI response for all guilds
         full_message_content = await self.ai_handler.process_message(message)
         
-        # Only check achievements for messages after the system was implemented
-        if message.created_at.timestamp() > self.achievement_start_time:
+        # Only check achievements for messages from the last hour
+        message_age = (discord.utils.utcnow() - message.created_at).total_seconds()
+        if message_age <= 3600:  # 3600 seconds = 1 hour
             await self.achievement_system.check_achievement(message)
 
         # Store messages and stats only for primary guild
@@ -214,10 +213,12 @@ class DrongoBot(commands.Bot):
         if payload.member.bot:
             return
 
-        # Only process reactions that occurred after the achievement system was implemented
-        if payload.message_id > int((self.achievement_start_time * 1000 - 1420070400000) << 22):
-            channel = self.get_channel(payload.channel_id)
-            message = await channel.fetch_message(payload.message_id)
+        channel = self.get_channel(payload.channel_id)
+        message = await channel.fetch_message(payload.message_id)
+        
+        # Only process reactions from the last hour
+        message_age = (discord.utils.utcnow() - message.created_at).total_seconds()
+        if message_age <= 3600:  # 3600 seconds = 1 hour
             
             # Create a custom reaction object with the necessary attributes
             class CustomReaction:
