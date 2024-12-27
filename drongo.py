@@ -99,6 +99,7 @@ class DrongoBot(commands.Bot):
         self.anthropic_api_key = anthropic_api_key
         self.ai_handler = None  # Initialize ai_handler as None
         self.achievement_system = AchievementSystem(self)  # Initialize achievement system with bot instance
+        self.start_time = None  # Will be set when bot is ready
 
     async def setup_hook(self):
         self.stats_display.start()
@@ -107,6 +108,7 @@ class DrongoBot(commands.Bot):
         self.stats_display.set_status("Connected")
         self.reconnect_attempts = 0
         self.logger.info(f'Logged in as {self.user}')
+        self.start_time = discord.utils.utcnow()  # Set bot start time
         await self.setup_bot()
 
     async def on_disconnect(self):
@@ -147,6 +149,8 @@ class DrongoBot(commands.Bot):
 
                         for message in reversed(messages):
                             if message.author != self.user and not message.author.bot:
+                                # Store message in database but don't process for achievements
+                                # This prevents achievements from triggering on historical messages during setup
                                 attachment_urls = ' '.join([attachment.url for attachment in message.attachments])
                                 full_message_content = f"{message.clean_content} {attachment_urls}".strip()
                                 await store_message(conn, message, full_message_content)
@@ -187,9 +191,8 @@ class DrongoBot(commands.Bot):
         # Process AI response for all guilds
         full_message_content = await self.ai_handler.process_message(message)
         
-        # Only check achievements for messages from the last hour
-        message_age = (discord.utils.utcnow() - message.created_at).total_seconds()
-        if message_age <= 3600:  # 3600 seconds = 1 hour
+        # Only process messages that occur after bot start
+        if message.created_at >= self.start_time:
             await self.achievement_system.check_achievement(message)
 
         # Store messages and stats only for primary guild
@@ -215,24 +218,27 @@ class DrongoBot(commands.Bot):
 
         channel = self.get_channel(payload.channel_id)
         message = await channel.fetch_message(payload.message_id)
-        
-        # Only process reactions from the last hour
-        message_age = (discord.utils.utcnow() - message.created_at).total_seconds()
-        if message_age <= 3600:  # 3600 seconds = 1 hour
-            
-            # Create a custom reaction object with the necessary attributes
-            class CustomReaction:
-                def __init__(self, emoji, member):
-                    self.emoji = emoji
-                    self.member = member
-                    self.message = message
 
-            reaction = CustomReaction(payload.emoji, payload.member)
-            await self.achievement_system.check_achievement(message, reaction)
+        # Only process reactions that occur after bot start
+        if message.created_at < self.start_time:
+            return
+        
+        # Create a custom reaction object with the necessary attributes
+        class CustomReaction:
+            def __init__(self, emoji, member):
+                self.emoji = emoji
+                self.member = member
+                self.message = message
+
+        reaction = CustomReaction(payload.emoji, payload.member)
+        await self.achievement_system.check_achievement(message, reaction)
 
 intents = discord.Intents.default()
 intents.messages = True
 intents.message_content = True
+intents.reactions = True
+intents.members = True
+intents.guilds = True
 
 bot = DrongoBot(command_prefix='!', intents=intents)
 bot.authorized_user_id = authorized_user_id

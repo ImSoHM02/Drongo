@@ -110,19 +110,22 @@
   * Updated register_commands.py to include the command
   * Modified drongo.py to set up achievement commands
 
-## Achievement System Fix - 2024-12-26
-- Added time window check to prevent achievements from triggering on old content
+## Achievement System Historical Message Handling - 2024-12-26
+- Implemented smart handling of historical messages and reactions
 - Implementation Details:
-  * Messages and reactions are only processed if they occurred within the last hour
-  * Uses Discord's UTC timestamp utilities to calculate message age
-  * Prevents achievements from being triggered by historical content
-  * More dynamic approach compared to fixed start date
+  * Added bot start time tracking to determine message age
+  * Historical messages during bot startup are stored in database but not processed for achievements
+  * New messages and reactions are only processed if they occurred after bot startup
+  * This prevents unwanted achievement triggers from old content while maintaining message history
+  * Added proper Discord intents (reactions, members, guilds) for full functionality
+  * Fixed user mention formatting in achievement announcements
+  * Uses guild.get_member with bot.get_user fallback for reliable user resolution
 
-## Achievement Announcement Improvements - 2024-12-26
-- Enhanced achievement announcements to properly tag users and fix AI responses
+## Achievement System Improvements - 2024-12-26
+- Enhanced overall achievement system reliability and user experience
 - Implementation Details:
-  * Added user mention at the start of achievement messages
-  * Modified AI prompt to include user's name
-  * Fixed AI responses to correctly indicate announcing someone else's achievement
-  * Added user lookup to ensure valid mentions
-  * Improved user lookup to use guild.get_member with bot.get_user fallback
+  * Achievements now trigger properly for all new messages and reactions after bot start
+  * Proper handling of user mentions ensures notifications reach the correct users
+  * Fixed code indentation in reaction handling system for better maintainability
+  * System maintains historical message data for stats/tracking while preventing unwanted achievement triggers
+  * Clear separation between message storage and achievement processing
