@@ -6,11 +6,9 @@ Achievement System Updates (2024-12-28):
 
 2. Fixed LOST_EVEN_ODD achievement trigger:
 - Removed user ID restriction to allow any user to earn the achievement
-- Improved message content check to handle Discord bot formatting:
-  - Removes markdown characters (`, *, >)
-  - Normalizes whitespace and indentation
-  - Handles both "0" and "0 coins" formats
-  - More flexible parsing of "your winnings" results
+- Changed trigger condition to look for "!=" symbol in messages
+- Simplified logic for more reliable detection
+- Maintains markdown and whitespace cleaning for consistent text matching
 
 3. Code Improvements:
 - Removed unnecessary break statement that was causing syntax error
