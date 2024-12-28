@@ -24,8 +24,13 @@ class AchievementSystem:
             ),
             "CHATTY": Achievement(
                 "CHATTY",
-                "Chatterbox",
+                "Talks-a-lot",
                 "Sent 50 messages in a single day"
+            ),
+            "SUPER_CHATTY": Achievement(
+                "SUPER_CHATTY",
+                "Talks-too-much",
+                "Sent 100 messages in a single day"
             ),
             "LOVE_HOMIES": Achievement(
                 "LOVE_HOMIES",
@@ -56,6 +61,26 @@ class AchievementSystem:
                 "TRUE_AUSSIE",
                 "True Aussie",
                 "Used some true Aussie insults"
+            ),
+            "FLUX_COMMAND": Achievement(
+                "FLUX_COMMAND",
+                "Is it porn?",
+                "Generated an image using Fini's Flux (Probably porn)"
+            ),
+            "BROKE_LEG": Achievement(
+                "BROKE_LEG",
+                "MY LEG!",
+                "Probably talking about how Jamies broke his leg"
+            ),
+            "CURSED": Achievement(
+                "CURSED",
+                "Cursed",
+                "Used the best emoji of all time"
+            ),
+            "LOST_EVEN_ODD": Achievement(
+                "LOST_EVEN_ODD",
+                "Lost the even/odd",
+                "Didn't have enough Lucky Rabbit Feet equipped"
             )
         }
 
@@ -88,9 +113,21 @@ class AchievementSystem:
             ):
                 achievements_earned = True
 
-        # Check for chatty achievement
-        if await self.check_daily_messages(message.author.id):
+        # Check for chatty achievements
+        has_50, has_100 = await self.check_daily_messages(message.author.id)
+        
+        if has_50:
             achievement = self.achievements["CHATTY"]
+            if await self.award_achievement(
+                message.author.id,
+                achievement.id,
+                message.channel,
+                achievement
+            ):
+                achievements_earned = True
+                
+        if has_100:
+            achievement = self.achievements["SUPER_CHATTY"]
             if await self.award_achievement(
                 message.author.id,
                 achievement.id,
@@ -169,10 +206,55 @@ class AchievementSystem:
             ):
                 achievements_earned = True
 
+        # Check for Flux command usage
+        if message.content.startswith('/flux'):
+            achievement = self.achievements["FLUX_COMMAND"]
+            if await self.award_achievement(
+                message.author.id,
+                achievement.id,
+                message.channel,
+                achievement
+            ):
+                achievements_earned = True
+
+        # Check for "broke your leg" achievement
+        if "broke your leg" in message.content.lower():
+            achievement = self.achievements["BROKE_LEG"]
+            if await self.award_achievement(
+                message.author.id,
+                achievement.id,
+                message.channel,
+                achievement
+            ):
+                achievements_earned = True
+
+        # Check for cursed_f emoji in message
+        if "cursed_f" in message.content.lower():
+            achievement = self.achievements["CURSED"]
+            if await self.award_achievement(
+                message.author.id,
+                achievement.id,
+                message.channel,
+                achievement
+            ):
+                achievements_earned = True
+
+        # Check for lost even/odd achievement
+        if str(message.author.id) == "608114286082129921" and "Your Winnings\n0" in message.content:
+            achievement = self.achievements["LOST_EVEN_ODD"]
+            if await self.award_achievement(
+                message.author.id,
+                achievement.id,
+                message.channel,
+                achievement
+            ):
+                achievements_earned = True
+
         return achievements_earned
 
-    async def check_daily_messages(self, user_id: str) -> bool:
-        """Check if a user has sent 50 messages in the last 24 hours."""
+    async def check_daily_messages(self, user_id: str) -> tuple[bool, bool]:
+        """Check if a user has sent 50 or 100 messages in the last 24 hours.
+        Returns a tuple of (has_50, has_100)"""
         conn = await get_db_connection()
         try:
             async with conn.execute("""
@@ -181,7 +263,7 @@ class AchievementSystem:
                 AND datetime(timestamp) >= datetime('now', '-1 day')
             """, (str(user_id),)) as cursor:
                 count = (await cursor.fetchone())[0]
-                return count >= 50
+                return count >= 50, count >= 100
         finally:
             await conn.close()
 
