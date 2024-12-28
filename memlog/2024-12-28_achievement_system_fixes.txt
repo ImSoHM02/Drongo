@@ -1,0 +1,16 @@
+Achievement System Updates (2024-12-28):
+
+1. Fixed FLUX_COMMAND achievement trigger:
+- Now detects both regular messages starting with "flux" (case-insensitive)
+- Added support for slash command interactions with command name "flux"
+
+2. Fixed LOST_EVEN_ODD achievement trigger:
+- Changed user ID comparison from string to integer (608114286082129921)
+- Improved message content check to be more flexible:
+  - Looks for "your winnings" followed by "0" in a more natural way
+  - Handles variations in formatting while maintaining accuracy
+
+3. Code Improvements:
+- Removed unnecessary break statement that was causing syntax error
+- Added case-insensitive checks for better text matching
+- Improved code readability and maintainability

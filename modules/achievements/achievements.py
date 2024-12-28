@@ -207,7 +207,7 @@ class AchievementSystem:
                 achievements_earned = True
 
         # Check for Flux command usage
-        if message.content.startswith('/flux'):
+        if message.content.lower().startswith('flux') or (hasattr(message, 'interaction') and message.interaction and message.interaction.command.name == 'flux'):
             achievement = self.achievements["FLUX_COMMAND"]
             if await self.award_achievement(
                 message.author.id,
@@ -240,15 +240,17 @@ class AchievementSystem:
                 achievements_earned = True
 
         # Check for lost even/odd achievement
-        if str(message.author.id) == "608114286082129921" and "!=" in message.content:
-            achievement = self.achievements["LOST_EVEN_ODD"]
-            if await self.award_achievement(
-                message.author.id,
-                achievement.id,
-                message.channel,
-                achievement
-            ):
-                achievements_earned = True
+        if message.author.id == 608114286082129921:  # Convert to integer comparison
+            content = message.content.lower()
+            if "your winnings" in content and "0" in content.split("your winnings")[1].split("\n")[0]:
+                achievement = self.achievements["LOST_EVEN_ODD"]
+                if await self.award_achievement(
+                    message.author.id,
+                    achievement.id,
+                    message.channel,
+                    achievement
+                ):
+                    achievements_earned = True
 
         return achievements_earned
 
