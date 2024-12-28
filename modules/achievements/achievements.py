@@ -207,7 +207,7 @@ class AchievementSystem:
                 achievements_earned = True
 
         # Check for Flux command usage
-        if message.content.lower().startswith('flux') or (hasattr(message, 'interaction') and message.interaction and message.interaction.command.name == 'flux'):
+        if message.content.lower().startswith('flux') or (hasattr(message, 'interaction_metadata') and message.interaction_metadata and message.interaction_metadata.command.name == 'flux'):
             achievement = self.achievements["FLUX_COMMAND"]
             if await self.award_achievement(
                 message.author.id,

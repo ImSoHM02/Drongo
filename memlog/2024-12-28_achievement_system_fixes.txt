@@ -2,6 +2,7 @@ Achievement System Updates (2024-12-28):
 
 1. Fixed FLUX_COMMAND achievement trigger:
 - Now detects both regular messages starting with "flux" (case-insensitive)
+- Updated to use interaction_metadata instead of deprecated interaction property
 - Added support for slash command interactions with command name "flux"
 
 2. Fixed LOST_EVEN_ODD achievement trigger:
@@ -15,3 +16,4 @@ Achievement System Updates (2024-12-28):
 - Added case-insensitive checks for better text matching
 - Improved code readability and maintainability
 - Enhanced handling of formatted Discord messages
+- Fixed deprecation warnings by updating to newer Discord.py properties
