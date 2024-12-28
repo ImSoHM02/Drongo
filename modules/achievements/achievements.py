@@ -240,8 +240,9 @@ class AchievementSystem:
                 achievements_earned = True
 
         # Check for lost even/odd achievement
-        content = message.content.lower()
-        if "your winnings" in content and "0" in content.split("your winnings")[1].split("\n")[0]:
+        # Clean the message content by removing markdown and extra whitespace
+        content = ' '.join(message.content.lower().replace('`', '').replace('*', '').replace('>', '').split())
+        if "your winnings" in content and ("0" in content.split("your winnings")[1].split() or "0 coins" in content.split("your winnings")[1]):
                 achievement = self.achievements["LOST_EVEN_ODD"]
                 if await self.award_achievement(
                     message.author.id,
