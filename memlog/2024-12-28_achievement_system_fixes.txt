@@ -5,7 +5,7 @@ Achievement System Updates (2024-12-28):
 - Added support for slash command interactions with command name "flux"
 
 2. Fixed LOST_EVEN_ODD achievement trigger:
-- Changed user ID comparison from string to integer (608114286082129921)
+- Removed user ID restriction to allow any user to earn the achievement
 - Improved message content check to be more flexible:
   - Looks for "your winnings" followed by "0" in a more natural way
   - Handles variations in formatting while maintaining accuracy
