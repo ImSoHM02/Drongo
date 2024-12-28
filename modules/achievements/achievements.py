@@ -70,7 +70,7 @@ class AchievementSystem:
             "BROKE_LEG": Achievement(
                 "BROKE_LEG",
                 "MY LEG!",
-                "Probably talking about how Jamies broke his leg"
+                "Probably talking about how Jamie broke his leg"
             ),
             "CURSED": Achievement(
                 "CURSED",
