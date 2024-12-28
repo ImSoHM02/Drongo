@@ -240,7 +240,7 @@ class AchievementSystem:
                 achievements_earned = True
 
         # Check for lost even/odd achievement
-        if str(message.author.id) == "608114286082129921" and "Your Winnings\n0" in message.content:
+        if str(message.author.id) == "608114286082129921" and "!=" in message.content:
             achievement = self.achievements["LOST_EVEN_ODD"]
             if await self.award_achievement(
                 message.author.id,
