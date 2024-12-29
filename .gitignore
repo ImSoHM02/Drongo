@@ -11,3 +11,7 @@ id.env
 achievements.db
 __pycache__/
 error.log
+Documentation/API Reference - discord.ext.commands.md
+Documentation/discord.ext.tasks – asyncio.Task helpers.md
+Documentation/discord.py API Reference.md
+Documentation/Interactions API Reference.md
