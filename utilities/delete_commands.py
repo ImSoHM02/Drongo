@@ -1,17 +1,33 @@
 import aiohttp
 import asyncio
 import os
+import sys
 from dotenv import load_dotenv
 
-# Load the environment variables from id.env
-load_dotenv('id.env')
+# Load the environment variables from id.env in parent directory
+load_dotenv('../id.env')
 
 async def delete_all_commands():
     print("====== DELETE COMMANDS ======")
 
+    # Check for required environment variables
     token = os.getenv("DISCORD_BOT_TOKEN")
+    if not token:
+        print("Error: DISCORD_BOT_TOKEN environment variable is not set")
+        sys.exit(1)
+
     client_id = os.getenv("DISCORD_CLIENT_ID")
-    guild_ids = os.getenv("DISCORD_GUILD_ID").split(',')
+    if not client_id:
+        print("Error: DISCORD_CLIENT_ID environment variable is not set")
+        sys.exit(1)
+
+    guild_ids = os.getenv("DISCORD_GUILD_ID")
+    if not guild_ids:
+        print("Error: DISCORD_GUILD_ID environment variable is not set")
+        print("Please set DISCORD_GUILD_ID with comma-separated guild IDs")
+        sys.exit(1)
+    
+    guild_ids = guild_ids.split(',')
 
     async with aiohttp.ClientSession() as session:
         headers = {"Authorization": f"Bot {token}"}
