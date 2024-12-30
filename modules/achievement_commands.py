@@ -34,12 +34,14 @@ async def achievements(interaction: discord.Interaction, bot):
     
     # Create the achievements list message
     achievements_text = "\n".join([
-        f"> 🏆 **{achievement.name}**\n> ```\n> {achievement.description}\n> ```"
+        f"> 🏆 **{achievement.name}** ({achievement.points} points)\n> ```\n> {achievement.description}\n> ```"
         for achievement in earned_achievements
     ])
     
     remaining = total_achievements - len(earned_achievements)
-    status = f"You've earned {len(earned_achievements)} achievement{'s' if len(earned_achievements) != 1 else ''}!"
+    # Calculate total points
+    total_points = sum(achievement.points for achievement in earned_achievements)
+    status = f"You've earned {len(earned_achievements)} achievement{'s' if len(earned_achievements) != 1 else ''} worth {total_points} points!"
     if remaining > 0:
         status += f" There {'is' if remaining == 1 else 'are'} {remaining} more to discover!"
     
@@ -47,6 +49,29 @@ async def achievements(interaction: discord.Interaction, bot):
         f"{status}\n\n{achievements_text}",
         ephemeral=True
     )
+
+async def leaderboard(interaction: discord.Interaction, bot):
+    """Display the achievement leaderboard."""
+    leaderboard_data = await bot.achievement_system.get_leaderboard(interaction.guild)
+    
+    if not leaderboard_data:
+        await interaction.response.send_message(
+            "No achievements have been earned yet!",
+            ephemeral=True
+        )
+        return
+    
+    # Create the leaderboard message
+    leaderboard_text = "🏆 **Achievement Leaderboard**\n\n"
+    
+    # Add medal emojis for top 3
+    medals = ["🥇", "🥈", "🥉"]
+    
+    for i, (member, points, count) in enumerate(leaderboard_data[:10]):  # Show top 10
+        prefix = medals[i] if i < 3 else "👤"
+        leaderboard_text += f"{prefix} **{member.display_name}** - {points} points ({count} achievements)\n"
+    
+    await interaction.response.send_message(leaderboard_text)
 
 def setup(bot):
     @bot.tree.command(
@@ -64,4 +89,12 @@ def setup(bot):
     )
     async def achievements_command(interaction: discord.Interaction):
         await achievements(interaction, bot)
+        bot.stats_display.update_stats("Commands Executed", bot.stats_display.stats["Commands Executed"] + 1)
+
+    @bot.tree.command(
+        name="achievement_leaderboard",
+        description="View the achievement leaderboard"
+    )
+    async def leaderboard_command(interaction: discord.Interaction):
+        await leaderboard(interaction, bot)
         bot.stats_display.update_stats("Commands Executed", bot.stats_display.stats["Commands Executed"] + 1)

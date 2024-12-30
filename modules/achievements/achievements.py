@@ -4,98 +4,131 @@ from modules.ai.anthropic.ai_prompt import DEFAULT_SYSTEM_PROMPT
 from database import get_db_connection
 
 class Achievement:
-    def __init__(self, id: str, name: str, description: str):
+    def __init__(self, id: str, name: str, description: str, points: int = 10):
         self.id = id
         self.name = name
         self.description = description
+        self.points = points
 
 class AchievementSystem:
     def __init__(self, bot: discord.Client, db_path='achievements.db'):
         self.bot = bot
         self.db_path = db_path
-        self.setup_database()
         
-        # Define achievements
+        # Define achievements first
         self.achievements = {
             "FIRST_REQUEST": Achievement(
                 "FIRST_REQUEST",
                 "Test Achievement",
-                "Earned by asking for an achievement using the 'iwantanachievement' secret word"
+                "Earned by asking for an achievement using the 'iwantanachievement' secret word",
+                points=5
             ),
             "CHATTY": Achievement(
                 "CHATTY",
                 "Talks-a-lot",
-                "Sent 50 messages in a single day"
+                "Sent 50 messages in a single day",
+                points=15
             ),
             "SUPER_CHATTY": Achievement(
                 "SUPER_CHATTY",
                 "Talks-too-much",
-                "Sent 100 messages in a single day"
+                "Sent 100 messages in a single day",
+                points=30
             ),
             "LOVE_HOMIES": Achievement(
                 "LOVE_HOMIES",
                 "Showing some love to the homies <3",
-                "We love our homies"
+                "We love our homies",
+                points=10
             ),
             "BUMBAG": Achievement(
                 "BUMBAG",
                 "Bumbag",
-                "You adjusted your bumbag in public"
+                "You adjusted your bumbag in public",
+                points=10
             ),
             "BIG_PUFF": Achievement(
                 "BIG_PUFF",
                 "Big Puff",
-                "Took a big puff of your ciggie"
+                "Took a big puff of your ciggie",
+                points=10
             ),
             "TN_ROLL": Achievement(
                 "TN_ROLL",
                 "Rolled your first pair of TN's",
-                "Rolled a fuckin' nerd for his TN's"
+                "Rolled a fuckin' nerd for his TN's",
+                points=20
             ),
             "NOT_A_PROGRAMMER": Achievement(
                 "NOT_A_PROGRAMMER",
                 "Not a programmer",
-                "Probably sarcastically told Sean he's not a programmer"
+                "Probably sarcastically told Sean he's not a programmer",
+                points=15
             ),
             "TRUE_AUSSIE": Achievement(
                 "TRUE_AUSSIE",
                 "True Aussie",
-                "Used some true Aussie insults"
+                "Used some true Aussie insults",
+                points=10
             ),
             "FLUX_COMMAND": Achievement(
                 "FLUX_COMMAND",
                 "Is it porn?",
-                "Generated an image using Fini's Flux (Probably porn)"
+                "Generated an image using Fini's Flux (Probably porn)",
+                points=15
             ),
             "BROKE_LEG": Achievement(
                 "BROKE_LEG",
                 "MY LEG!",
-                "Probably talking about how Jamie broke his leg"
+                "Probably talking about how Jamie broke his leg",
+                points=10
             ),
             "CURSED": Achievement(
                 "CURSED",
                 "Cursed",
-                "Used the best emoji of all time"
+                "Used the best emoji of all time",
+                points=20
             ),
             "LOST_EVEN_ODD": Achievement(
                 "LOST_EVEN_ODD",
                 "Lost the even/odd",
-                "Didn't have enough Lucky Rabbit Feet equipped"
+                "Didn't have enough Lucky Rabbit Feet equipped",
+                points=25
             )
         }
+        
+        # Initialize database after achievements are defined
+        self.setup_database()
 
     def setup_database(self):
         """Initialize the achievements database."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
+            
+            # Create the table if it doesn't exist
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS user_achievements (
                     user_id INTEGER,
                     achievement_id TEXT,
                     earned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    points INTEGER,
                     PRIMARY KEY (user_id, achievement_id)
                 )
             ''')
+            
+            # Check if points column exists, if not add it and populate with default values
+            cursor.execute("PRAGMA table_info(user_achievements)")
+            columns = [column[1] for column in cursor.fetchall()]
+            
+            if 'points' not in columns:
+                cursor.execute('ALTER TABLE user_achievements ADD COLUMN points INTEGER')
+                # Update existing achievements with their current point values
+                for achievement_id, achievement in self.achievements.items():
+                    cursor.execute(
+                        'UPDATE user_achievements SET points = ? WHERE achievement_id = ?',
+                        (achievement.points, achievement_id)
+                    )
+            
             conn.commit()
 
     async def check_achievement(self, message: discord.Message, reaction: discord.Reaction = None) -> bool:
@@ -287,8 +320,8 @@ class AchievementSystem:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             cursor.execute(
-                'INSERT INTO user_achievements (user_id, achievement_id) VALUES (?, ?)',
-                (user_id, achievement_id)
+                'INSERT INTO user_achievements (user_id, achievement_id, points) VALUES (?, ?, ?)',
+                (user_id, achievement_id, achievement.points)
             )
             conn.commit()
 
@@ -358,3 +391,26 @@ class AchievementSystem:
             total_achievements = len(self.achievements)
             
             return earned_achievements, total_achievements
+
+    async def get_leaderboard(self, guild: discord.Guild) -> list[tuple[discord.Member, int, int]]:
+        """Get the achievement leaderboard for a guild.
+        Returns a list of tuples containing (member, points, achievement_count)
+        sorted by points in descending order."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT user_id, SUM(points) as total_points, COUNT(*) as achievement_count
+                FROM user_achievements
+                GROUP BY user_id
+                ORDER BY total_points DESC
+            ''')
+            leaderboard_data = cursor.fetchall()
+
+        # Convert user IDs to Member objects and filter out users no longer in the guild
+        leaderboard = []
+        for user_id, points, count in leaderboard_data:
+            member = guild.get_member(user_id)
+            if member:
+                leaderboard.append((member, points, count))
+
+        return leaderboard

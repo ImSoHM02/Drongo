@@ -149,6 +149,10 @@ def get_commands():
                     "required": True
                 }
             ]
+        },
+        {
+            "name": "achievement_leaderboard",
+            "description": "View the achievement leaderboard"
         }
     ]
 
