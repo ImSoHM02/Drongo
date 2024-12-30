@@ -314,6 +314,19 @@ class AchievementSystem:
 
     async def award_achievement(self, user_id: int, achievement_id: str, channel: discord.TextChannel, achievement: Achievement) -> bool:
         """Award an achievement to a user if they haven't already earned it."""
+        # Get user from the guild member
+        guild = channel.guild
+        user = guild.get_member(user_id)
+        if not user:
+            # Fallback to bot.get_user if guild.get_member fails
+            user = self.bot.get_user(user_id)
+            if not user:
+                return False
+        
+        # Don't award achievements to bots
+        if user.bot:
+            return False
+            
         if self.has_achievement(user_id, achievement_id):
             return False
 
