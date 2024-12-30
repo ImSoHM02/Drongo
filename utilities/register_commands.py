@@ -137,6 +137,18 @@ def get_commands():
         {
             "name": "achievements",
             "description": "Check your achievement progress"
+        },
+        {
+            "name": "clear_achievements",
+            "description": "Clear achievements for a specified user (Admin only)",
+            "options": [
+                {
+                    "name": "user",
+                    "description": "The user whose achievements should be cleared",
+                    "type": 6,  # Type 6 is for USER
+                    "required": True
+                }
+            ]
         }
     ]
 

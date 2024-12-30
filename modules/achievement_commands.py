@@ -1,8 +1,33 @@
 import discord
 from discord import app_commands
 from discord.ext import commands
+import os
+
+AUTHORIZED_USER_ID = int(os.getenv('AUTHORIZED_USER_ID'))
 
 def setup(bot):
+    @bot.tree.command(
+        name="clear_achievements",
+        description="Clear achievements for a specified user (Admin only)"
+    )
+    @app_commands.describe(user="The user whose achievements should be cleared")
+    async def clear_achievements(interaction: discord.Interaction, user: discord.User):
+        # Check if the command user is authorized
+        if interaction.user.id != AUTHORIZED_USER_ID:
+            await interaction.response.send_message(
+                "You are not authorized to use this command.",
+                ephemeral=True
+            )
+            return
+            
+        # Clear the user's achievements
+        bot.achievement_system.clear_user_achievements(user.id)
+        
+        await interaction.response.send_message(
+            f"Successfully cleared all achievements for user {user.name}.",
+            ephemeral=True
+        )
+
     @bot.tree.command(
         name="achievements",
         description="Check your achievement progress"
