@@ -57,25 +57,19 @@ class AchievementSystem:
                 "TN_ROLL",
                 "Rolled your first pair of TN's",
                 "Rolled a fuckin' nerd for his TN's",
-                points=20
+                points=10
             ),
             "NOT_A_PROGRAMMER": Achievement(
                 "NOT_A_PROGRAMMER",
                 "Not a programmer",
                 "Probably sarcastically told Sean he's not a programmer",
-                points=15
+                points=30
             ),
             "TRUE_AUSSIE": Achievement(
                 "TRUE_AUSSIE",
                 "True Aussie",
                 "Used some true Aussie insults",
                 points=10
-            ),
-            "FLUX_COMMAND": Achievement(
-                "FLUX_COMMAND",
-                "Is it porn?",
-                "Generated an image using Fini's Flux (Probably porn)",
-                points=15
             ),
             "BROKE_LEG": Achievement(
                 "BROKE_LEG",
@@ -88,12 +82,6 @@ class AchievementSystem:
                 "Cursed",
                 "Used the best emoji of all time",
                 points=20
-            ),
-            "LOST_EVEN_ODD": Achievement(
-                "LOST_EVEN_ODD",
-                "Lost the even/odd",
-                "Didn't have enough Lucky Rabbit Feet equipped",
-                points=25
             )
         }
         
@@ -239,27 +227,6 @@ class AchievementSystem:
             ):
                 achievements_earned = True
 
-        # Check for Flux command usage
-        content = message.content.lower()
-        is_flux = (
-            content.startswith('flux') or
-            'flux' in content.split() or
-            (hasattr(message, 'interaction_metadata') and 
-             message.interaction_metadata and 
-             message.interaction_metadata.command.name == 'flux') or
-            (message.author.bot and 'flux' in content)
-        )
-        
-        if is_flux:
-            achievement = self.achievements["FLUX_COMMAND"]
-            if await self.award_achievement(
-                message.author.id,
-                achievement.id,
-                message.channel,
-                achievement
-            ):
-                achievements_earned = True
-
         # Check for "broke your leg" achievement
         if "broke your leg" in message.content.lower():
             achievement = self.achievements["BROKE_LEG"]
@@ -281,19 +248,6 @@ class AchievementSystem:
                 achievement
             ):
                 achievements_earned = True
-
-        # Check for lost even/odd achievement
-        # Clean the message content by removing markdown and extra whitespace
-        content = ' '.join(message.content.lower().replace('`', '').replace('*', '').replace('>', '').split())
-        if "!=" in content:
-                achievement = self.achievements["LOST_EVEN_ODD"]
-                if await self.award_achievement(
-                    message.author.id,
-                    achievement.id,
-                    message.channel,
-                    achievement
-                ):
-                    achievements_earned = True
 
         return achievements_earned
 
