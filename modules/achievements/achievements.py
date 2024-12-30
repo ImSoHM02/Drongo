@@ -330,6 +330,16 @@ class AchievementSystem:
             )
             return cursor.fetchone() is not None
 
+    def clear_user_achievements(self, user_id: int) -> None:
+        """Clear all achievements for a specific user."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                'DELETE FROM user_achievements WHERE user_id = ?',
+                (user_id,)
+            )
+            conn.commit()
+
     def get_user_achievements(self, user_id: int) -> tuple[list[Achievement], int]:
         """Get a user's earned achievements and total possible achievements count."""
         with sqlite3.connect(self.db_path) as conn:
