@@ -8,9 +8,6 @@ from database import get_db_connection
 async def count_word_occurrences(interaction: discord.Interaction, user: discord.User, word: str) -> tuple[int, list[str]]:
     """Counts the occurrences of a word in a user's messages and returns the count and matching messages."""
 
-    if user.bot:
-        return 0, []  # Ignore bots
-
     conn = await get_db_connection()
     try:
         query = """
@@ -66,10 +63,6 @@ async def offer_message_instances(interaction: discord.Interaction, user: discor
 
 async def wordcount(interaction: discord.Interaction, user: discord.User, word: str):
     """Handles the wordcount command logic."""
-
-    if user.bot:
-        await interaction.response.send_message(f"I can't count the words for {user.name} because they ain't got no soul")
-        return
 
     await interaction.response.defer()
 

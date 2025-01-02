@@ -31,6 +31,18 @@ async def create_table(conn):
             CREATE INDEX IF NOT EXISTS idx_messages_wordrank
             ON messages (guild_id, message_content, user_id);
         ''')
+        
+        # Create table for embed fields
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS embed_fields (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                message_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                value TEXT NOT NULL,
+                inline BOOLEAN NOT NULL DEFAULT 0,
+                FOREIGN KEY (message_id) REFERENCES messages (id)
+            );
+        ''')
         await conn.commit()
     except Exception as e:
         logging.error(f"An error occurred while creating tables: {e}")
@@ -88,10 +100,23 @@ async def store_message(conn, message, full_message_content):
     try:
         async with conn.execute("SELECT id FROM messages WHERE guild_id=? AND channel_id=? AND timestamp=?", (str(message.guild.id), str(message.channel.id), message.created_at.isoformat())) as cursor:
             if await cursor.fetchone() is None:
-                await conn.execute('''
+                # Insert the message first
+                cursor = await conn.execute('''
                     INSERT INTO messages (user_id, guild_id, channel_id, message_content, timestamp)
                     VALUES (?, ?, ?, ?, ?)
                 ''', (str(message.author.id), str(message.guild.id), str(message.channel.id), full_message_content, message.created_at.isoformat()))
+                message_id = cursor.lastrowid
+                
+                # Store embed fields if present
+                if message.embeds:
+                    for embed in message.embeds:
+                        if embed.fields:
+                            for field in embed.fields:
+                                await conn.execute('''
+                                    INSERT INTO embed_fields (message_id, name, value, inline)
+                                    VALUES (?, ?, ?, ?)
+                                ''', (message_id, field.name, field.value, field.inline))
+                
                 await conn.commit()
     except Exception as e:
         logging.error(f"An error occurred while storing the message: {e}")

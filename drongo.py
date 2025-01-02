@@ -148,11 +148,16 @@ class DrongoBot(commands.Bot):
                             messages = [message async for message in channel.history(limit=200)]
 
                         for message in reversed(messages):
-                            if message.author != self.user and not message.author.bot:
+                            if message.author != self.user:  # Allow bot messages during setup
                                 # Store message in database but don't process for achievements
                                 # This prevents achievements from triggering on historical messages during setup
+                                # Combine message content, attachments, and embed fields
                                 attachment_urls = ' '.join([attachment.url for attachment in message.attachments])
-                                full_message_content = f"{message.clean_content} {attachment_urls}".strip()
+                                embed_content = []
+                                for embed in message.embeds:
+                                    for field in embed.fields:
+                                        embed_content.append(f"{field.name}: {field.value}")
+                                full_message_content = f"{message.clean_content} {attachment_urls} {' '.join(embed_content)}".strip()
                                 await store_message(conn, message, full_message_content)
                         if messages:
                             await set_last_message_id(conn, channel.id, messages[-1].id)
@@ -182,14 +187,24 @@ class DrongoBot(commands.Bot):
             await conn.close()
 
     async def on_message(self, message):
-        if message.author == self.user or message.author.bot:
+        if message.author == self.user:  # Only exclude our own messages
             return
 
         # Update message count
         self.stats_display.update_stats("Messages Processed", self.stats_display.stats["Messages Processed"] + 1)
 
         # Process AI response for all guilds
-        full_message_content = await self.ai_handler.process_message(message)
+        ai_response = await self.ai_handler.process_message(message)
+        
+        # Combine message content, attachments, and embed fields
+        attachment_urls = ' '.join([attachment.url for attachment in message.attachments])
+        embed_content = []
+        for embed in message.embeds:
+            for field in embed.fields:
+                embed_content.append(f"{field.name}: {field.value}")
+        full_message_content = f"{message.clean_content} {attachment_urls} {' '.join(embed_content)}".strip()
+        if ai_response:
+            full_message_content = f"{full_message_content} {ai_response}".strip()
         
         # Only process messages that occur after bot start
         if message.created_at >= self.start_time:
