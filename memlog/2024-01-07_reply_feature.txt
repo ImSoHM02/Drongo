@@ -1,0 +1,25 @@
+Feature: Reply Message Support
+
+Added support for processing reply messages in the AI handler. When a user replies to a message with "oi drongo", the bot will now include the content of the message being replied to in its context.
+
+Changes:
+- Modified process_message() in ai.py to check for reply messages using message.reference
+- Updated message fetching to use channel.fetch_message with the reference message ID
+- Added error handling for failed reference fetches
+- Integrated referenced content into the AI prompt structure
+
+Technical Details:
+- Uses message.reference to detect reply messages
+- Fetches original message using message.channel.fetch_message(message.reference.message_id)
+- Prefixes original message content with "Message being replied to: " for context
+- Always includes full message content (including referenced message) in Claude's input
+
+Bug Fixes:
+- Fixed issue where bot would start typing but not send a message when replying
+- Modified handle_oi_drongo to always include the full message content in Claude's input
+- Ensures referenced message content is included even when user only says "oi drongo"
+
+Example Usage:
+User A: "What's the capital of France?"
+User B: "oi drongo answer this" (replying to User A's message)
+-> Bot will process both the question and the command together

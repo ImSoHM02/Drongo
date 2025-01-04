@@ -45,11 +45,11 @@ class AIHandler:
                 # Construct the message content array with both text and images
                 message_content = []
                 message_content.extend(image_attachments)
-                if cleaned_content:
-                    message_content.append({
-                        "type": "text",
-                        "text": cleaned_content
-                    })
+                # Always include the full message content which includes referenced message
+                message_content.append({
+                    "type": "text",
+                    "text": full_message_content
+                })
                 self.bot.logger.info(f"Message content array: {message_content}")
 
                 # Update conversation history with user's message
@@ -177,9 +177,18 @@ Traceback:
                 if image_data:
                     image_attachments.append(image_data)
 
+        # Check if this is a reply and get the referenced message if it exists
+        referenced_content = ""
+        if message.reference is not None:
+            try:
+                reply_message = await message.channel.fetch_message(message.reference.message_id)
+                referenced_content = f"Message being replied to: {reply_message.content}\n\n"
+            except:
+                self.bot.logger.error("Failed to fetch referenced message")
+
         # Remove "oi drongo" from the beginning of the message
         cleaned_content = re.sub(r'^oi\s+drongo\s*', '', message.clean_content, flags=re.IGNORECASE).strip()
-        full_message_content = f"{cleaned_content}\n\n{''.join(text_contents)}".strip()
+        full_message_content = f"{referenced_content}{cleaned_content}\n\n{''.join(text_contents)}".strip()
 
         # Check for "oi drongo" trigger
         if message.content.lower().startswith("oi drongo"):
