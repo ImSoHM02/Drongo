@@ -97,14 +97,30 @@ Traceback:
                 await message.reply(ERROR_MESSAGES["general_error"])
 
     async def generate_insult(self, message: discord.Message, full_message_content: str) -> str:
-        """Generate an insult based on the message content."""
+        """Generate an insult based on the message content and any images."""
         async with message.channel.typing():
             try:
+                # Process any image attachments
+                image_attachments = []
+                for attachment in message.attachments:
+                    if attachment.content_type and attachment.content_type.startswith('image/'):
+                        image_data = await self.attachment_handler.process_image_attachment(attachment)
+                        if image_data:
+                            image_attachments.append(image_data)
+                
+                # Construct message content array with both text and images
+                message_content = []
+                message_content.extend(image_attachments)
+                message_content.append({
+                    "type": "text",
+                    "text": get_insult_prompt(full_message_content)
+                })
+
                 response = await self.anthropic_client.messages.create(
                     model=DEFAULT_MODEL,
                     max_tokens=BRIEF_MAX_TOKENS,
                     system=DEFAULT_SYSTEM_PROMPT,
-                    messages=[{"role": "user", "content": get_insult_prompt(full_message_content)}],
+                    messages=[{"role": "user", "content": message_content}],
                     temperature=BRIEF_TEMPERATURE,
                 )
 
@@ -129,14 +145,30 @@ Traceback:
                 return f"Error generating insult: {str(e)}"
 
     async def generate_compliment(self, message: discord.Message, full_message_content: str) -> str:
-        """Generate a compliment based on the message content."""
+        """Generate a compliment based on the message content and any images."""
         async with message.channel.typing():
             try:
+                # Process any image attachments
+                image_attachments = []
+                for attachment in message.attachments:
+                    if attachment.content_type and attachment.content_type.startswith('image/'):
+                        image_data = await self.attachment_handler.process_image_attachment(attachment)
+                        if image_data:
+                            image_attachments.append(image_data)
+                
+                # Construct message content array with both text and images
+                message_content = []
+                message_content.extend(image_attachments)
+                message_content.append({
+                    "type": "text",
+                    "text": get_compliment_prompt(full_message_content)
+                })
+
                 response = await self.anthropic_client.messages.create(
                     model=DEFAULT_MODEL,
                     max_tokens=BRIEF_MAX_TOKENS,
                     system=DEFAULT_SYSTEM_PROMPT,
-                    messages=[{"role": "user", "content": get_compliment_prompt(full_message_content)}],
+                    messages=[{"role": "user", "content": message_content}],
                     temperature=BRIEF_TEMPERATURE,
                 )
 
@@ -299,14 +331,14 @@ Traceback:
 
 def setup(bot: discord.Client) -> None:
     """Set up the AI handler and register commands."""
-    @bot.tree.command(name="setmode", description="Set the bot's response mode")
-    async def setmode_command(interaction: discord.Interaction, 
-                            mode: str, 
-                            duration: Optional[int] = None) -> None:
+    @bot.tree.command(name="ai_setmode", description="Set the bot's response mode")
+    async def ai_setmode_command(interaction: discord.Interaction, 
+                               mode: str, 
+                               duration: Optional[int] = None) -> None:
         """Set the bot's response mode."""
         await bot.ai_handler.setmode_command(interaction, mode, duration)
 
-    @bot.tree.command(name="listmodes", description="List all available response modes")
-    async def listmodes_command(interaction: discord.Interaction) -> None:
+    @bot.tree.command(name="ai_listmodes", description="List all available response modes")
+    async def ai_listmodes_command(interaction: discord.Interaction) -> None:
         """List all available response modes."""
         await bot.ai_handler.listmodes_command(interaction)

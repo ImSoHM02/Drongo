@@ -36,6 +36,21 @@ NOT_FRIENDLY_CONFIG = {
     "compliment_weight": 0
 }
 
+# Test configurations for image feature
+TEST_INSULTS_CONFIG = {
+    "name": "test-insults",
+    "total_chance": 1.0,  # 100% chance to respond
+    "insult_weight": 1,   # 100% insults
+    "compliment_weight": 0
+}
+
+TEST_COMPLIMENTS_CONFIG = {
+    "name": "test-compliments",
+    "total_chance": 1.0,  # 100% chance to respond
+    "insult_weight": 0,
+    "compliment_weight": 1  # 100% compliments
+}
+
 # Error messages
 ERROR_MESSAGES = {
     "download_failed": "Sorry, I couldn't download the attachment.",

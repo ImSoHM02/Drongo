@@ -170,7 +170,12 @@ class DrongoBot(commands.Bot):
             wordcount.setup(self)
             clearchat.setup(self)
             wordrank.setup(self)
+            
+            # Initialize and set up AI handler
             self.ai_handler = AIHandler(self, self.anthropic_api_key)
+            from modules.ai.anthropic import ai
+            ai.setup(self)
+            
             emoji_downloader.setup(self)
             # Web interface command
             web_link.setup(self)

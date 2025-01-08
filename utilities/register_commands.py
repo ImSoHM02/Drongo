@@ -104,7 +104,7 @@ def get_commands():
             ]
         },
         {
-            "name": "setmode",
+            "name": "ai_setmode",
             "description": "Set the bot's response mode with optional duration",
             "options": [
                 {
@@ -115,7 +115,9 @@ def get_commands():
                     "choices": [
                         {"name": "Default", "value": "default"},
                         {"name": "Friendly", "value": "friendly"},
-                        {"name": "Not-Friendly", "value": "not-friendly"}
+                        {"name": "Not-Friendly", "value": "not-friendly"},
+                        {"name": "Test Insults", "value": "test-insults"},
+                        {"name": "Test Compliments", "value": "test-compliments"}
                     ]
                 },
                 {
@@ -127,7 +129,7 @@ def get_commands():
             ]
         },
         {
-            "name": "listmodes",
+            "name": "ai_listmodes",
             "description": "List all available response modes"
         },
         {

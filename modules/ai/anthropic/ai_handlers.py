@@ -6,7 +6,8 @@ import base64
 import asyncio
 from .ai_constants import (
     MAX_MESSAGE_LENGTH, TEXT_FILE_EXTENSIONS, MAX_HISTORY_LENGTH,
-    DEFAULT_CONFIG, FRIENDLY_CONFIG, NOT_FRIENDLY_CONFIG, ERROR_MESSAGES
+    DEFAULT_CONFIG, FRIENDLY_CONFIG, NOT_FRIENDLY_CONFIG, 
+    TEST_INSULTS_CONFIG, TEST_COMPLIMENTS_CONFIG, ERROR_MESSAGES
 )
 
 class MessageHandler:
@@ -127,7 +128,9 @@ class ProbabilityManager:
         self.configs = {
             "default": self.default_config,
             "friendly": ProbabilityConfig(**FRIENDLY_CONFIG),
-            "not-friendly": ProbabilityConfig(**NOT_FRIENDLY_CONFIG)
+            "not-friendly": ProbabilityConfig(**NOT_FRIENDLY_CONFIG),
+            "test-insults": ProbabilityConfig(**TEST_INSULTS_CONFIG),
+            "test-compliments": ProbabilityConfig(**TEST_COMPLIMENTS_CONFIG)
         }
         
         # Timer task
