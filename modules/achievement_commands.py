@@ -34,7 +34,7 @@ async def achievements(interaction: discord.Interaction, bot):
     
     # Create the achievements list message
     achievements_text = "\n".join([
-        f"> 🏆 **{achievement.name}** ({achievement.points} points)\n> ```\n> {achievement.description}\n> ```"
+        f"> 🏆 **{achievement.name}** ({achievement.points} points)"
         for achievement in earned_achievements
     ])
     
@@ -55,23 +55,47 @@ async def leaderboard(interaction: discord.Interaction, bot):
     leaderboard_data = await bot.achievement_system.get_leaderboard(interaction.guild)
     
     if not leaderboard_data:
-        await interaction.response.send_message(
-            "No achievements have been earned yet!",
-            ephemeral=True
+        embed = discord.Embed(
+            title="🏆 Achievement Leaderboard",
+            description="No achievements have been earned yet!",
+            color=discord.Color.gold()
         )
+        await interaction.response.send_message(embed=embed)
         return
     
-    # Create the leaderboard message
-    leaderboard_text = "🏆 **Achievement Leaderboard**\n\n"
+    # Create the leaderboard embed
+    embed = discord.Embed(
+        title="🏆 Achievement Leaderboard",
+        color=discord.Color.gold()
+    )
     
     # Add medal emojis for top 3
     medals = ["🥇", "🥈", "🥉"]
     
+    # Calculate total achievements and points across all users
+    total_points = sum(points for _, points, _ in leaderboard_data)
+    total_achievements = sum(count for _, _, count in leaderboard_data)
+    
+    # Add summary field
+    embed.add_field(
+        name="Server Stats",
+        value=f"Total Points: {total_points:,}\nTotal Achievements: {total_achievements:,}",
+        inline=False
+    )
+    
+    # Add leaderboard entries
+    leaderboard_text = ""
     for i, (member, points, count) in enumerate(leaderboard_data[:10]):  # Show top 10
         prefix = medals[i] if i < 3 else "👤"
-        leaderboard_text += f"{prefix} **{member.display_name}** - {points} points ({count} achievements)\n"
+        leaderboard_text += f"{prefix} **{member.display_name}**\n{points:,} points ({count:,} achievements)\n\n"
     
-    await interaction.response.send_message(leaderboard_text)
+    embed.add_field(
+        name="Top 10 Achievers",
+        value=leaderboard_text.strip() or "No achievements yet!",
+        inline=False
+    )
+    
+    await interaction.response.send_message(embed=embed)
 
 def setup(bot):
     @bot.tree.command(

@@ -22,6 +22,11 @@ class AchievementSystem:
         self.achievements = achievements
 
         self.setup_database()
+        
+    def _is_pangram(self, text: str) -> bool:
+        # Check if the text contains every letter of the alphabet
+        letters = set(char.lower() for char in text if char.isalpha())
+        return len(letters) == 26
 
     def load_config(self):
         # Load the configuration from the config file.
@@ -157,6 +162,13 @@ class AchievementSystem:
             ):
                 achievements_earned = True
 
+        if self._is_pangram(message.content):
+            achievement = self.achievements["ALPHABET_SOUP"]
+            if await self.award_achievement(
+                message.author.id, achievement.id, message.channel, achievement
+            ):
+                achievements_earned = True
+
         return achievements_earned
 
     async def check_daily_message_count(self, user_id: str) -> tuple[bool, bool]:
@@ -208,30 +220,78 @@ class AchievementSystem:
                 print(f"Error awarding achievement: {e}")
                 return False
 
-        # Generate AI response about the achievement
+        # Send achievement notification
         try:
             async with channel.typing():
-                response = await self.bot.ai_handler.anthropic_client.messages.create(
-                    model="claude-3-5-sonnet-20241022",
-                    max_tokens=8192,
-                    system=DEFAULT_SYSTEM_PROMPT,
-                    messages=[
-                        {
-                            "role": "user",
-                            "content": f"""Oi, {user.name} just earned an achievement! Give a brief, excited eshay-style response announcing their achievement. Keep it under 2 sentences and I'll format it with the achievement details after.""",
-                        }
-                    ],
-                    temperature=0.7,
-                )
-                ai_response = response.content[0].text
+                # Generate AI response
+                ai_response = f"Ayy {user.name} just unlocked an achievement!"
+                if hasattr(self.bot, 'ai_handler') and self.bot.ai_handler:
+                    try:
+                        response = await self.bot.ai_handler.anthropic_client.messages.create(
+                            model="claude-3-5-sonnet-20241022",
+                            max_tokens=8192,
+                            system=DEFAULT_SYSTEM_PROMPT,
+                            messages=[
+                                {
+                                    "role": "user",
+                                    "content": f"""Oi, {user.name} just earned an achievement! Give a brief, excited eshay-style response announcing their achievement. Keep it under 2 sentences and I'll format it with the achievement details after.""",
+                                }
+                            ],
+                            temperature=0.7,
+                        )
+                        if response and hasattr(response, 'content') and response.content:
+                            ai_response = response.content[0].text
+                    except Exception as e:
+                        print(f"Error generating AI response: {e}")
 
-                formatted_message = (
-                    f"{user.mention} {ai_response}\n\n> 🏆 **{achievement.name}**\n> ```\n> {achievement.description}\n> ```"
+                try:
+                    # Get user's achievements and total count
+                    earned_achievements, total_possible = self.get_user_achievements(user_id)
+                    
+                    # Get user's rank and total points from leaderboard
+                    leaderboard = await self.get_leaderboard(guild)
+                    
+                    # Default values if user not in leaderboard
+                    user_rank = len(leaderboard) + 1 if leaderboard else 1  # If no leaderboard, they're first!
+                    total_points = achievement.points  # Start with current achievement points
+                    
+                    # Calculate rank and total points if user exists in leaderboard
+                    for i, (member, points, _) in enumerate(leaderboard or []):
+                        if member.id == user_id:
+                            user_rank = i + 1
+                            total_points = points + achievement.points
+                            break
+                except Exception as e:
+                    print(f"Error getting achievement stats: {e}")
+                    # Use fallback values if stats calculation fails
+                    earned_achievements = []
+                    total_possible = len(self.achievements)
+                    user_rank = 1
+                    total_points = achievement.points
+
+                # Create embed for achievement notification
+                embed = discord.Embed(
+                    title="🏆 Achievement Unlocked!",
+                    description=ai_response,
+                    color=discord.Color.gold()
                 )
-                await channel.send(formatted_message)
+                embed.add_field(name=achievement.name, value=f"+{achievement.points:,} points", inline=False)
+                embed.add_field(
+                    name="Progress", 
+                    value=f"Achievements: {len(earned_achievements)}/{total_possible}\nTotal Points: {total_points:,}\nRank: #{user_rank}", 
+                    inline=False
+                )
+                
+                # Send in channel with mention
+                await channel.send(user.mention, embed=embed)
         except Exception as e:
-            print(f"Error generating AI response: {e}")
-            return False
+            print(f"Error sending achievement notification: {e}")
+            # Try to send a simple notification as fallback
+            try:
+                await channel.send(f"{user.mention} 🏆 Achievement Unlocked: **{achievement.name}** (+{achievement.points:,} points)")
+            except Exception as e:
+                print(f"Error sending fallback notification: {e}")
+                return False
 
         return True
 
@@ -291,5 +351,5 @@ class AchievementSystem:
             member = guild.get_member(user_id)
             if member:
                 leaderboard.append((member, points, count))
-
+        
         return leaderboard
