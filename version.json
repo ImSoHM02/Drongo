@@ -1,5 +1,5 @@
 {
-  "version": "0.1.2.8",
+  "version": "0.1.2.9",
   "last_announced_version": "0.1.2.8",
   "changes": [
     {
@@ -112,9 +112,10 @@
       "version": "0.1.2.9",
       "date": "9-1-2025",
       "notes": [
-        "No longer insults attachements based on URL, but instead on the image itself",
+        "No longer insults attachments based on URL, but instead on the image itself",
         "Revamped Achievement look, now uses embed and other kind of info",
-        "Achievement descriptions have been removed, so that if one person gets an achievement, it's not as obvious as to hwo they got it to other users"
+        "Also revamped the achievement leaderboard",
+        "Achievement descriptions have been removed, so that if one person gets an achievement, it's not as obvious as to how they got it to other users"
       ]
     }
   ]
