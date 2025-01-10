@@ -3,7 +3,7 @@ import logging
 
 async def db_connect():
     """Connect to the command stats database."""
-    return await aiosqlite.connect('command_stats.db')
+    return await aiosqlite.connect('database/command_stats.db')
 
 async def create_tables(conn):
     """Create the necessary tables for command statistics."""

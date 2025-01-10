@@ -2,7 +2,7 @@ import aiosqlite
 import logging
 import re
 
-async def db_connect(db_name='chat_history.db'):
+async def db_connect(db_name='database/chat_history.db'):
     return await aiosqlite.connect(db_name)
 
 async def create_table(conn):
@@ -202,7 +202,7 @@ async def get_users_tracking_game(conn, app_id):
     ''', (app_id,)) as cursor:
         return [row[0] for row in await cursor.fetchall()]
 
-async def get_db_connection(db_name='chat_history.db'):
+async def get_db_connection(db_name='database/chat_history.db'):
     conn = await db_connect(db_name)
     return conn
 
