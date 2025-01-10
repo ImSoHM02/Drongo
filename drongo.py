@@ -10,6 +10,7 @@ from discord.ext import commands
 from database import (create_table, store_message, get_db_connection, 
                       set_last_message_id, get_last_message_id,
                       create_game_tracker_tables)
+import command_database
 from dotenv import load_dotenv
 from modules import (message_stats, message_management, wordcount, 
                     clearchat, wordrank, emoji_downloader, web_link)
@@ -133,6 +134,14 @@ class DrongoBot(commands.Bot):
             self.logger.error("Max reconnection attempts reached. Please restart the bot manually.")
 
     async def setup_bot(self):
+        # Initialize command stats database first
+        cmd_conn = await command_database.db_connect()
+        try:
+            await command_database.create_tables(cmd_conn)
+        finally:
+            await cmd_conn.close()
+
+        # Initialize main database
         conn = await get_db_connection()
         try:
             await create_table(conn)
@@ -193,6 +202,18 @@ class DrongoBot(commands.Bot):
         finally:
             await conn.close()
 
+    async def on_interaction(self, interaction):
+        """Track slash command usage."""
+        if interaction.type == discord.InteractionType.application_command:
+            cmd_conn = await command_database.db_connect()
+            try:
+                await command_database.update_command_stats(cmd_conn, str(interaction.user.id), interaction.command.name)
+            except Exception as e:
+                self.logger.error(f"Error updating command stats: {str(e)}")
+            finally:
+                await cmd_conn.close()
+        await super().on_interaction(interaction)
+
     async def on_message(self, message):
         try:
             if message.author == self.user:  # Only exclude our own messages
@@ -209,8 +230,8 @@ class DrongoBot(commands.Bot):
                 except Exception as e:
                     self.logger.error(f"Error processing AI message: {str(e)}")
 
-            # Combine message content, attachments, and embed fields
             try:
+                # Combine message content, attachments, and embed fields
                 attachment_urls = ' '.join([attachment.url for attachment in message.attachments])
                 embed_content = []
                 for embed in message.embeds:
@@ -242,6 +263,28 @@ class DrongoBot(commands.Bot):
                     finally:
                         await conn.close()
 
+                # Track command usage in separate database
+                if message.content.startswith(('/', '!')):  # Track both slash and ! commands
+                    command_text = message.content[1:]  # Remove the prefix (/ or !)
+                    command_name = command_text.split()[0]  # Get just the command name
+                    cmd_conn = await command_database.db_connect()
+                    try:
+                        await command_database.update_command_stats(cmd_conn, str(message.author.id), command_name)
+                    except Exception as e:
+                        self.logger.error(f"Error updating command stats: {str(e)}")
+                    finally:
+                        await cmd_conn.close()
+                
+                # Track "oi drongo" usage in separate database
+                elif message.content.lower().startswith('oi drongo'):
+                    cmd_conn = await command_database.db_connect()
+                    try:
+                        await command_database.update_command_stats(cmd_conn, str(message.author.id), 'oi_drongo')
+                    except Exception as e:
+                        self.logger.error(f"Error updating command stats: {str(e)}")
+                    finally:
+                        await cmd_conn.close()
+                
                 await self.process_commands(message)
             except Exception as e:
                 self.logger.error(f"Error processing message content: {str(e)}")
