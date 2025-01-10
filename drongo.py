@@ -114,21 +114,23 @@ class DrongoBot(commands.Bot):
     async def on_disconnect(self):
         self.stats_display.set_status("Disconnected")
         self.logger.warning("Bot disconnected")
-        if not self.client.reconnecting:
-            self.client.reconnecting = True
-            await self.attempt_reconnect()
+        await self.attempt_reconnect()
 
     async def on_resumed(self):
         self.stats_display.set_status("Connected")
-        self.client.reconnecting = False
+        self.reconnect_attempts = 0  # Reset reconnect attempts on successful reconnection
         self.logger.info("Bot reconnected")
 
     async def attempt_reconnect(self):
-        while self.reconnect_attempts < self.max_reconnect_attempts:
-            await self.client.connect(reconnect=True)
-            break
+        if self.reconnect_attempts < self.max_reconnect_attempts:
+            self.reconnect_attempts += 1
+            self.logger.warning(f"Attempting to reconnect... (Attempt {self.reconnect_attempts}/{self.max_reconnect_attempts})")
+            try:
+                await self.connect(reconnect=True)
+            except Exception as e:
+                self.logger.error(f"Reconnection attempt failed: {str(e)}")
         else:
-            self.stats_display.log_event("Max reconnection attempts reached. Please restart the bot manually.")
+            self.logger.error("Max reconnection attempts reached. Please restart the bot manually.")
 
     async def setup_bot(self):
         conn = await get_db_connection()
@@ -192,44 +194,59 @@ class DrongoBot(commands.Bot):
             await conn.close()
 
     async def on_message(self, message):
-        if message.author == self.user:  # Only exclude our own messages
-            return
+        try:
+            if message.author == self.user:  # Only exclude our own messages
+                return
 
-        # Update message count
-        self.stats_display.update_stats("Messages Processed", self.stats_display.stats["Messages Processed"] + 1)
+            # Update message count
+            self.stats_display.update_stats("Messages Processed", self.stats_display.stats["Messages Processed"] + 1)
 
-        # Process AI response for all guilds
-        ai_response = await self.ai_handler.process_message(message)
-        
-        # Combine message content, attachments, and embed fields
-        attachment_urls = ' '.join([attachment.url for attachment in message.attachments])
-        embed_content = []
-        for embed in message.embeds:
-            for field in embed.fields:
-                embed_content.append(f"{field.name}: {field.value}")
-        full_message_content = f"{message.clean_content} {attachment_urls} {' '.join(embed_content)}".strip()
-        if ai_response:
-            full_message_content = f"{full_message_content} {ai_response}".strip()
-        
-        # Only process messages that occur after bot start
-        if message.created_at >= self.start_time:
-            await self.achievement_system.check_achievement(message)
+            # Process AI response for all guilds if ai_handler is initialized
+            ai_response = None
+            if self.ai_handler is not None:
+                try:
+                    ai_response = await self.ai_handler.process_message(message)
+                except Exception as e:
+                    self.logger.error(f"Error processing AI message: {str(e)}")
 
-        # Store messages and stats only for primary guild
-        if str(message.guild.id) == primary_guild_id:
-            conn = await get_db_connection()
+            # Combine message content, attachments, and embed fields
             try:
-                if full_message_content:
-                    await store_message(conn, message, full_message_content)
-                    await set_last_message_id(conn, message.channel.id, message.id)
-                    
-                    # Log the message in the stats display
-                    self.stats_display.log_message(message.author, message.guild.name, message.channel.name)
+                attachment_urls = ' '.join([attachment.url for attachment in message.attachments])
+                embed_content = []
+                for embed in message.embeds:
+                    for field in embed.fields:
+                        embed_content.append(f"{field.name}: {field.value}")
+                full_message_content = f"{message.clean_content} {attachment_urls} {' '.join(embed_content)}".strip()
+                if ai_response:
+                    full_message_content = f"{full_message_content} {ai_response}".strip()
 
-            finally:
-                await conn.close()
+                # Only process messages that occur after bot start
+                if message.created_at >= self.start_time:
+                    try:
+                        await self.achievement_system.check_achievement(message)
+                    except Exception as e:
+                        self.logger.error(f"Error checking achievements: {str(e)}")
 
-        await self.process_commands(message)
+                # Store messages and stats only for primary guild
+                if str(message.guild.id) == primary_guild_id:
+                    conn = await get_db_connection()
+                    try:
+                        if full_message_content:
+                            await store_message(conn, message, full_message_content)
+                            await set_last_message_id(conn, message.channel.id, message.id)
+                            
+                            # Log the message in the stats display
+                            self.stats_display.log_message(message.author, message.guild.name, message.channel.name)
+                    except Exception as e:
+                        self.logger.error(f"Error storing message: {str(e)}")
+                    finally:
+                        await conn.close()
+
+                await self.process_commands(message)
+            except Exception as e:
+                self.logger.error(f"Error processing message content: {str(e)}")
+        except Exception as e:
+            self.logger.error(f"Unhandled error in message processing: {str(e)}")
 
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
         """Handle reaction achievements."""
@@ -252,6 +269,23 @@ class DrongoBot(commands.Bot):
 
         reaction = CustomReaction(payload.emoji, payload.member)
         await self.achievement_system.check_achievement(message, reaction)
+
+    async def on_voice_state_update(self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
+        """Handle voice state update achievements."""
+        if member.bot:
+            return
+
+        # Only process voice updates that occur after bot start
+        if discord.utils.utcnow() < self.start_time:
+            return
+
+        # Check achievements when a user joins or leaves a voice channel
+        if after.channel is not None and (before.channel is None or before.channel != after.channel):
+            # User joined a channel
+            await self.achievement_system.check_achievement(voice_state=after, member=member)
+        elif after.channel is None and before.channel is not None:
+            # User left a channel
+            await self.achievement_system.check_achievement(voice_state=after, member=member)
 
 intents = discord.Intents.default()
 intents.messages = True

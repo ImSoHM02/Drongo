@@ -2,6 +2,7 @@
 
 import json
 import sqlite3
+from datetime import datetime, timezone
 
 import discord
 
@@ -43,9 +44,34 @@ class AchievementSystem:
                 CREATE TABLE IF NOT EXISTS user_achievements (
                     user_id INTEGER,
                     achievement_id TEXT,
-                    earned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    earned_at TIMESTAMP DEFAULT (datetime('now', 'utc')),
                     points INTEGER,
                     PRIMARY KEY (user_id, achievement_id)
+                )
+            """
+            )
+
+            # Create table for tracking voice chat interactions
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS voice_interactions (
+                    user_id INTEGER,
+                    interacted_with_id INTEGER,
+                    channel_id INTEGER,
+                    timestamp TIMESTAMP DEFAULT (datetime('now', 'utc')),
+                    PRIMARY KEY (user_id, interacted_with_id)
+                )
+            """
+            )
+
+            # Create table for tracking voice session durations
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS voice_sessions (
+                    user_id INTEGER,
+                    channel_id INTEGER,
+                    join_time TIMESTAMP DEFAULT (datetime('now', 'utc')),
+                    PRIMARY KEY (user_id)
                 )
             """
             )
@@ -64,42 +90,188 @@ class AchievementSystem:
             conn.commit()
 
     async def check_achievement(
-        self, message: discord.Message, reaction: discord.Reaction = None
+        self, message: discord.Message = None, reaction: discord.Reaction = None,
+        voice_state: discord.VoiceState = None, member: discord.Member = None
     ) -> bool:
         # Check if a message or reaction triggers any achievements.
         achievements_earned = False
 
-        if message.content.lower() == "iwantanachievement":
-            achievement = self.achievements["FIRST_REQUEST"]
-            if await self.award_achievement(
-                message.author.id, achievement.id, message.channel, achievement
-            ):
-                achievements_earned = True
+        # Handle voice state updates
+        if voice_state is not None and member is not None:
+            # Handle voice session tracking for Marathon Speaker achievement
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                
+                if voice_state.channel is not None:  # User joined a channel
+                    # Record join time
+                    print(f"Debug: Recording voice join time for {member.name} in channel {voice_state.channel.name}")
+                    cursor.execute(
+                        """
+                        INSERT OR REPLACE INTO voice_sessions 
+                        (user_id, channel_id, join_time) 
+                        VALUES (?, ?, datetime('now', 'utc'))
+                        """,
+                        (member.id, voice_state.channel.id)
+                    )
+                else:  # User left a channel
+                    # Check if they were in a session and calculate duration
+                    cursor.execute(
+                        """
+                        SELECT join_time 
+                        FROM voice_sessions 
+                        WHERE user_id = ?
+                        """,
+                        (member.id,)
+                    )
+                    result = cursor.fetchone()
+                    if result:
+                        # Parse join_time and ensure it's timezone-aware
+                        join_time = datetime.fromisoformat(result[0].replace('Z', '+00:00'))
+                        if join_time.tzinfo is None:
+                            join_time = join_time.replace(tzinfo=timezone.utc)
+                        
+                        # Get current time with UTC timezone
+                        current_time = datetime.now(timezone.utc)
+                        print(f"Debug: Voice session for {member.name} - Join time: {join_time}, Current time: {current_time}")
+                        duration = current_time - join_time
+                        
+                        # If they were in the channel for 2 hours or more
+                        if duration.total_seconds() >= 7200:  # 2 hours = 7200 seconds
+                            achievement = self.achievements["MARATHON_SPEAKER"]
+                            # Use the channel they were in when they left
+                            try:
+                                channel = voice_state.channel if voice_state.channel else member.guild.get_channel(cursor.execute(
+                                    "SELECT channel_id FROM voice_sessions WHERE user_id = ?",
+                                    (member.id,)
+                                ).fetchone()[0])
+                                
+                                if channel is None:
+                                    print(f"Error: Could not find channel for voice achievement for user {member.name}")
+                                    channel = member.guild.text_channels[0]  # Fallback to first text channel
+                                
+                                print(f"Debug: Awarding MARATHON_SPEAKER to {member.name} after {duration.total_seconds()} seconds in voice")
+                                await self.award_achievement(
+                                    member.id, 
+                                    achievement.id, 
+                                    channel,
+                                    achievement
+                                )
+                            except Exception as e:
+                                print(f"Error awarding voice achievement: {e}")
+                        
+                        # Clear their session
+                        cursor.execute(
+                            "DELETE FROM voice_sessions WHERE user_id = ?",
+                            (member.id,)
+                        )
+                conn.commit()
 
-        has_sent_50_messages, has_sent_100_messages = await self.check_daily_message_count(
-            message.author.id
-        )
+            # Handle Social Butterfly achievement tracking
+            if voice_state.channel is not None:
+                # Get other members in the voice channel
+                channel_members = voice_state.channel.members
+                if len(channel_members) > 1:  # Only track if there are other members
+                    with sqlite3.connect(self.db_path) as conn:
+                        cursor = conn.cursor()
+                        # Record interactions with other members
+                        for other_member in channel_members:
+                            if other_member.id != member.id and not other_member.bot:
+                                cursor.execute(
+                                    """
+                                    INSERT OR REPLACE INTO voice_interactions 
+                                    (user_id, interacted_with_id, channel_id) 
+                                    VALUES (?, ?, ?)
+                                    """,
+                                    (member.id, other_member.id, voice_state.channel.id)
+                                )
+                        conn.commit()
 
-        if has_sent_50_messages:
-            achievement = self.achievements["CHATTY"]
-            if await self.award_achievement(
-                message.author.id, achievement.id, message.channel, achievement
-            ):
-                achievements_earned = True
+                        # Check if user has interacted with enough unique members
+                        cursor.execute(
+                            """
+                            SELECT COUNT(DISTINCT interacted_with_id) 
+                            FROM voice_interactions 
+                            WHERE user_id = ?
+                            """,
+                            (member.id,)
+                        )
+                        unique_interactions = cursor.fetchone()[0]
 
-        if has_sent_100_messages:
-            achievement = self.achievements["SUPER_CHATTY"]
-            if await self.award_achievement(
-                message.author.id, achievement.id, message.channel, achievement
-            ):
-                achievements_earned = True
+                        if unique_interactions >= 3:
+                            achievement = self.achievements["SOCIAL_BUTTERFLY"]
+                            if await self.award_achievement(
+                                member.id, achievement.id, voice_state.channel, achievement
+                            ):
+                                achievements_earned = True
 
-        if message.mentions and "i love you" in message.content.lower():
-            achievement = self.achievements["LOVE_HOMIES"]
-            if await self.award_achievement(
-                message.author.id, achievement.id, message.channel, achievement
-            ):
-                achievements_earned = True
+        # Handle message achievements
+        if message is not None:
+            if message.content.lower() == "iwantanachievement":
+                achievement = self.achievements["FIRST_REQUEST"]
+                if await self.award_achievement(
+                    message.author.id, achievement.id, message.channel, achievement
+                ):
+                    achievements_earned = True
+
+            has_sent_50_messages, has_sent_100_messages = await self.check_daily_message_count(
+                message.author.id
+            )
+
+            if has_sent_50_messages:
+                achievement = self.achievements["CHATTY"]
+                if await self.award_achievement(
+                    message.author.id, achievement.id, message.channel, achievement
+                ):
+                    achievements_earned = True
+
+            if has_sent_100_messages:
+                achievement = self.achievements["SUPER_CHATTY"]
+                if await self.award_achievement(
+                    message.author.id, achievement.id, message.channel, achievement
+                ):
+                    achievements_earned = True
+
+            if message.mentions and "i love you" in message.content.lower():
+                achievement = self.achievements["LOVE_HOMIES"]
+                if await self.award_achievement(
+                    message.author.id, achievement.id, message.channel, achievement
+                ):
+                    achievements_earned = True
+
+            if "not a programmer" in message.content.lower():
+                achievement = self.achievements["NOT_A_PROGRAMMER"]
+                if await self.award_achievement(
+                    message.author.id, achievement.id, message.channel, achievement
+                ):
+                    achievements_earned = True
+
+            if "cunt" in message.content.lower():
+                achievement = self.achievements["TRUE_AUSSIE"]
+                if await self.award_achievement(
+                    message.author.id, achievement.id, message.channel, achievement
+                ):
+                    achievements_earned = True
+
+            if "broke your leg" in message.content.lower():
+                achievement = self.achievements["BROKE_LEG"]
+                if await self.award_achievement(
+                    message.author.id, achievement.id, message.channel, achievement
+                ):
+                    achievements_earned = True
+
+            if "cursed_f" in message.content.lower():
+                achievement = self.achievements["CURSED"]
+                if await self.award_achievement(
+                    message.author.id, achievement.id, message.channel, achievement
+                ):
+                    achievements_earned = True
+
+            if self._is_pangram(message.content):
+                achievement = self.achievements["ALPHABET_SOUP"]
+                if await self.award_achievement(
+                    message.author.id, achievement.id, message.channel, achievement
+                ):
+                    achievements_earned = True
 
         if reaction:
             emoji_name = str(reaction.emoji)
@@ -134,40 +306,6 @@ class AchievementSystem:
                 ):
                     achievements_earned = True
 
-        if "not a programmer" in message.content.lower():
-            achievement = self.achievements["NOT_A_PROGRAMMER"]
-            if await self.award_achievement(
-                message.author.id, achievement.id, message.channel, achievement
-            ):
-                achievements_earned = True
-
-        if "cunt" in message.content.lower():
-            achievement = self.achievements["TRUE_AUSSIE"]
-            if await self.award_achievement(
-                message.author.id, achievement.id, message.channel, achievement
-            ):
-                achievements_earned = True
-
-        if "broke your leg" in message.content.lower():
-            achievement = self.achievements["BROKE_LEG"]
-            if await self.award_achievement(
-                message.author.id, achievement.id, message.channel, achievement
-            ):
-                achievements_earned = True
-
-        if "cursed_f" in message.content.lower():
-            achievement = self.achievements["CURSED"]
-            if await self.award_achievement(
-                message.author.id, achievement.id, message.channel, achievement
-            ):
-                achievements_earned = True
-
-        if self._is_pangram(message.content):
-            achievement = self.achievements["ALPHABET_SOUP"]
-            if await self.award_achievement(
-                message.author.id, achievement.id, message.channel, achievement
-            ):
-                achievements_earned = True
 
         return achievements_earned
 

@@ -10,6 +10,16 @@ Each achievement is represented by an Achievement object, which has the followin
 from modules.achievements.models import Achievement
 
 achievements = {
+    "MARATHON_SPEAKER": Achievement(
+        "MARATHON_SPEAKER",
+        "Marathon Speaker",
+        points=30
+    ),
+    "SOCIAL_BUTTERFLY": Achievement(
+        "SOCIAL_BUTTERFLY",
+        "Social Butterfly",
+        points=20
+    ),
     "FIRST_REQUEST": Achievement(
         "FIRST_REQUEST",
         "Test Achievement",
