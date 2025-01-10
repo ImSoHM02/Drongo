@@ -1,6 +1,6 @@
 {
-  "version": "0.1.2.9",
-  "last_announced_version": "0.1.2.9",
+  "version": "0.1.3.0",
+  "last_announced_version": "0.1.3.0",
   "changes": [
     {
       "version": "0.1.0.0",
@@ -116,6 +116,13 @@
         "Revamped Achievement look, now uses embed and other kind of info",
         "Also revamped the achievement leaderboard",
         "Achievement descriptions have been removed, so that if one person gets an achievement, it's not as obvious as to how they got it to other users"
+      ]
+    },
+    {
+      "version": "0.1.3.0",
+      "date": "10-1-2025",
+      "notes": [
+        "New achievements have been added"
       ]
     }
   ]
