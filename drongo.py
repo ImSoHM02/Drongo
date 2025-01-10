@@ -9,7 +9,10 @@ from rich.console import Console
 from discord.ext import commands
 from database import (create_table, store_message, get_db_connection, 
                       set_last_message_id, get_last_message_id,
-                      create_game_tracker_tables)
+                      create_game_tracker_tables, track_voice_join,
+                      track_voice_leave, get_user_voice_stats,
+                      get_voice_leaderboard)
+import command_database
 from dotenv import load_dotenv
 from modules import (message_stats, message_management, wordcount, 
                     clearchat, wordrank, emoji_downloader, web_link)
@@ -133,6 +136,14 @@ class DrongoBot(commands.Bot):
             self.logger.error("Max reconnection attempts reached. Please restart the bot manually.")
 
     async def setup_bot(self):
+        # Initialize command stats database first
+        cmd_conn = await command_database.db_connect()
+        try:
+            await command_database.create_tables(cmd_conn)
+        finally:
+            await cmd_conn.close()
+
+        # Initialize main database
         conn = await get_db_connection()
         try:
             await create_table(conn)
@@ -193,6 +204,18 @@ class DrongoBot(commands.Bot):
         finally:
             await conn.close()
 
+    async def on_interaction(self, interaction):
+        """Track slash command usage."""
+        if interaction.type == discord.InteractionType.application_command:
+            cmd_conn = await command_database.db_connect()
+            try:
+                await command_database.update_command_stats(cmd_conn, str(interaction.user.id), interaction.command.name)
+            except Exception as e:
+                self.logger.error(f"Error updating command stats: {str(e)}")
+            finally:
+                await cmd_conn.close()
+        await super().on_interaction(interaction)
+
     async def on_message(self, message):
         try:
             if message.author == self.user:  # Only exclude our own messages
@@ -209,8 +232,8 @@ class DrongoBot(commands.Bot):
                 except Exception as e:
                     self.logger.error(f"Error processing AI message: {str(e)}")
 
-            # Combine message content, attachments, and embed fields
             try:
+                # Combine message content, attachments, and embed fields
                 attachment_urls = ' '.join([attachment.url for attachment in message.attachments])
                 embed_content = []
                 for embed in message.embeds:
@@ -242,6 +265,28 @@ class DrongoBot(commands.Bot):
                     finally:
                         await conn.close()
 
+                # Track command usage in separate database
+                if message.content.startswith(('/', '!')):  # Track both slash and ! commands
+                    command_text = message.content[1:]  # Remove the prefix (/ or !)
+                    command_name = command_text.split()[0]  # Get just the command name
+                    cmd_conn = await command_database.db_connect()
+                    try:
+                        await command_database.update_command_stats(cmd_conn, str(message.author.id), command_name)
+                    except Exception as e:
+                        self.logger.error(f"Error updating command stats: {str(e)}")
+                    finally:
+                        await cmd_conn.close()
+                
+                # Track "oi drongo" usage in separate database
+                elif message.content.lower().startswith('oi drongo'):
+                    cmd_conn = await command_database.db_connect()
+                    try:
+                        await command_database.update_command_stats(cmd_conn, str(message.author.id), 'oi_drongo')
+                    except Exception as e:
+                        self.logger.error(f"Error updating command stats: {str(e)}")
+                    finally:
+                        await cmd_conn.close()
+                
                 await self.process_commands(message)
             except Exception as e:
                 self.logger.error(f"Error processing message content: {str(e)}")
@@ -271,7 +316,7 @@ class DrongoBot(commands.Bot):
         await self.achievement_system.check_achievement(message, reaction)
 
     async def on_voice_state_update(self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
-        """Handle voice state update achievements."""
+        """Handle voice state updates and tracking."""
         if member.bot:
             return
 
@@ -279,13 +324,25 @@ class DrongoBot(commands.Bot):
         if discord.utils.utcnow() < self.start_time:
             return
 
-        # Check achievements when a user joins or leaves a voice channel
-        if after.channel is not None and (before.channel is None or before.channel != after.channel):
-            # User joined a channel
-            await self.achievement_system.check_achievement(voice_state=after, member=member)
-        elif after.channel is None and before.channel is not None:
-            # User left a channel
-            await self.achievement_system.check_achievement(voice_state=after, member=member)
+        conn = await get_db_connection()
+        try:
+            # Handle voice channel changes
+            if after.channel is not None and (before.channel is None or before.channel != after.channel):
+                # User joined a channel
+                await track_voice_join(conn, str(member.id), str(after.channel.id))
+                await self.achievement_system.check_achievement(voice_state=after, member=member)
+            elif after.channel is None and before.channel is not None:
+                # User left a channel
+                await track_voice_leave(conn, str(member.id))
+                await self.achievement_system.check_achievement(voice_state=after, member=member)
+            elif before.channel != after.channel:
+                # User switched channels
+                await track_voice_leave(conn, str(member.id))
+                await track_voice_join(conn, str(member.id), str(after.channel.id))
+        except Exception as e:
+            self.logger.error(f"Error tracking voice state: {str(e)}")
+        finally:
+            await conn.close()
 
 intents = discord.Intents.default()
 intents.messages = True

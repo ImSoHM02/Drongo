@@ -2,11 +2,47 @@ import aiosqlite
 import logging
 import re
 
-async def db_connect(db_name='chat_history.db'):
+async def db_connect(db_name='database/chat_history.db'):
     return await aiosqlite.connect(db_name)
 
 async def create_table(conn):
     try:
+        # Create voice chat tracking table
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS voice_chat_stats (
+                user_id TEXT NOT NULL,
+                channel_id TEXT NOT NULL,
+                join_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                leave_timestamp TIMESTAMP,
+                duration INTEGER DEFAULT 0,
+                total_time INTEGER DEFAULT 0,
+                join_count INTEGER DEFAULT 1,
+                PRIMARY KEY (user_id, channel_id)
+            );
+        ''')
+        
+        # Create voice chat session tracking table
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS voice_chat_sessions (
+                user_id TEXT NOT NULL,
+                channel_id TEXT NOT NULL,
+                join_timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (user_id)
+            );
+        ''')
+
+        # Create command stats table
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS command_stats (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT NOT NULL,
+                command_name TEXT NOT NULL,
+                usage_count INTEGER DEFAULT 1,
+                last_used TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(user_id, command_name)
+            );
+        ''')
+        
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS messages (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -190,6 +226,140 @@ async def get_users_tracking_game(conn, app_id):
     ''', (app_id,)) as cursor:
         return [row[0] for row in await cursor.fetchall()]
 
-async def get_db_connection(db_name='chat_history.db'):
+async def get_db_connection(db_name='database/chat_history.db'):
     conn = await db_connect(db_name)
     return conn
+
+async def update_command_stats(conn, user_id: str, command_name: str):
+    """Update the command usage statistics for a user."""
+    try:
+        await conn.execute('''
+            INSERT INTO command_stats (user_id, command_name)
+            VALUES (?, ?)
+            ON CONFLICT(user_id, command_name) DO UPDATE SET
+            usage_count = usage_count + 1,
+            last_used = CURRENT_TIMESTAMP;
+        ''', (user_id, command_name))
+        await conn.commit()
+    except Exception as e:
+        logging.error(f"Failed to update command stats: {e}")
+
+async def get_user_command_stats(conn, user_id: str):
+    """Get command usage statistics for a specific user."""
+    try:
+        async with conn.execute('''
+            SELECT command_name, usage_count, last_used
+            FROM command_stats
+            WHERE user_id = ?
+            ORDER BY usage_count DESC;
+        ''', (user_id,)) as cursor:
+            return await cursor.fetchall()
+    except Exception as e:
+        logging.error(f"Failed to get user command stats: {e}")
+        return []
+
+async def get_command_stats(conn):
+    """Get overall command usage statistics."""
+    try:
+        async with conn.execute('''
+            SELECT command_name, SUM(usage_count) as total_uses, COUNT(DISTINCT user_id) as unique_users
+            FROM command_stats
+            GROUP BY command_name
+            ORDER BY total_uses DESC;
+        ''') as cursor:
+            return await cursor.fetchall()
+    except Exception as e:
+        logging.error(f"Failed to get command stats: {e}")
+        return []
+
+async def track_voice_join(conn, user_id: str, channel_id: str):
+    """Track when a user joins a voice channel."""
+    try:
+        # First update or create stats record
+        await conn.execute('''
+            INSERT INTO voice_chat_stats (user_id, channel_id, join_count)
+            VALUES (?, ?, 1)
+            ON CONFLICT(user_id, channel_id) DO UPDATE SET
+            join_count = join_count + 1;
+        ''', (user_id, channel_id))
+        
+        # Then create session record
+        await conn.execute('''
+            INSERT OR REPLACE INTO voice_chat_sessions (user_id, channel_id, join_timestamp)
+            VALUES (?, ?, CURRENT_TIMESTAMP);
+        ''', (user_id, channel_id))
+        
+        await conn.commit()
+    except Exception as e:
+        logging.error(f"Failed to track voice join: {e}")
+
+async def track_voice_leave(conn, user_id: str):
+    """Track when a user leaves a voice channel and update their stats."""
+    try:
+        # Get session info
+        async with conn.execute('''
+            SELECT channel_id, join_timestamp
+            FROM voice_chat_sessions
+            WHERE user_id = ?;
+        ''', (user_id,)) as cursor:
+            session = await cursor.fetchone()
+            
+        if session:
+            channel_id, join_time = session
+            
+            # Calculate duration
+            await conn.execute('''
+                UPDATE voice_chat_stats 
+                SET leave_timestamp = CURRENT_TIMESTAMP,
+                    duration = ROUND((JULIANDAY(CURRENT_TIMESTAMP) - JULIANDAY(?)) * 86400),
+                    total_time = total_time + ROUND((JULIANDAY(CURRENT_TIMESTAMP) - JULIANDAY(?)) * 86400)
+                WHERE user_id = ? AND channel_id = ?;
+            ''', (join_time, join_time, user_id, channel_id))
+            
+            # Remove session
+            await conn.execute('''
+                DELETE FROM voice_chat_sessions
+                WHERE user_id = ?;
+            ''', (user_id,))
+            
+            await conn.commit()
+    except Exception as e:
+        logging.error(f"Failed to track voice leave: {e}")
+
+async def get_user_voice_stats(conn, user_id: str):
+    """Get voice chat statistics for a user."""
+    try:
+        async with conn.execute('''
+            SELECT 
+                channel_id,
+                total_time,
+                join_count,
+                duration,
+                join_timestamp,
+                leave_timestamp
+            FROM voice_chat_stats
+            WHERE user_id = ?
+            ORDER BY total_time DESC;
+        ''', (user_id,)) as cursor:
+            return await cursor.fetchall()
+    except Exception as e:
+        logging.error(f"Failed to get user voice stats: {e}")
+        return []
+
+async def get_voice_leaderboard(conn):
+    """Get overall voice chat leaderboard."""
+    try:
+        async with conn.execute('''
+            SELECT 
+                user_id,
+                SUM(total_time) as total_time,
+                SUM(join_count) as total_joins,
+                COUNT(DISTINCT channel_id) as unique_channels
+            FROM voice_chat_stats
+            GROUP BY user_id
+            ORDER BY total_time DESC;
+        ''') as cursor:
+            return await cursor.fetchall()
+    except Exception as e:
+        logging.error(f"Failed to get voice leaderboard: {e}")
+        return []
