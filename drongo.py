@@ -9,7 +9,9 @@ from rich.console import Console
 from discord.ext import commands
 from database import (create_table, store_message, get_db_connection, 
                       set_last_message_id, get_last_message_id,
-                      create_game_tracker_tables)
+                      create_game_tracker_tables, track_voice_join,
+                      track_voice_leave, get_user_voice_stats,
+                      get_voice_leaderboard)
 import command_database
 from dotenv import load_dotenv
 from modules import (message_stats, message_management, wordcount, 
@@ -314,7 +316,7 @@ class DrongoBot(commands.Bot):
         await self.achievement_system.check_achievement(message, reaction)
 
     async def on_voice_state_update(self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
-        """Handle voice state update achievements."""
+        """Handle voice state updates and tracking."""
         if member.bot:
             return
 
@@ -322,13 +324,25 @@ class DrongoBot(commands.Bot):
         if discord.utils.utcnow() < self.start_time:
             return
 
-        # Check achievements when a user joins or leaves a voice channel
-        if after.channel is not None and (before.channel is None or before.channel != after.channel):
-            # User joined a channel
-            await self.achievement_system.check_achievement(voice_state=after, member=member)
-        elif after.channel is None and before.channel is not None:
-            # User left a channel
-            await self.achievement_system.check_achievement(voice_state=after, member=member)
+        conn = await get_db_connection()
+        try:
+            # Handle voice channel changes
+            if after.channel is not None and (before.channel is None or before.channel != after.channel):
+                # User joined a channel
+                await track_voice_join(conn, str(member.id), str(after.channel.id))
+                await self.achievement_system.check_achievement(voice_state=after, member=member)
+            elif after.channel is None and before.channel is not None:
+                # User left a channel
+                await track_voice_leave(conn, str(member.id))
+                await self.achievement_system.check_achievement(voice_state=after, member=member)
+            elif before.channel != after.channel:
+                # User switched channels
+                await track_voice_leave(conn, str(member.id))
+                await track_voice_join(conn, str(member.id), str(after.channel.id))
+        except Exception as e:
+            self.logger.error(f"Error tracking voice state: {str(e)}")
+        finally:
+            await conn.close()
 
 intents = discord.Intents.default()
 intents.messages = True
