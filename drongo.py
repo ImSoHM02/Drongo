@@ -74,22 +74,38 @@ if not anthropic_api_key:
 class HeartbeatClient(Client):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.heartbeat_timeout = 10  # seconds
+        self.heartbeat_timeout = 60  # Increased timeout to avoid conflicts
         self.heartbeat_task = None
+        self._heartbeat_lock = asyncio.Lock()
         self.reconnecting = False
-
+        
     async def heartbeat(self):
-        while not self.is_closed():
-            if self.ws is not None and self.ws.open:
-                await self.ws.ping()
-            await asyncio.sleep(self.heartbeat_timeout)
+        try:
+            while not self.is_closed():
+                async with self._heartbeat_lock:
+                    if self.ws is not None and self.ws.open:
+                        try:
+                            await self.ws.ping()
+                        except Exception as e:
+                            logging.error(f"Heartbeat ping failed: {e}")
+                await asyncio.sleep(self.heartbeat_timeout)
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            logging.error(f"Heartbeat task error: {e}")
 
     async def on_connect(self):
+        if self.heartbeat_task and not self.heartbeat_task.done():
+            self.heartbeat_task.cancel()
         self.heartbeat_task = self.loop.create_task(self.heartbeat())
 
     async def on_disconnect(self):
         if self.heartbeat_task:
             self.heartbeat_task.cancel()
+            try:
+                await self.heartbeat_task
+            except asyncio.CancelledError:
+                pass
             self.heartbeat_task = None
 
 class DrongoBot(commands.Bot):
@@ -117,21 +133,43 @@ class DrongoBot(commands.Bot):
     async def on_disconnect(self):
         self.stats_display.set_status("Disconnected")
         self.logger.warning("Bot disconnected")
-        await self.attempt_reconnect()
+        # Don't attempt reconnect here - let Discord.py handle initial reconnection
+        if not self.is_closed():
+            try:
+                await asyncio.sleep(5)  # Wait before checking connection
+                if not self.is_ws_ratelimited() and not self.ws:
+                    await self.attempt_reconnect()
+            except Exception as e:
+                self.logger.error(f"Error during disconnect handling: {e}")
 
     async def on_resumed(self):
         self.stats_display.set_status("Connected")
         self.reconnect_attempts = 0  # Reset reconnect attempts on successful reconnection
         self.logger.info("Bot reconnected")
+        # Verify connection is stable
+        try:
+            if self.ws and self.ws.open:
+                self.logger.info("Connection verified stable")
+            else:
+                self.logger.warning("Connection may be unstable")
+        except Exception as e:
+            self.logger.error(f"Error checking connection stability: {e}")
 
     async def attempt_reconnect(self):
         if self.reconnect_attempts < self.max_reconnect_attempts:
             self.reconnect_attempts += 1
             self.logger.warning(f"Attempting to reconnect... (Attempt {self.reconnect_attempts}/{self.max_reconnect_attempts})")
             try:
+                # Add delay between reconnection attempts
+                await asyncio.sleep(min(5 * self.reconnect_attempts, 30))
+                if not self.is_closed():
+                    await self.close()
+                await asyncio.sleep(1)
                 await self.connect(reconnect=True)
             except Exception as e:
                 self.logger.error(f"Reconnection attempt failed: {str(e)}")
+                # Add exponential backoff
+                await asyncio.sleep(min(2 ** self.reconnect_attempts, 60))
         else:
             self.logger.error("Max reconnection attempts reached. Please restart the bot manually.")
 

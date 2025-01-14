@@ -1,0 +1,24 @@
+Voice Achievement Duration Fix
+
+Changes made to fix the voice achievement being awarded too early:
+
+1. Timestamp Precision
+- Modified timestamp storage to include microseconds using strftime('%Y-%m-%d %H:%M:%f', 'now')
+- Changed voice_sessions table to use TEXT type to preserve timestamp precision
+- Improved timezone handling to ensure consistent UTC timestamps
+
+2. Session Persistence
+- Added logic to preserve voice sessions during brief disconnects
+- Only create new sessions if user doesn't already have an active one
+- Only clear sessions when user fully disconnects from voice (not when switching channels)
+
+3. Debug Logging
+- Added detailed timestamp logging showing join and current times
+- Added session duration logging showing seconds elapsed
+- Added state change logging for session preservation and cleanup
+
+These changes ensure that:
+- Voice session durations are tracked accurately
+- Brief disconnects don't reset session timers
+- The Marathon Speaker achievement is only awarded after the full 2 hours (7200 seconds)
+- Debug logs provide visibility into session tracking

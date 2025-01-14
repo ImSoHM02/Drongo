@@ -70,7 +70,7 @@ class AchievementSystem:
                 CREATE TABLE IF NOT EXISTS voice_sessions (
                     user_id INTEGER,
                     channel_id INTEGER,
-                    join_time TIMESTAMP DEFAULT (datetime('now', 'utc')),
+                    join_time TEXT NOT NULL,  -- Store as TEXT to preserve microsecond precision
                     PRIMARY KEY (user_id)
                 )
             """
@@ -103,16 +103,30 @@ class AchievementSystem:
                 cursor = conn.cursor()
                 
                 if voice_state.channel is not None:  # User joined a channel
-                    # Record join time
-                    print(f"Debug: Recording voice join time for {member.name} in channel {voice_state.channel.name}")
+                    # Check if they already have an active session
                     cursor.execute(
                         """
-                        INSERT OR REPLACE INTO voice_sessions 
-                        (user_id, channel_id, join_time) 
-                        VALUES (?, ?, datetime('now', 'utc'))
+                        SELECT join_time 
+                        FROM voice_sessions 
+                        WHERE user_id = ?
                         """,
-                        (member.id, voice_state.channel.id)
+                        (member.id,)
                     )
+                    existing_session = cursor.fetchone()
+                    
+                    if not existing_session:
+                        # Only create new session if they don't have one
+                        print(f"Debug: Recording new voice join time for {member.name} in channel {voice_state.channel.name}")
+                        cursor.execute(
+                            """
+                            INSERT OR REPLACE INTO voice_sessions 
+                            (user_id, channel_id, join_time) 
+                            VALUES (?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'))
+                            """,
+                            (member.id, voice_state.channel.id)
+                        )
+                    else:
+                        print(f"Debug: Preserving existing voice session for {member.name}")
                 else:  # User left a channel
                     # Check if they were in a session and calculate duration
                     cursor.execute(
@@ -125,18 +139,20 @@ class AchievementSystem:
                     )
                     result = cursor.fetchone()
                     if result:
-                        # Parse join_time and ensure it's timezone-aware
+                        # Parse join_time from UTC timestamp
                         join_time = datetime.fromisoformat(result[0].replace('Z', '+00:00'))
-                        if join_time.tzinfo is None:
-                            join_time = join_time.replace(tzinfo=timezone.utc)
+                        join_time = join_time.astimezone(timezone.utc)
                         
-                        # Get current time with UTC timezone
+                        # Get current time in UTC
                         current_time = datetime.now(timezone.utc)
+                        print(f"Debug: Timestamps - Join: {join_time.isoformat()}, Current: {current_time.isoformat()}")
                         print(f"Debug: Voice session for {member.name} - Join time: {join_time}, Current time: {current_time}")
                         duration = current_time - join_time
+                        duration_seconds = duration.total_seconds()
+                        print(f"Debug: Voice session duration for {member.name}: {duration_seconds} seconds (needs 7200 seconds/2 hours)")
                         
                         # If they were in the channel for 2 hours or more
-                        if duration.total_seconds() >= 7200:  # 2 hours = 7200 seconds
+                        if duration_seconds >= 7200:  # 2 hours = 7200 seconds
                             achievement = self.achievements["MARATHON_SPEAKER"]
                             # Use the channel they were in when they left
                             try:
@@ -159,11 +175,15 @@ class AchievementSystem:
                             except Exception as e:
                                 print(f"Error awarding voice achievement: {e}")
                         
-                        # Clear their session
-                        cursor.execute(
-                            "DELETE FROM voice_sessions WHERE user_id = ?",
-                            (member.id,)
-                        )
+                        # Only clear their session if they're actually disconnecting (not switching channels)
+                        if voice_state.channel is None:  # They're fully disconnecting
+                            print(f"Debug: Clearing voice session for {member.name} - disconnected from voice")
+                            cursor.execute(
+                                "DELETE FROM voice_sessions WHERE user_id = ?",
+                                (member.id,)
+                            )
+                        else:
+                            print(f"Debug: Preserving voice session for {member.name} - switching channels")
                 conn.commit()
 
             # Handle Social Butterfly achievement tracking
