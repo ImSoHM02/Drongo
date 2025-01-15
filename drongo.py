@@ -244,15 +244,19 @@ class DrongoBot(commands.Bot):
 
     async def on_interaction(self, interaction):
         """Track slash command usage."""
-        if interaction.type == discord.InteractionType.application_command:
-            cmd_conn = await command_database.db_connect()
-            try:
-                await command_database.update_command_stats(cmd_conn, str(interaction.user.id), interaction.command.name)
-            except Exception as e:
-                self.logger.error(f"Error updating command stats: {str(e)}")
-            finally:
-                await cmd_conn.close()
-        await super().on_interaction(interaction)
+        try:
+            if interaction.type == discord.InteractionType.application_command:
+                cmd_conn = await command_database.db_connect()
+                try:
+                    await command_database.update_command_stats(cmd_conn, str(interaction.user.id), interaction.command.name)
+                except Exception as e:
+                    self.logger.error(f"Error updating command stats: {str(e)}")
+                finally:
+                    await cmd_conn.close()
+            # Let discord.py's command system handle the interaction
+            await self.process_application_commands(interaction)
+        except Exception as e:
+            self.logger.error(f"Error processing interaction: {str(e)}")
 
     async def on_message(self, message):
         try:
