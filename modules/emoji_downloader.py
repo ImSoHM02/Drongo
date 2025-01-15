@@ -71,7 +71,7 @@ async def download_and_zip_message_emojis(messages, interaction: discord.Interac
                     async with session.get(emoji_url) as resp:
                         if resp.status == 200:
                             emoji_data.append(
-                                (f"{emoji_name}.{'gif' if is_animated else 'png'}", await resp.read())
+                                (f"{emoji_name}_{emoji_id}.{'gif' if is_animated else 'png'}", await resp.read())
                             )
                         else:
                             print(f"Failed to download emoji: {emoji_name} with status code: {resp.status}")
