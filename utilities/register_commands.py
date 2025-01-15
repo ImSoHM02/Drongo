@@ -104,6 +104,18 @@ def get_commands():
             ]
         },
         {
+            "name": "save_channel_emojis",
+            "description": "Save all custom emojis found in recent channel messages.",
+            "options": [
+                {
+                    "name": "message_limit",
+                    "description": "Number of messages to check (default: 100, max: 1000)",
+                    "type": 4,  # Type 4 is for INTEGER
+                    "required": False
+                }
+            ]
+        },
+        {
             "name": "ai_setmode",
             "description": "Set the bot's response mode with optional duration",
             "options": [
