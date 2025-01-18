@@ -12,8 +12,8 @@ from .ai_constants import (
     BRIEF_MAX_TOKENS, BRIEF_TEMPERATURE, TEXT_FILE_EXTENSIONS,
     ERROR_MESSAGES
 )
-from .ai_prompt import (
-    DEFAULT_SYSTEM_PROMPT, get_insult_prompt,
+from .prompts import (
+    SYSTEM_PROMPT, get_insult_prompt,
     get_compliment_prompt, get_mode_change_prompt
 )
 from .ai_handlers import (
@@ -67,7 +67,7 @@ class AIHandler:
                 response = await self.anthropic_client.messages.create(
                     model=DEFAULT_MODEL,
                     max_tokens=DEFAULT_MAX_TOKENS,
-                    system=DEFAULT_SYSTEM_PROMPT,
+                    system=SYSTEM_PROMPT,
                     messages=messages,
                     temperature=DEFAULT_TEMPERATURE,
                 )
@@ -119,7 +119,7 @@ Traceback:
                 response = await self.anthropic_client.messages.create(
                     model=DEFAULT_MODEL,
                     max_tokens=BRIEF_MAX_TOKENS,
-                    system=DEFAULT_SYSTEM_PROMPT,
+                    system=SYSTEM_PROMPT,
                     messages=[{"role": "user", "content": message_content}],
                     temperature=BRIEF_TEMPERATURE,
                 )
@@ -167,7 +167,7 @@ Traceback:
                 response = await self.anthropic_client.messages.create(
                     model=DEFAULT_MODEL,
                     max_tokens=BRIEF_MAX_TOKENS,
-                    system=DEFAULT_SYSTEM_PROMPT,
+                    system=SYSTEM_PROMPT,
                     messages=[{"role": "user", "content": message_content}],
                     temperature=BRIEF_TEMPERATURE,
                 )
@@ -244,7 +244,7 @@ Traceback:
             response = await self.anthropic_client.messages.create(
                 model=DEFAULT_MODEL,
                 max_tokens=BRIEF_MAX_TOKENS,
-                system=DEFAULT_SYSTEM_PROMPT,
+                system=SYSTEM_PROMPT,
                 messages=[{
                     "role": "user",
                     "content": get_mode_change_prompt(

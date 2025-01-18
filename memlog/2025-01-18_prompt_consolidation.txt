@@ -1,0 +1,15 @@
+Changes made:
+1. Created new prompts.py file to consolidate all AI prompts in one location
+2. Moved all prompts from ai_prompt.py to prompts.py:
+   - SYSTEM_PROMPT (renamed from DEFAULT_SYSTEM_PROMPT)
+   - get_insult_prompt()
+   - get_compliment_prompt()
+   - get_mode_change_prompt()
+3. Updated ai.py to import from prompts.py instead of ai_prompt.py
+4. Updated all references to DEFAULT_SYSTEM_PROMPT to use SYSTEM_PROMPT
+5. Removed ai_prompt.py as it's no longer needed
+
+Reason for changes:
+- Better organization of code by having all prompts in a dedicated file
+- More maintainable as all prompt-related changes can be made in one place
+- Clearer separation of concerns between prompt definitions and AI logic
