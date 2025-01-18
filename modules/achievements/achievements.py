@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 import discord
 
 from database import get_db_connection
-from modules.ai.anthropic.ai_prompt import DEFAULT_SYSTEM_PROMPT
+from modules.ai.anthropic.prompts import SYSTEM_PROMPT
 from modules.achievements.achievement_definitions import achievements
 
 from modules.achievements.models import Achievement
@@ -388,7 +388,7 @@ class AchievementSystem:
                         response = await self.bot.ai_handler.anthropic_client.messages.create(
                             model="claude-3-5-sonnet-20241022",
                             max_tokens=8192,
-                            system=DEFAULT_SYSTEM_PROMPT,
+                            system=SYSTEM_PROMPT,
                             messages=[
                                 {
                                     "role": "user",
