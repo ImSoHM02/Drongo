@@ -1,5 +1,5 @@
 {
-  "version": "0.1.3.0",
+  "version": "0.1.3.1",
   "last_announced_version": "0.1.3.0",
   "changes": [
     {
@@ -123,6 +123,18 @@
       "date": "10-1-2025",
       "notes": [
         "New achievements have been added"
+      ]
+    },
+    {
+      "version": "0.1.3.1",
+      "date": "19-1-2025",
+      "notes": [
+        "New achievements have been added",
+        "All achievements now have a first discoverer bonus, meaning the user who gets it first will gain more points",
+        "Achievements now have patterns, and may change criteria slightly to decrease the odds of other users figuring out how it was obtained",
+        "/achievements has been revamped to provide hints",
+        "Once an achievement has been earned, the person who earned it can see a description of how they got it using /achievements. Only the user can see this",
+        "Achievements have been reset"
       ]
     }
   ]

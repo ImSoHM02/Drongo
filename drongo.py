@@ -275,13 +275,29 @@ class DrongoBot(commands.Bot):
                     self.logger.error(f"Error processing AI message: {str(e)}")
 
             try:
-                # Combine message content, attachments, and embed fields
-                attachment_urls = ' '.join([attachment.url for attachment in message.attachments])
-                embed_content = []
-                for embed in message.embeds:
-                    for field in embed.fields:
-                        embed_content.append(f"{field.name}: {field.value}")
-                full_message_content = f"{message.clean_content} {attachment_urls} {' '.join(embed_content)}".strip()
+                # Store message content and any attachments/embeds
+                message_parts = []
+                
+                # Add main message content
+                if message.clean_content.strip():
+                    message_parts.append(message.clean_content.strip())
+                
+                # Add attachment URLs if any
+                if message.attachments:
+                    message_parts.append(' '.join(attachment.url for attachment in message.attachments))
+                
+                # Add embed fields if any
+                if message.embeds:
+                    embed_fields = []
+                    for embed in message.embeds:
+                        if embed.fields:
+                            for field in embed.fields:
+                                embed_fields.append(f"{field.name}: {field.value}")
+                    if embed_fields:
+                        message_parts.append(' '.join(embed_fields))
+                
+                # Join all parts with a single space
+                full_message_content = ' '.join(message_parts)
                 if ai_response:
                     full_message_content = f"{full_message_content} {ai_response}".strip()
 

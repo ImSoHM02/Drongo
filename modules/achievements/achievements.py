@@ -1,8 +1,10 @@
 # Provides classes for managing and awarding achievements.
 
 import json
+import random
 import sqlite3
-from datetime import datetime, timezone
+import asyncio
+from datetime import datetime, timezone, timedelta
 
 import discord
 
@@ -35,10 +37,11 @@ class AchievementSystem:
             return json.load(f)
 
     def setup_database(self):
-        # Initialize the achievements database.
+        # Initialize the achievements database with enhanced schema
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
 
+            # Main achievements table
             cursor.execute(
                 """
                 CREATE TABLE IF NOT EXISTS user_achievements (
@@ -46,12 +49,13 @@ class AchievementSystem:
                     achievement_id TEXT,
                     earned_at TIMESTAMP DEFAULT (datetime('now', 'utc')),
                     points INTEGER,
+                    is_first_discoverer BOOLEAN DEFAULT FALSE,
                     PRIMARY KEY (user_id, achievement_id)
                 )
             """
             )
 
-            # Create table for tracking voice chat interactions
+            # Voice chat interactions
             cursor.execute(
                 """
                 CREATE TABLE IF NOT EXISTS voice_interactions (
@@ -64,7 +68,7 @@ class AchievementSystem:
             """
             )
 
-            # Create table for tracking voice session durations
+            # Voice sessions
             cursor.execute(
                 """
                 CREATE TABLE IF NOT EXISTS voice_sessions (
@@ -76,25 +80,144 @@ class AchievementSystem:
             """
             )
 
+            # Variable requirements tracking
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS achievement_variables (
+                    achievement_id TEXT,
+                    variable_name TEXT,
+                    variable_value TEXT,
+                    updated_at TIMESTAMP DEFAULT (datetime('now', 'utc')),
+                    expires_at TIMESTAMP,
+                    PRIMARY KEY (achievement_id, variable_name)
+                )
+            """
+            )
+
+            # Message combo tracking
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS message_combos (
+                    user_id INTEGER,
+                    combo_type TEXT,
+                    start_time TIMESTAMP,
+                    last_update TIMESTAMP,
+                    count INTEGER DEFAULT 1,
+                    PRIMARY KEY (user_id, combo_type)
+                )
+            """
+            )
+
+            # Add columns if they don't exist
             cursor.execute("PRAGMA table_info(user_achievements)")
             columns = [column[1] for column in cursor.fetchall()]
 
             if "points" not in columns:
                 cursor.execute("ALTER TABLE user_achievements ADD COLUMN points INTEGER")
-                for achievement_id, achievement in self.achievements.items():
-                    cursor.execute(
-                        "UPDATE user_achievements SET points = ? WHERE achievement_id = ?",
-                        (achievement.points, achievement_id),
-                    )
+            if "is_first_discoverer" not in columns:
+                cursor.execute("ALTER TABLE user_achievements ADD COLUMN is_first_discoverer BOOLEAN DEFAULT FALSE")
+
+            # Initialize achievement variables
+            self._initialize_achievement_variables(cursor)
 
             conn.commit()
+
+    def _initialize_achievement_variables(self, cursor):
+        """Initialize or update variable requirements for achievements."""
+        now = datetime.now(timezone.utc)
+        
+        # Get current variables
+        cursor.execute("SELECT achievement_id, variable_name, expires_at FROM achievement_variables")
+        current_vars = {(row[0], row[1]): row[2] for row in cursor.fetchall()}
+
+        # Update expired or missing variables
+        for achievement_id, achievement in self.achievements.items():
+            if achievement.variable_requirements:
+                for var_name, var_config in achievement.variable_requirements.items():
+                    key = (achievement_id, var_name)
+                    expires_at = current_vars.get(key)
+
+                    # Check if variable needs updating
+                    if not expires_at or datetime.fromisoformat(expires_at.replace('Z', '+00:00')) <= now:
+                        if var_name == 'message_count':
+                            value = str(random.randint(
+                                achievement.variable_requirements.get('min_count', 50),
+                                achievement.variable_requirements.get('max_count', 100)
+                            ))
+                        elif var_name == 'time_window':
+                            min_hours = achievement.variable_requirements.get('min_hours', 1)
+                            max_hours = achievement.variable_requirements.get('max_hours', 24)
+                            crosses_midnight = achievement.variable_requirements.get('crosses_midnight', False)
+                            
+                            if crosses_midnight:
+                                # For time ranges that cross midnight (e.g., 23:00-04:00)
+                                # Choose between the two ranges: evening or early morning
+                                if random.choice([True, False]):
+                                    # Evening hours
+                                    value = str(random.randint(min_hours, 24))
+                                else:
+                                    # Early morning hours
+                                    value = str(random.randint(0, max_hours))
+                            else:
+                                # Normal time range within the same day
+                                value = str(random.randint(min_hours, max_hours))
+                        elif var_name == 'number_range':
+                            value = str(random.randint(
+                                achievement.variable_requirements.get('min_number', 1),
+                                achievement.variable_requirements.get('max_number', 100)
+                            ))
+                        else:
+                            continue
+
+                        # Set expiration to next day at midnight UTC
+                        next_day = (now + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+                        
+                        cursor.execute(
+                            """
+                            INSERT OR REPLACE INTO achievement_variables
+                            (achievement_id, variable_name, variable_value, updated_at, expires_at)
+                            VALUES (?, ?, ?, ?, ?)
+                            """,
+                            (achievement_id, var_name, value, now.isoformat(), next_day.isoformat())
+                        )
 
     async def check_achievement(
         self, message: discord.Message = None, reaction: discord.Reaction = None,
         voice_state: discord.VoiceState = None, member: discord.Member = None
     ) -> bool:
-        # Check if a message or reaction triggers any achievements.
+        """Check if any achievements have been triggered with enhanced mechanics."""
         achievements_earned = False
+        
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            now = datetime.now(timezone.utc)
+            
+            # Update achievement variables if needed
+            self._initialize_achievement_variables(cursor)
+            
+            # Get current variable values
+            cursor.execute(
+                """
+                SELECT achievement_id, variable_name, variable_value
+                FROM achievement_variables
+                WHERE expires_at > ?
+                """,
+                (now.isoformat(),)
+            )
+            current_vars = {(row[0], row[1]): row[2] for row in cursor.fetchall()}
+            
+            # Check for time-based achievements
+            current_hour = now.hour
+            for achievement_id, achievement in self.achievements.items():
+                if achievement.variable_requirements and 'time_window' in achievement.variable_requirements:
+                    var_key = (achievement_id, 'time_window')
+                    if var_key in current_vars:
+                        required_hour = int(current_vars[var_key])
+                        if current_hour == required_hour:
+                            # Time-based achievement condition met
+                            if message and not self.has_achievement(message.author.id, achievement_id):
+                                await self.award_achievement(message.author.id, achievement_id, message.channel, achievement)
+                                achievements_earned = True
 
         # Handle voice state updates
         if voice_state is not None and member is not None:
@@ -286,6 +409,125 @@ class AchievementSystem:
                 ):
                     achievements_earned = True
 
+            # Check for message patterns
+            if message.content:
+                # Connect to chat_history.db for message history
+                for attempt in range(3):  # Try up to 3 times
+                    try:
+                        chat_db = await get_db_connection()
+                        await chat_db.execute("BEGIN TRANSACTION")
+                        
+                        # Get recent messages count
+                        async with chat_db.execute(
+                            """
+                            SELECT COUNT(*) FROM messages
+                            WHERE user_id = ?
+                            AND timestamp >= datetime('now', '-5 minutes')
+                            ORDER BY timestamp DESC
+                            LIMIT 5
+                            """,
+                            (str(message.author.id),)
+                        ) as cursor:
+                            recent_messages = (await cursor.fetchone())[0]
+                        
+                        if recent_messages >= 5:
+                            # Get message contents
+                            async with chat_db.execute(
+                                """
+                                SELECT message_content FROM messages
+                                WHERE user_id = ?
+                                AND timestamp >= datetime('now', '-5 minutes')
+                                ORDER BY timestamp DESC
+                                LIMIT 5
+                                """,
+                                (str(message.author.id),)
+                            ) as cursor:
+                                messages = []
+                                async for row in cursor:
+                                    # Extract just the message content without attachments/embeds
+                                    raw_content = row[0].split('http')[0].strip()
+                                    # If content is duplicated (e.g. "hi hi"), take just the first part
+                                    if raw_content:
+                                        words = raw_content.split()
+                                        half_len = len(words) // 2
+                                        if (half_len > 0 and
+                                            words[:half_len] == words[half_len:]):  # Check if second half is duplicate
+                                            content = ' '.join(words[:half_len])
+                                        else:
+                                            content = raw_content
+                                        if content:  # Only add non-empty messages
+                                            messages.append(content)
+                                
+                                if len(messages) >= 5:
+                                    # Check for alternating pattern
+                                    is_pattern = True
+                                    for i in range(4):  # Check 4 pairs in 5 messages
+                                        curr_len = len(messages[i])
+                                        next_len = len(messages[i + 1])
+                                        
+                                        # First message should be short, second long
+                                        if i % 2 == 0:
+                                            if not (curr_len < 10 and next_len > 20):
+                                                print(f"Pattern break: {messages[i]} ({curr_len}) -> {messages[i+1]} ({next_len})")
+                                                is_pattern = False
+                                                break
+                                        # First message should be long, second short
+                                        else:
+                                            if not (curr_len > 20 and next_len < 10):
+                                                print(f"Pattern break: {messages[i]} ({curr_len}) -> {messages[i+1]} ({next_len})")
+                                                is_pattern = False
+                                                break
+                                
+                                if is_pattern:
+                                    achievement = self.achievements["PATTERN_MASTER"]
+                                    if not self.has_achievement(message.author.id, achievement.id):
+                                        await self.award_achievement(
+                                            message.author.id,
+                                            achievement.id,
+                                            message.channel,
+                                            achievement
+                                        )
+                        await chat_db.commit()
+                        break  # Success, exit retry loop
+                    except sqlite3.OperationalError as e:
+                        if "database is locked" in str(e):
+                            print(f"Database locked, attempt {attempt + 1}/3")
+                            await asyncio.sleep(0.1 * (attempt + 1))  # Exponential backoff
+                            if attempt == 2:  # Last attempt failed
+                                print("All attempts failed due to database lock")
+                                await chat_db.rollback()
+                        else:
+                            print(f"Database error: {e}")
+                            await chat_db.rollback()
+                            break
+                    except Exception as e:
+                        print(f"Unexpected error: {e}")
+                        await chat_db.rollback()
+                        break
+                    finally:
+                        await chat_db.close()
+                        
+                        # Check for alternating pattern
+                        is_pattern = True
+                        for i in range(4):  # Check 4 pairs in 5 messages
+                            curr_len = len(messages[i])
+                            next_len = len(messages[i + 1])
+                            if i % 2 == 0:  # Should be short then long
+                                if not (curr_len < 10 and next_len > 20):
+                                    is_pattern = False
+                                    break
+                            else:  # Should be long then short
+                                if not (curr_len > 20 and next_len < 10):
+                                    is_pattern = False
+                                    break
+                        
+                        if is_pattern:
+                            achievement = self.achievements["PATTERN_MASTER"]
+                            if await self.award_achievement(
+                                message.author.id, achievement.id, message.channel, achievement
+                            ):
+                                achievements_earned = True
+
             if self._is_pangram(message.content):
                 achievement = self.achievements["ALPHABET_SOUP"]
                 if await self.award_achievement(
@@ -351,7 +593,7 @@ class AchievementSystem:
     async def award_achievement(
         self, user_id: int, achievement_id: str, channel: discord.TextChannel, achievement: Achievement
     ) -> bool:
-        # Award an achievement to a user if they haven't already earned it.
+        """Award an achievement with enhanced mechanics for first discoverer and hidden achievements."""
         guild = channel.guild
         user = guild.get_member(user_id)
         if not user:
@@ -369,9 +611,23 @@ class AchievementSystem:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             try:
+                # Check if this is the first discovery
                 cursor.execute(
-                    "INSERT INTO user_achievements (user_id, achievement_id, points) VALUES (?, ?, ?)",
-                    (user_id, achievement_id, achievement.points),
+                    "SELECT COUNT(*) FROM user_achievements WHERE achievement_id = ?",
+                    (achievement_id,)
+                )
+                is_first = cursor.fetchone()[0] == 0
+                
+                # Calculate points including first discoverer bonus if applicable
+                points = achievement.calculate_points(is_first)
+                
+                cursor.execute(
+                    """
+                    INSERT INTO user_achievements
+                    (user_id, achievement_id, points, is_first_discoverer)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (user_id, achievement_id, points, is_first)
                 )
                 conn.commit()
             except sqlite3.Error as e:
@@ -427,16 +683,35 @@ class AchievementSystem:
                     user_rank = 1
                     total_points = achievement.points
 
-                # Create embed for achievement notification
+                # Create embed for achievement notification with enhanced display
                 embed = discord.Embed(
                     title="🏆 Achievement Unlocked!",
                     description=ai_response,
                     color=discord.Color.gold()
                 )
-                embed.add_field(name=achievement.name, value=f"+{achievement.points:,} points", inline=False)
+                
+                # Show achievement name and points, including first discoverer bonus if applicable
+                points_text = f"+{achievement.points:,} points"
+                cursor.execute(
+                    "SELECT is_first_discoverer FROM user_achievements WHERE user_id = ? AND achievement_id = ?",
+                    (user_id, achievement_id)
+                )
+                is_first = cursor.fetchone()[0]
+                if is_first and achievement.first_discoverer_bonus > 0:
+                    points_text += f" (+{achievement.first_discoverer_bonus:,} First Discoverer Bonus! 🥇)"
+                
+                # Add achievement details with description
                 embed.add_field(
-                    name="Progress", 
-                    value=f"Achievements: {len(earned_achievements)}/{total_possible}\nTotal Points: {total_points:,}\nRank: #{user_rank}", 
+                    name=achievement.name,
+                    value=f"{points_text}",
+                    inline=False
+                )
+                
+                # Show progress, excluding hidden unearned achievements from total
+                visible_total = sum(1 for a in self.achievements.values() if not a.hidden or self.has_achievement(user_id, a.id))
+                embed.add_field(
+                    name="Progress",
+                    value=f"Achievements: {len(earned_achievements)}/{visible_total}\nTotal Points: {total_points:,}\nRank: #{user_rank}",
                     inline=False
                 )
                 

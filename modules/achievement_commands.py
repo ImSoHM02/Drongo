@@ -24,31 +24,56 @@ async def clear_achievements(interaction: discord.Interaction, user: discord.Use
 
 async def achievements(interaction: discord.Interaction, bot):
     earned_achievements, total_achievements = bot.achievement_system.get_user_achievements(interaction.user.id)
+    earned_ids = {a.id for a in earned_achievements}
     
-    if not earned_achievements:
-        await interaction.response.send_message(
-            f"You haven't earned any achievements yet! There are {total_achievements} achievements to discover.",
-            ephemeral=True
-        )
-        return
+    # Create embed for achievements display
+    embed = discord.Embed(
+        title="🏆 Achievements",
+        color=discord.Color.gold()
+    )
     
-    # Create the achievements list message
-    achievements_text = "\n".join([
-        f"> 🏆 **{achievement.name}** ({achievement.points} points)"
-        for achievement in earned_achievements
-    ])
-    
-    remaining = total_achievements - len(earned_achievements)
     # Calculate total points
     total_points = sum(achievement.points for achievement in earned_achievements)
-    status = f"You've earned {len(earned_achievements)} achievement{'s' if len(earned_achievements) != 1 else ''} worth {total_points} points!"
-    if remaining > 0:
-        status += f" There {'is' if remaining == 1 else 'are'} {remaining} more to discover!"
     
-    await interaction.response.send_message(
-        f"{status}\n\n{achievements_text}",
-        ephemeral=True
-    )
+    # Add earned achievements section
+    if earned_achievements:
+        earned_text = ""
+        for achievement in earned_achievements:
+            points_text = f"{achievement.points} points"
+            if hasattr(achievement, 'is_first_discoverer') and achievement.is_first_discoverer:
+                points_text += " 🥇 First Discoverer!"
+            earned_text += f"> 🏆 **{achievement.name}** ({points_text})\n"
+            if achievement.description:
+                earned_text += f"> *{achievement.description}*\n"
+            earned_text += "\n"
+        embed.add_field(name="Earned Achievements", value=earned_text.strip(), inline=False)
+    
+    # Add available achievements section (including hints for hidden ones)
+    available_text = ""
+    for achievement_id, achievement in bot.achievement_system.achievements.items():
+        if achievement_id not in earned_ids:
+            if achievement.hidden:
+                if achievement.hint:
+                    available_text += f"> ❓ **???** - *{achievement.hint}*\n\n"
+            else:
+                available_text += f"> ⭕ **{achievement.name}** ({achievement.points} points)\n\n"
+    
+    if available_text:
+        embed.add_field(name="Available Achievements", value=available_text.strip(), inline=False)
+    
+    # Add summary
+    visible_total = sum(1 for a in bot.achievement_system.achievements.values()
+                       if not a.hidden or a.id in earned_ids)
+    status = f"You've earned {len(earned_achievements)} achievement{'s' if len(earned_achievements) != 1 else ''} worth {total_points} points!"
+    remaining = visible_total - len(earned_achievements)
+    if remaining > 0:
+        status += f"\nThere {'is' if remaining == 1 else 'are'} {remaining} more to discover!"
+        if any(a.hidden and a.id not in earned_ids for a in bot.achievement_system.achievements.values()):
+            status += "\n(Some achievements are hidden until discovered!)"
+    
+    embed.description = status
+    
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 async def leaderboard(interaction: discord.Interaction, bot):
     """Display the achievement leaderboard."""
