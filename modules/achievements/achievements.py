@@ -206,9 +206,13 @@ class AchievementSystem:
             )
             current_vars = {(row[0], row[1]): row[2] for row in cursor.fetchall()}
             
-            # Check for time-based achievements
+            # Check for time-based achievements (excluding voice-based achievements)
             current_hour = now.hour
             for achievement_id, achievement in self.achievements.items():
+                # Skip MARATHON_SPEAKER as it's handled by voice duration logic
+                if achievement_id == "MARATHON_SPEAKER":
+                    continue
+                    
                 if achievement.variable_requirements and 'time_window' in achievement.variable_requirements:
                     var_key = (achievement_id, 'time_window')
                     if var_key in current_vars:
