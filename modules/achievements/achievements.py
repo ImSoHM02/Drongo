@@ -274,9 +274,15 @@ class AchievementSystem:
                         duration_seconds = duration.total_seconds()
                         print(f"Debug: Voice session duration for {member.name}: {duration_seconds} seconds (needs 7200 seconds/2 hours)")
                         
-                        # If they were in the channel for 2 hours or more
-                        if duration_seconds >= 7200:  # 2 hours = 7200 seconds
-                            achievement = self.achievements["MARATHON_SPEAKER"]
+                        # Get the achievement requirements
+                        achievement = self.achievements["MARATHON_SPEAKER"]
+                        min_hours = achievement.variable_requirements.get('min_hours', 1)
+                        max_hours = achievement.variable_requirements.get('max_hours', 3)
+                        min_seconds = min_hours * 3600
+                        max_seconds = max_hours * 3600
+                        
+                        # Check if duration falls within the required range
+                        if min_seconds <= duration_seconds <= max_seconds:
                             # Use the channel they were in when they left
                             try:
                                 channel = voice_state.channel if voice_state.channel else member.guild.get_channel(cursor.execute(
