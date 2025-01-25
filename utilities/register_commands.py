@@ -167,6 +167,18 @@ def get_commands():
         {
             "name": "achievement_leaderboard",
             "description": "View the achievement leaderboard"
+        },
+        {
+            "name": "random_achievement",
+            "description": "Get a random achievement from a Steam game",
+            "options": [
+                {
+                    "name": "game",
+                    "description": "The name or App ID of the Steam game",
+                    "type": 3,  # Type 3 is for STRING
+                    "required": True
+                }
+            ]
         }
     ]
 

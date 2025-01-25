@@ -14,8 +14,9 @@ from database import (create_table, store_message, get_db_connection,
                       get_voice_leaderboard)
 import command_database
 from dotenv import load_dotenv
-from modules import (message_stats, message_management, wordcount, 
-                    clearchat, wordrank, emoji_downloader, web_link)
+from modules import (message_stats, message_management, wordcount,
+                     clearchat, wordrank, emoji_downloader, web_link,
+                     steam_commands)
 from modules.achievements import AchievementSystem
 from modules.stats_display import StatsDisplay
 from discord import Client
@@ -233,6 +234,9 @@ class DrongoBot(commands.Bot):
             # Achievement commands
             from modules import achievement_commands
             achievement_commands.setup(self)
+            
+            # Steam commands
+            steam_commands.setup(self)
             
             # Load version tracker after AI handler is initialized
             await self.load_extension("modules.version_tracker")
