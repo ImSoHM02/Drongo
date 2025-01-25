@@ -134,13 +134,26 @@ async def get_last_message_id(conn, channel_id):
 
 async def store_message(conn, message, full_message_content):
     try:
-        async with conn.execute("SELECT id FROM messages WHERE guild_id=? AND channel_id=? AND timestamp=?", (str(message.guild.id), str(message.channel.id), message.created_at.isoformat())) as cursor:
+        # Clean up the message content - remove duplicates within the same message
+        words = full_message_content.split()
+        half_len = len(words) // 2
+        if half_len > 0 and words[:half_len] == words[half_len:]:
+            full_message_content = ' '.join(words[:half_len])
+
+        # Check for recent duplicate messages from the same user
+        async with conn.execute("""
+            SELECT id FROM messages
+            WHERE guild_id=? AND channel_id=? AND user_id=? AND message_content=?
+            AND timestamp >= datetime(?, '-10 seconds')
+        """, (str(message.guild.id), str(message.channel.id), str(message.author.id),
+              full_message_content, message.created_at.isoformat())) as cursor:
             if await cursor.fetchone() is None:
-                # Insert the message first
+                # Insert the message if it's not a duplicate
                 cursor = await conn.execute('''
                     INSERT INTO messages (user_id, guild_id, channel_id, message_content, timestamp)
                     VALUES (?, ?, ?, ?, ?)
-                ''', (str(message.author.id), str(message.guild.id), str(message.channel.id), full_message_content, message.created_at.isoformat()))
+                ''', (str(message.author.id), str(message.guild.id), str(message.channel.id),
+                      full_message_content, message.created_at.isoformat()))
                 message_id = cursor.lastrowid
                 
                 # Store embed fields if present

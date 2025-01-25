@@ -506,27 +506,6 @@ class AchievementSystem:
                         break
                     finally:
                         await chat_db.close()
-                        
-                        # Check for alternating pattern
-                        is_pattern = True
-                        for i in range(4):  # Check 4 pairs in 5 messages
-                            curr_len = len(messages[i])
-                            next_len = len(messages[i + 1])
-                            if i % 2 == 0:  # Should be short then long
-                                if not (curr_len < 10 and next_len > 20):
-                                    is_pattern = False
-                                    break
-                            else:  # Should be long then short
-                                if not (curr_len > 20 and next_len < 10):
-                                    is_pattern = False
-                                    break
-                        
-                        if is_pattern:
-                            achievement = self.achievements["PATTERN_MASTER"]
-                            if await self.award_achievement(
-                                message.author.id, achievement.id, message.channel, achievement
-                            ):
-                                achievements_earned = True
 
             if self._is_pangram(message.content):
                 achievement = self.achievements["ALPHABET_SOUP"]
