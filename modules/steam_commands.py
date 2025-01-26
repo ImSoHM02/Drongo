@@ -151,9 +151,9 @@ async def random_achievement(interaction: discord.Interaction, game: str):
         await interaction.followup.send(f"An unexpected error occurred: {str(e)}")
 
 def setup(bot):
-    @bot.tree.command(name="random_achievement")
+    @bot.tree.command(name="sra")
     @app_commands.describe(game="The name or App ID of the Steam game")
     async def random_achievement_command(interaction: discord.Interaction, game: str):
-        """Get a random achievement from a Steam game"""
+        """Get a random Steam achievement"""
         await random_achievement(interaction, game)
         bot.stats_display.update_stats("Commands Executed", bot.stats_display.stats["Commands Executed"] + 1)

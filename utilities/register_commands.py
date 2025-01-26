@@ -169,8 +169,8 @@ def get_commands():
             "description": "View the achievement leaderboard"
         },
         {
-            "name": "random_achievement",
-            "description": "Get a random achievement from a Steam game",
+            "name": "sra",
+            "description": "Get a random Steam achievement",
             "options": [
                 {
                     "name": "game",
