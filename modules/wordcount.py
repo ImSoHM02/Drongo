@@ -29,38 +29,27 @@ async def count_word_occurrences(interaction: discord.Interaction, user: discord
                 matches = word_pattern.findall(message_content)
                 count += len(matches)
                 if matches:
-                  matching_messages.append(message_content)
+                    matching_messages.append(message_content)
 
         return count, matching_messages
     finally:
         await conn.close()
 
-async def send_word_count_response(interaction: discord.Interaction, user: discord.User, word: str, count: int):
-    """Sends the initial response with the word count."""
-
+async def send_word_count_response(interaction: discord.Interaction, user: discord.User, word: str, count: int, matching_messages: list[str]):
+    """Sends the response with the word count and instances."""
+    
     response = f"{user.name} has said '{word}' {count} times in this server."
-    await interaction.followup.send(response)
-
-async def offer_message_instances(interaction: discord.Interaction, user: discord.User, word: str, matching_messages: list[str]):
-    """Asks the user if they want to see the message instances and sends them if requested."""
-
-    def check(m):
-        return m.author == interaction.user and m.channel == interaction.channel and m.content.lower() == "yes drongo"
-
-    await interaction.followup.send("You wanna see the messages this cunt sent? Say 'yes drongo' like a good human")
-
-    try:
-        await interaction.client.wait_for('message', check=check, timeout=30.0)
-
+    
+    if count > 0:
         file_content = f"Instances of '{word}' used by {user.name} (up to 50 messages):\n\n"
         file_content += "\n\n".join(matching_messages[:50])
-
+        
         file = io.BytesIO(file_content.encode('utf-8'))
         discord_file = discord.File(file, filename=f"{user.name}_{word}_instances.txt")
-
-        await interaction.followup.send("Here ya go ya dog:", file=discord_file)
-    except asyncio.TimeoutError:
-        await interaction.followup.send("Guess you didn't wanna see the weird shit this cunt said")
+        
+        await interaction.followup.send(response, file=discord_file)
+    else:
+        await interaction.followup.send(response)
 
 async def wordcount(interaction: discord.Interaction, user: discord.User, word: str):
     """Handles the wordcount command logic."""
@@ -69,10 +58,7 @@ async def wordcount(interaction: discord.Interaction, user: discord.User, word: 
 
     count, matching_messages = await count_word_occurrences(interaction, user, word)
 
-    await send_word_count_response(interaction, user, word, count)
-
-    if count > 0:
-        await offer_message_instances(interaction, user, word, matching_messages)
+    await send_word_count_response(interaction, user, word, count, matching_messages)
 
 def setup(bot):
     @bot.tree.command(name="wordcount")
