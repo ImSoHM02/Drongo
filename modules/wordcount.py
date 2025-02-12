@@ -15,11 +15,12 @@ async def count_word_occurrences(interaction: discord.Interaction, user: discord
         FROM messages
         WHERE user_id = ? AND guild_id = ?
         """
-        # Improved word pattern:
-        # - \b: Matches word boundaries, ensuring it's a whole word.
-        # - (?i): Case-insensitive flag.
-        # - \W: Matches any non-word character (including whitespace and punctuation)
-        word_pattern = re.compile(r'(?i)\b' + re.escape(word) + r'\b(?=\W|$)')
+        # Enhanced word pattern:
+        # - (?i): Case-insensitive flag
+        # - (?:^|[^\w]): Look for start of string or non-word char before
+        # - (): Capture the word
+        # - (?=[^\w]|$): Look for non-word char or end of string after
+        word_pattern = re.compile(r'(?i)(?:^|[^\w])(' + re.escape(word) + r')(?=[^\w]|$)')
         count = 0
         matching_messages = []
 
