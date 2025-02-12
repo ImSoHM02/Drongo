@@ -1,7 +1,0 @@
-Change: Remove FLUX_COMMAND and LOST_EVEN_ODD achievements
-
-Modified modules/achievements/achievements.py to:
-- Removed FLUX_COMMAND and LOST_EVEN_ODD from achievements dictionary
-- Removed corresponding achievement checks from check_achievement method
-
-This change removes these achievements from the system entirely. Note that any users who previously earned these achievements will still have them in their history unless manually cleared.

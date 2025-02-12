@@ -1,8 +1,0 @@
-Change: Prevent bots from earning achievement points
-
-Modified modules/achievements/achievements.py to add a bot check in the award_achievement method.
-- Added user fetch at the start of award_achievement
-- Added check for user.bot property to prevent bots from earning achievements
-- Returns False early if the user is a bot
-
-This change ensures that bot accounts cannot earn achievements, maintaining the integrity of the achievement system for human users only.
