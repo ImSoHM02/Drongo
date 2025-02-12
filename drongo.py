@@ -257,8 +257,8 @@ class DrongoBot(commands.Bot):
                     self.logger.error(f"Error updating command stats: {str(e)}")
                 finally:
                     await cmd_conn.close()
-                # Handle the command directly through the command tree
-                await self.tree.process_command(interaction)
+                # Let the command tree handle the interaction naturally
+                await interaction.command.callback(interaction)
         except Exception as e:
             self.logger.error(f"Error processing interaction: {str(e)}")
 
