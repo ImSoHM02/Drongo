@@ -102,26 +102,44 @@ class AIHandler:
                     api_call_args["temperature"] = DEFAULT_TEMPERATURE
                     self.bot.logger.info(f"Standard call: max_tokens={DEFAULT_MAX_TOKENS}, temperature={DEFAULT_TEMPERATURE}")
 
-                # Get response from Claude, using beta client if necessary
+                # Get response from Claude, using stream for beta features if necessary
                 self.bot.logger.info("Sending request to Claude")
+                claude_response_text = ""
                 if thinking_params: # Check if thinking was enabled
-                    self.bot.logger.info("Using beta client for API call (with thinking/128k)")
-                    # Assuming the async client mirrors the sync example structure
-                    response = await self.anthropic_client.beta.messages.create(**api_call_args)
+                    self.bot.logger.info("Using beta stream for API call (with thinking/128k)")
+                    try:
+                        async with self.anthropic_client.beta.messages.stream(**api_call_args) as stream:
+                            async for event in stream:
+                                if event.type == "content_block_delta":
+                                    if event.delta.type == "text_delta":
+                                        claude_response_text += event.delta.text
+                                # We can add handling for thinking_delta here later if needed
+                        # Ensure stream is fully processed before continuing
+                        await stream.until_done()
+                    except AttributeError:
+                        logging.error("AttributeError: Failed to access 'beta.messages.stream'. Beta features might not be available or accessed correctly.")
+                        raise # Re-raise the exception to be caught by the outer handler
+                    except Exception: # Catch any other stream-related errors
+                        logging.error("Error during beta stream processing.")
+                        raise # Re-raise the exception
                 else:
-                    self.bot.logger.info("Using standard client for API call")
+                    self.bot.logger.info("Using standard create for API call")
                     response = await self.anthropic_client.messages.create(**api_call_args)
+                    if response.content and len(response.content) > 0:
+                         claude_response_text = response.content[0].text
+                    else:
+                         claude_response_text = "" # Handle empty response case
+                         logging.warning("Received empty response content from standard create call.")
                 self.bot.logger.info("Received response from Claude")
 
                 # Update conversation history with Claude's response
-                claude_response = response.content[0].text
-                self.conversation_manager.update_history(str(message.author.id), "assistant", claude_response)
+                self.conversation_manager.update_history(str(message.author.id), "assistant", claude_response_text)
 
                 # Send the split response
-                await self.message_handler.send_split_message(message.channel, claude_response, reply_to=message)
+                await self.message_handler.send_split_message(message.channel, claude_response_text, reply_to=message)
             except Exception as e:
-                # Determine context for error logging
-                error_context_title = "Error in Claude response (Extended Thinking / Beta)" if use_beta_client else "Error in Claude response (Standard)"
+                # Determine context for error logging (use thinking_params which is defined before try)
+                error_context_title = "Error in Claude response (Extended Thinking / Beta)" if thinking_params else "Error in Claude response (Standard)"
                 
                 error_traceback = traceback.format_exc()
                 error_msg = f"""
