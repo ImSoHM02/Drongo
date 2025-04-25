@@ -1,5 +1,5 @@
 {
-  "version": "0.1.3.1",
+  "version": "0.1.3.2",
   "last_announced_version": "0.1.3.1",
   "changes": [
     {
@@ -142,7 +142,8 @@
       "date": "25-4-2025",
       "notes": [
         "Removed achievement system",
-        "Updated prompts for responses"
+        "Updated prompts for responses",
+        "Updated model to Sonnet 3.7. Including {extended_think} in a message will activate extended thinking for that message"
       ]
     }
   ]
