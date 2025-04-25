@@ -16,3 +16,9 @@ Documentation/discord.ext.tasks – asyncio.Task helpers.md
 Documentation/discord.py API Reference.md
 Documentation/Interactions API Reference.md
 database/command_stats.db
+/memlog
+/logs
+/Documentation
+/database
+/.vscode
+security_review.md

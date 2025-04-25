@@ -17,7 +17,6 @@ from dotenv import load_dotenv
 from modules import (message_stats, message_management, wordcount,
                      clearchat, wordrank, emoji_downloader, web_link,
                      steam_commands)
-from modules.achievements import AchievementSystem
 from modules.stats_display import StatsDisplay
 from discord import Client
 from modules.ai import AIHandler
@@ -118,7 +117,6 @@ class DrongoBot(commands.Bot):
         self.max_reconnect_attempts = 5
         self.anthropic_api_key = anthropic_api_key
         self.ai_handler = None  # Initialize ai_handler as None
-        self.achievement_system = AchievementSystem(self)  # Initialize achievement system with bot instance
         self.start_time = None  # Will be set when bot is ready
 
     async def setup_hook(self):
@@ -231,9 +229,6 @@ class DrongoBot(commands.Bot):
             emoji_downloader.setup(self)
             # Web interface command
             web_link.setup(self)
-            # Achievement commands
-            from modules import achievement_commands
-            achievement_commands.setup(self)
             
             # Steam commands
             steam_commands.setup(self)
@@ -307,10 +302,7 @@ class DrongoBot(commands.Bot):
 
                 # Only process messages that occur after bot start
                 if message.created_at >= self.start_time:
-                    try:
-                        await self.achievement_system.check_achievement(message)
-                    except Exception as e:
-                        self.logger.error(f"Error checking achievements: {str(e)}")
+                    pass # Placeholder where achievement check used to be
 
                 # Store messages and stats only for primary guild
                 if str(message.guild.id) == primary_guild_id:
@@ -375,7 +367,7 @@ class DrongoBot(commands.Bot):
                 self.message = message
 
         reaction = CustomReaction(payload.emoji, payload.member)
-        await self.achievement_system.check_achievement(message, reaction)
+        # Removed achievement check for reactions
 
     async def on_voice_state_update(self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
         """Handle voice state updates and tracking."""
@@ -392,11 +384,11 @@ class DrongoBot(commands.Bot):
             if after.channel is not None and (before.channel is None or before.channel != after.channel):
                 # User joined a channel
                 await track_voice_join(conn, str(member.id), str(after.channel.id))
-                await self.achievement_system.check_achievement(voice_state=after, member=member)
+                # Removed achievement check for voice join
             elif after.channel is None and before.channel is not None:
                 # User left a channel
                 await track_voice_leave(conn, str(member.id))
-                await self.achievement_system.check_achievement(voice_state=after, member=member)
+                # Removed achievement check for voice leave
             elif before.channel != after.channel:
                 # User switched channels
                 await track_voice_leave(conn, str(member.id))

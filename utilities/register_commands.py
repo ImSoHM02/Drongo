@@ -149,26 +149,6 @@ def get_commands():
             "description": "Get the link to the web statistics interface"
         },
         {
-            "name": "achievements",
-            "description": "Check your achievement progress"
-        },
-        {
-            "name": "clear_achievements",
-            "description": "Clear achievements for a specified user (Admin only)",
-            "options": [
-                {
-                    "name": "user",
-                    "description": "The user whose achievements should be cleared",
-                    "type": 6,  # Type 6 is for USER
-                    "required": True
-                }
-            ]
-        },
-        {
-            "name": "achievement_leaderboard",
-            "description": "View the achievement leaderboard"
-        },
-        {
             "name": "sra",
             "description": "Get a random Steam achievement",
             "options": [
