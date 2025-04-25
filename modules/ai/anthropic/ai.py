@@ -38,6 +38,7 @@ class AIHandler:
         # Handle messages starting with 'oi drongo'.
         self.bot.logger.info("Handling 'oi drongo' message")
         async with message.channel.typing():
+            use_beta_client = False # Initialize flag before try block
             try:
                 # Remove "oi drongo" from the beginning of the message
                 cleaned_content = re.sub(r'^oi\s+drongo\s*', '', full_message_content, flags=re.IGNORECASE).strip()
@@ -88,6 +89,7 @@ class AIHandler:
 
                 # Add thinking/beta parameters if enabled, remove incompatible ones
                 if thinking_params:
+                    use_beta_client = True # Set flag if using beta features
                     api_call_args["thinking"] = thinking_params
                     api_call_args["max_tokens"] = EXTENDED_OUTPUT_MAX_TOKENS
                     api_call_args["betas"] = [EXTENDED_OUTPUT_BETA_FLAG]
