@@ -102,10 +102,15 @@ class AIHandler:
                     api_call_args["temperature"] = DEFAULT_TEMPERATURE
                     self.bot.logger.info(f"Standard call: max_tokens={DEFAULT_MAX_TOKENS}, temperature={DEFAULT_TEMPERATURE}")
 
-                # Get response from Claude using the standard client
-                # Beta features are activated via parameters in api_call_args
-                self.bot.logger.info("Sending request to Claude via standard messages.create")
-                response = await self.anthropic_client.messages.create(**api_call_args)
+                # Get response from Claude, using beta client if necessary
+                self.bot.logger.info("Sending request to Claude")
+                if thinking_params: # Check if thinking was enabled
+                    self.bot.logger.info("Using beta client for API call (with thinking/128k)")
+                    # Assuming the async client mirrors the sync example structure
+                    response = await self.anthropic_client.beta.messages.create(**api_call_args)
+                else:
+                    self.bot.logger.info("Using standard client for API call")
+                    response = await self.anthropic_client.messages.create(**api_call_args)
                 self.bot.logger.info("Received response from Claude")
 
                 # Update conversation history with Claude's response
