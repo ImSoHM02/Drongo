@@ -95,14 +95,14 @@ class AIHandler:
                     use_beta_client = True
                     self.bot.logger.info(f"Using 128k output beta with max_tokens={EXTENDED_OUTPUT_MAX_TOKENS}")
 
-                # Get response from Claude, using beta client if necessary
+                # Get response from Claude
+                # The 'betas' parameter within api_call_args handles beta feature activation
                 self.bot.logger.info("Sending request to Claude")
                 if use_beta_client:
-                    self.bot.logger.info("Using beta client for API call")
-                    response = await self.anthropic_client.beta.messages.create(**api_call_args)
+                    self.bot.logger.info("Beta features activated via 'betas' parameter.")
                 else:
-                    self.bot.logger.info("Using standard client for API call")
-                    response = await self.anthropic_client.messages.create(**api_call_args)
+                    self.bot.logger.info("Using standard API call.")
+                response = await self.anthropic_client.messages.create(**api_call_args)
                 self.bot.logger.info("Received response from Claude")
 
                 # Update conversation history with Claude's response
