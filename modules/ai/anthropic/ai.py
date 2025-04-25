@@ -112,9 +112,12 @@ class AIHandler:
                 # Send the split response
                 await self.message_handler.send_split_message(message.channel, claude_response, reply_to=message)
             except Exception as e:
+                # Determine context for error logging
+                error_context_title = "Error in Claude response (Extended Thinking / Beta)" if use_beta_client else "Error in Claude response (Standard)"
+                
                 error_traceback = traceback.format_exc()
                 error_msg = f"""
-                                Error in Claude response:
+                                {error_context_title}:
                                 Time: {datetime.datetime.now()}
                                 Message: {message.content}
                                 Author: {message.author} ({message.author.id})
@@ -124,8 +127,9 @@ class AIHandler:
                                 Traceback:
                                 {error_traceback}
                             """
+                # Log the detailed error message
                 self.bot.logger.error(error_msg)
-                self.bot.logger.error(f"Error in Claude response: {str(e)}")
+                # Send a generic error reply to the user
                 await message.reply(ERROR_MESSAGES["general_error"])
 
     async def generate_insult(self, message: discord.Message, full_message_content: str) -> str:
