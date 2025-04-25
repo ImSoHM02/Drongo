@@ -8,12 +8,15 @@ MAX_HISTORY_LENGTH = 30
 TEXT_FILE_EXTENSIONS = ('.txt', '.py', '.js', '.html', '.css', '.json', '.xml', '.md')
 
 # Model constants
-DEFAULT_MODEL = "claude-3-5-sonnet-20241022"
+DEFAULT_MODEL = "claude-3-7-sonnet-20250219"
 DEFAULT_MAX_TOKENS = 8192
 DEFAULT_TEMPERATURE = 0.8
 BRIEF_MAX_TOKENS = 150
 BRIEF_TEMPERATURE = 0.9
 
+EXTENDED_THINKING_BUDGET = 4096 # Default token budget when extended thinking is enabled
+EXTENDED_OUTPUT_MAX_TOKENS = 128000 # Max tokens when using 128k output beta
+EXTENDED_OUTPUT_BETA_FLAG = "output-128k-2025-02-19" # Beta flag value for 128k output
 # Probability configurations
 DEFAULT_CONFIG = {
     "name": "default",

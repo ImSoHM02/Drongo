@@ -136,6 +136,14 @@
         "Once an achievement has been earned, the person who earned it can see a description of how they got it using /achievements. Only the user can see this",
         "Achievements have been reset"
       ]
+    },
+    {
+      "version": "0.1.3.2",
+      "date": "25-4-2025",
+      "notes": [
+        "Removed achievement system",
+        "Updated prompts for responses"
+      ]
     }
   ]
 }
