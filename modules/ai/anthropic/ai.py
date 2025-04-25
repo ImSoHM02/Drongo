@@ -86,23 +86,23 @@ class AIHandler:
                     "temperature": DEFAULT_TEMPERATURE,
                 }
 
-                # Add thinking parameters and adjust for 128k output if enabled
-                use_beta_client = False
+                # Add thinking/beta parameters if enabled, remove incompatible ones
                 if thinking_params:
                     api_call_args["thinking"] = thinking_params
-                    # Enable 128k output beta when extended thinking is used
                     api_call_args["max_tokens"] = EXTENDED_OUTPUT_MAX_TOKENS
                     api_call_args["betas"] = [EXTENDED_OUTPUT_BETA_FLAG]
-                    use_beta_client = True
-                    self.bot.logger.info(f"Using 128k output beta with max_tokens={EXTENDED_OUTPUT_MAX_TOKENS}")
-
-                # Get response from Claude
-                # The 'betas' parameter within api_call_args handles beta feature activation
-                self.bot.logger.info("Sending request to Claude")
-                if use_beta_client:
-                    self.bot.logger.info("Beta features activated via 'betas' parameter.")
+                    # Remove temperature as it's incompatible with thinking
+                    if "temperature" in api_call_args:
+                        del api_call_args["temperature"]
+                    self.bot.logger.info(f"Extended thinking enabled: budget={EXTENDED_THINKING_BUDGET}, max_tokens={EXTENDED_OUTPUT_MAX_TOKENS}, betas={api_call_args['betas']}")
                 else:
-                    self.bot.logger.info("Using standard API call.")
+                    # Ensure default temperature is present for standard calls
+                    api_call_args["temperature"] = DEFAULT_TEMPERATURE
+                    self.bot.logger.info(f"Standard call: max_tokens={DEFAULT_MAX_TOKENS}, temperature={DEFAULT_TEMPERATURE}")
+
+                # Get response from Claude using the standard client
+                # Beta features are activated via parameters in api_call_args
+                self.bot.logger.info("Sending request to Claude via standard messages.create")
                 response = await self.anthropic_client.messages.create(**api_call_args)
                 self.bot.logger.info("Received response from Claude")
 
