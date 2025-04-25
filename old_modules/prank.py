@@ -1,6 +1,7 @@
 from discord.ext import commands
 import discord
 import random
+import logging # Import standard logging
 
 def setup(bot):
     pranked_users = {}  # Keep track of users who have been pranked
@@ -32,5 +33,5 @@ def setup(bot):
             await bot.process_commands(message)
             
         except Exception as e:
-            if hasattr(bot, 'logger'):
-                bot.logger.error(f"Error in prank module: {str(e)}")
+            # Use standard logging instead of the custom bot logger
+            logging.error(f"Error in prank module: {str(e)}")

@@ -5,6 +5,7 @@ import random
 import re
 from typing import List, Dict, Any, Optional
 import datetime
+import logging # Import standard logging
 
 from .ai_constants import (
     DEFAULT_MODEL, DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE,
@@ -127,8 +128,8 @@ class AIHandler:
                                 Traceback:
                                 {error_traceback}
                             """
-                # Log the detailed error message
-                self.bot.logger.error(error_msg)
+                # Log the detailed error message using standard logging
+                logging.error(error_msg)
                 # Send a generic error reply to the user
                 await message.reply(ERROR_MESSAGES["general_error"])
 
@@ -175,8 +176,8 @@ class AIHandler:
                                 Traceback:
                                 {error_traceback}
                             """
-                self.bot.logger.error(error_msg)
-                self.bot.logger.error(f"Error generating insult: {str(e)}")
+                logging.error(error_msg) # Use standard logging
+                # self.bot.logger.error(f"Error generating insult: {str(e)}") # Redundant logging removed
                 return f"Error generating insult: {str(e)}"
 
     async def generate_compliment(self, message: discord.Message, full_message_content: str) -> str:
@@ -222,8 +223,8 @@ class AIHandler:
                                 Traceback:
                                 {error_traceback}
                             """
-                self.bot.logger.error(error_msg)
-                self.bot.logger.error(f"Error generating compliment: {str(e)}")
+                logging.error(error_msg) # Use standard logging
+                # self.bot.logger.error(f"Error generating compliment: {str(e)}") # Redundant logging removed
                 return f"Error generating compliment: {str(e)}"
 
     async def process_message(self, message: discord.Message) -> str:
@@ -249,8 +250,8 @@ class AIHandler:
             try:
                 reply_message = await message.channel.fetch_message(message.reference.message_id)
                 referenced_content = f"Message being replied to: {reply_message.content}\n\n"
-            except:
-                self.bot.logger.error("Failed to fetch referenced message")
+            except Exception as fetch_err: # Catch specific exception
+                logging.error(f"Failed to fetch referenced message: {fetch_err}") # Use standard logging
 
         # Remove "oi drongo" from the beginning of the message
         cleaned_content = re.sub(r'^oi\s+drongo\s*', '', message.clean_content, flags=re.IGNORECASE).strip()
@@ -303,8 +304,8 @@ class AIHandler:
                             Traceback:
                             {error_traceback}
                         """
-            self.bot.logger.error(error_msg)
-            self.bot.logger.error(f"Error generating mode change response: {str(e)}")
+            logging.error(error_msg) # Use standard logging
+            # self.bot.logger.error(f"Error generating mode change response: {str(e)}") # Redundant logging removed
             return ERROR_MESSAGES["mode_change_error"].format(error=str(e))
 
     async def setmode_command(self, interaction: discord.Interaction, mode: str, duration: Optional[int] = None) -> None:
@@ -328,8 +329,8 @@ class AIHandler:
                             Duration: {duration}
                             Error: {str(e)}
                         """
-            self.bot.logger.error(error_msg)
-            self.bot.logger.error(f"Error setting mode: {str(e)}")
+            logging.error(error_msg) # Use standard logging
+            # self.bot.logger.error(f"Error setting mode: {str(e)}") # Redundant logging removed
             await interaction.followup.send(str(e), ephemeral=True)
         except Exception as e:
             error_traceback = traceback.format_exc()
@@ -343,8 +344,8 @@ class AIHandler:
                             Traceback:
                             {error_traceback}
                         """
-            self.bot.logger.error(error_msg)
-            self.bot.logger.error(f"Error setting mode: {str(e)}")
+            logging.error(error_msg) # Use standard logging
+            # self.bot.logger.error(f"Error setting mode: {str(e)}") # Redundant logging removed
             await interaction.followup.send(f"Error: {str(e)}", ephemeral=True)
 
     async def listmodes_command(self, interaction: discord.Interaction) -> None:

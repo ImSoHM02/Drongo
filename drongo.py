@@ -24,7 +24,7 @@ from modules.ai import AIHandler
 console = Console()
 
 # Set up logging
-log_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+log_formatter = logging.Formatter('%(asctime)s - [%(levelname)s] [%(name)s:%(lineno)d] - %(message)s')
 
 # File handler for error.log
 file_handler = logging.FileHandler('logs/error.log')
@@ -139,7 +139,7 @@ class DrongoBot(commands.Bot):
                 if not self.is_ws_ratelimited() and not self.ws:
                     await self.attempt_reconnect()
             except Exception as e:
-                self.logger.error(f"Error during disconnect handling: {e}")
+                logging.error(f"Error during disconnect handling: {e}") # Use standard logging
 
     async def on_resumed(self):
         self.stats_display.set_status("Connected")
@@ -152,7 +152,7 @@ class DrongoBot(commands.Bot):
             else:
                 self.logger.warning("Connection may be unstable")
         except Exception as e:
-            self.logger.error(f"Error checking connection stability: {e}")
+            logging.error(f"Error checking connection stability: {e}") # Use standard logging
 
     async def attempt_reconnect(self):
         if self.reconnect_attempts < self.max_reconnect_attempts:
@@ -166,11 +166,11 @@ class DrongoBot(commands.Bot):
                 await asyncio.sleep(1)
                 await self.connect(reconnect=True)
             except Exception as e:
-                self.logger.error(f"Reconnection attempt failed: {str(e)}")
+                logging.error(f"Reconnection attempt failed: {str(e)}") # Use standard logging
                 # Add exponential backoff
                 await asyncio.sleep(min(2 ** self.reconnect_attempts, 60))
         else:
-            self.logger.error("Max reconnection attempts reached. Please restart the bot manually.")
+            logging.error("Max reconnection attempts reached. Please restart the bot manually.") # Use standard logging
 
     async def setup_bot(self):
         # Initialize command stats database first
@@ -249,13 +249,13 @@ class DrongoBot(commands.Bot):
                 try:
                     await command_database.update_command_stats(cmd_conn, str(interaction.user.id), interaction.command.name)
                 except Exception as e:
-                    self.logger.error(f"Error updating command stats: {str(e)}")
+                    logging.error(f"Error updating command stats: {str(e)}") # Use standard logging
                 finally:
                     await cmd_conn.close()
                 # Let the command tree handle the interaction naturally
                 await interaction.command.callback(interaction)
         except Exception as e:
-            self.logger.error(f"Error processing interaction: {str(e)}")
+            logging.error(f"Error processing interaction: {str(e)}") # Use standard logging
 
     async def on_message(self, message):
         try:
@@ -271,7 +271,7 @@ class DrongoBot(commands.Bot):
                 try:
                     ai_response = await self.ai_handler.process_message(message)
                 except Exception as e:
-                    self.logger.error(f"Error processing AI message: {str(e)}")
+                    logging.error(f"Error processing AI message: {str(e)}") # Use standard logging
 
             try:
                 # Store message content and any attachments/embeds
@@ -315,7 +315,7 @@ class DrongoBot(commands.Bot):
                             # Log the message in the stats display
                             self.stats_display.log_message(message.author, message.guild.name, message.channel.name)
                     except Exception as e:
-                        self.logger.error(f"Error storing message: {str(e)}")
+                        logging.error(f"Error storing message: {str(e)}") # Use standard logging
                     finally:
                         await conn.close()
 
@@ -327,7 +327,7 @@ class DrongoBot(commands.Bot):
                     try:
                         await command_database.update_command_stats(cmd_conn, str(message.author.id), command_name)
                     except Exception as e:
-                        self.logger.error(f"Error updating command stats: {str(e)}")
+                        logging.error(f"Error updating command stats: {str(e)}") # Use standard logging
                     finally:
                         await cmd_conn.close()
                 
@@ -337,15 +337,15 @@ class DrongoBot(commands.Bot):
                     try:
                         await command_database.update_command_stats(cmd_conn, str(message.author.id), 'oi_drongo')
                     except Exception as e:
-                        self.logger.error(f"Error updating command stats: {str(e)}")
+                        logging.error(f"Error updating command stats: {str(e)}") # Use standard logging
                     finally:
                         await cmd_conn.close()
                 
                 await self.process_commands(message)
             except Exception as e:
-                self.logger.error(f"Error processing message content: {str(e)}")
+                logging.error(f"Error processing message content: {str(e)}") # Use standard logging
         except Exception as e:
-            self.logger.error(f"Unhandled error in message processing: {str(e)}")
+            logging.error(f"Unhandled error in message processing: {str(e)}") # Use standard logging
 
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
         """Handle reaction achievements."""
@@ -394,7 +394,7 @@ class DrongoBot(commands.Bot):
                 await track_voice_leave(conn, str(member.id))
                 await track_voice_join(conn, str(member.id), str(after.channel.id))
         except Exception as e:
-            self.logger.error(f"Error tracking voice state: {str(e)}")
+            logging.error(f"Error tracking voice state: {str(e)}") # Use standard logging
         finally:
             await conn.close()
 
