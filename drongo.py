@@ -227,7 +227,7 @@ class DrongoBot(commands.Bot):
             ai.setup(self)
             
             # Setup Civitai AI
-            self.load_extension("modules.ai.civitai.civitai_handlers")
+            await self.load_extension("modules.ai.civitai.civitai_handlers")
 
             emoji_downloader.setup(self)
             # Web interface command
