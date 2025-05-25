@@ -19,7 +19,7 @@ class CivitaiAI(discord.Cog):
         height: int = discord.Option(int, description="The height of the generated image.", default=512),
         steps: int = discord.Option(int, description="The number of steps for the image generation process.", default=20),
         cfg_scale: int = discord.Option(int, description="The CFG scale for the image generation.", default=7),
-        model_urn: str = discord.Option(str, description="The Civitai model URN to use for generation.", default=None)
+        model_urn: str = discord.Option(str, description="The Civitai model URN to use for generation.", default="")
     ):
         await ctx.defer()
         response = generate_image(
@@ -29,7 +29,7 @@ class CivitaiAI(discord.Cog):
             height=height,
             steps=steps,
             cfg_scale=cfg_scale,
-            model_urn=model_urn if model_urn else None # Use default from civitai_ai if None
+            model_urn=model_urn if model_urn != "" else None # Use default from civitai_ai if empty string
         )
 
         if "error" in response:
