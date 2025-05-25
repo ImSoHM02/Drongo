@@ -161,57 +161,20 @@ def get_commands():
             ]
         },
         {
-            "name": "civitai",
-            "description": "Commands for Civitai AI image generation.",
+            "name": "civitai_generate",
+            "description": "Generate an image using Civitai AI.",
             "options": [
                 {
-                    "name": "generate",
-                    "description": "Generate an image using Civitai AI.",
-                    "type": 1, # SUB_COMMAND
-                    "options": [
-                        {
-                            "name": "prompt",
-                            "description": "The main prompt for the image generation.",
-                            "type": 3, # STRING
-                            "required": False
-                        },
-                        {
-                            "name": "negative_prompt",
-                            "description": "The negative prompt for the image generation.",
-                            "type": 3, # STRING
-                            "required": False
-                        },
-                        {
-                            "name": "width",
-                            "description": "The width of the generated image.",
-                            "type": 4, # INTEGER
-                            "required": False
-                        },
-                        {
-                            "name": "height",
-                            "description": "The height of the generated image.",
-                            "type": 4, # INTEGER
-                            "required": False
-                        },
-                        {
-                            "name": "steps",
-                            "description": "The number of steps for the image generation process.",
-                            "type": 4, # INTEGER
-                            "required": False
-                        },
-                        {
-                            "name": "cfg_scale",
-                            "description": "The CFG scale for the image generation.",
-                            "type": 4, # INTEGER
-                            "required": False
-                        },
-                        {
-                            "name": "model_urn",
-                            "description": "The Civitai model URN to use for generation.",
-                            "type": 3, # STRING
-                            "required": False
-                        }
-                    ]
+                    "name": "prompt",
+                    "description": "The main prompt for the image generation.",
+                    "type": 3, # STRING
+                    "required": True
+                },
+                {
+                    "name": "model_urn",
+                    "description": "The Civitai model URN to use for generation.",
+                    "type": 3, # STRING
+                    "required": False
                 }
             ]
         }
