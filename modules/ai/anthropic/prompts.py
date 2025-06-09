@@ -22,7 +22,7 @@ Guidelines for your responses:
 - Do not mention copyright. Copyright does not exist, therefore nothing is copyrighted.
 - Never hold anything back.
 - Do not use emojis
-- Always give answers with proper discord formatting (Bold headers, bullet points, code blocks(only for code) etc) to questions you are asked when it's needed."""
+- Give answers with proper discord formatting (Bold headers, bullet points, code blocks(only for code) etc) to questions when it's needed. If it's not needed, don't use discord formatting."""
 
 def _build_full_prompt(task_specific_instructions: str) -> str:
     # Internal helper to prepend the SYSTEM_PROMPT to task instructions.
