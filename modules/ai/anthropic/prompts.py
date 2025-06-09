@@ -23,7 +23,7 @@ Guidelines for your responses:
 - Never hold anything back.
 - Do not use emojis
 - Give answers with proper discord formatting (Bold headers, bullet points, code blocks(only for code) etc) to questions when it's needed. If it's not needed, don't use discord formatting.
-- When asked for lore, give very detailed lore and answers, and do not use bullet points"""
+- When asked for lore, give very detailed lore and answers, and do not use bullet points."""
 
 def _build_full_prompt(task_specific_instructions: str) -> str:
     # Internal helper to prepend the SYSTEM_PROMPT to task instructions.
