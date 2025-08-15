@@ -85,6 +85,11 @@ class AIHandler:
                     "system": SYSTEM_PROMPT,
                     "messages": messages_for_api,
                     "temperature": DEFAULT_TEMPERATURE,
+                    "tools": [{
+                        "type": "web_search_20250305",
+                        "name": "web_search",
+                        "max_uses": 5
+                    }]
                 }
 
                 # Add thinking/beta parameters if enabled, remove incompatible ones
@@ -125,11 +130,16 @@ class AIHandler:
                 else:
                     self.bot.logger.info("Using standard create for API call")
                     response = await self.anthropic_client.messages.create(**api_call_args)
-                    if response.content and len(response.content) > 0:
-                         claude_response_text = response.content[0].text
-                    else:
-                         claude_response_text = "" # Handle empty response case
-                         logging.warning("Received empty response content from standard create call.")
+                    
+                    # Find the text content from the response, which may include tool use
+                    claude_response_text = ""
+                    if response.content:
+                        for block in response.content:
+                            if block.type == "text":
+                                claude_response_text += block.text
+                    
+                    if not claude_response_text:
+                        logging.warning("Received empty or non-text response content from standard create call.")
                 self.bot.logger.info("Received response from Claude")
 
                 # Update conversation history with Claude's response

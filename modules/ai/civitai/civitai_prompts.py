@@ -1,2 +1,0 @@
-DEFAULT_PROMPT = "RAW photo, face portrait photo, wearing black dress, happy face, hard shadows, cinematic shot, dramatic lighting"
-DEFAULT_NEGATIVE_PROMPT = "(deformed iris, deformed pupils, semi-realistic, cgi, 3d, render, sketch, cartoon, drawing, anime, mutated hands and fingers:1.4), (deformed, distorted, disfigured:1.3)"

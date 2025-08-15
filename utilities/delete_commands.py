@@ -5,7 +5,7 @@ import sys
 from dotenv import load_dotenv
 
 # Load the environment variables from id.env in parent directory
-load_dotenv('../id.env')
+load_dotenv('id.env')
 
 async def delete_all_commands():
     print("====== DELETE COMMANDS ======")

@@ -8,7 +8,7 @@ MAX_HISTORY_LENGTH = 30
 TEXT_FILE_EXTENSIONS = ('.txt', '.py', '.js', '.html', '.css', '.json', '.xml', '.md')
 
 # Model constants
-DEFAULT_MODEL = "claude-3-7-sonnet-20250219"
+DEFAULT_MODEL = "claude-sonnet-4-20250514"
 DEFAULT_MAX_TOKENS = 8192
 DEFAULT_TEMPERATURE = 0.8
 BRIEF_MAX_TOKENS = 150

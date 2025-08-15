@@ -14,9 +14,6 @@ from database import (create_table, store_message, get_db_connection,
                       get_voice_leaderboard)
 import command_database
 from dotenv import load_dotenv
-from modules import (message_stats, message_management, wordcount,
-                     clearchat, wordrank, emoji_downloader, web_link,
-                     steam_commands)
 from modules.stats_display import StatsDisplay
 from discord import Client
 from modules.ai import AIHandler
@@ -24,26 +21,7 @@ from modules.ai import AIHandler
 console = Console()
 
 # Set up logging
-log_formatter = logging.Formatter('%(asctime)s - [%(levelname)s] [%(name)s:%(lineno)d] - %(message)s')
-
-# File handler for error.log
-file_handler = logging.FileHandler('logs/error.log')
-file_handler.setLevel(logging.INFO)  # Changed to INFO to capture all logs
-file_handler.setFormatter(log_formatter)
-
-# Rich console handler
-console_handler = RichHandler()
-console_handler.setLevel(logging.INFO)  # Changed to INFO to capture all logs
-
-# Configure root logger
-root_logger = logging.getLogger()
-root_logger.setLevel(logging.INFO)  # Changed to INFO to capture all logs
-root_logger.addHandler(file_handler)
-root_logger.addHandler(console_handler)
-
-# Set logging level for noisy modules
-logging.getLogger('discord').setLevel(logging.WARNING)
-logging.getLogger('asyncio').setLevel(logging.WARNING)
+discord.utils.setup_logging(level=logging.INFO, root=False)
 
 # Custom logger that only logs to the stats display
 class StatsLogger:
@@ -118,6 +96,7 @@ class DrongoBot(commands.Bot):
         self.anthropic_api_key = anthropic_api_key
         self.ai_handler = None  # Initialize ai_handler as None
         self.start_time = None  # Will be set when bot is ready
+        self.add_listener(self.track_command_usage, 'on_interaction')
 
     async def setup_hook(self):
         self.stats_display.start()
@@ -128,6 +107,17 @@ class DrongoBot(commands.Bot):
         self.logger.info(f'Logged in as {self.user}')
         self.start_time = discord.utils.utcnow()  # Set bot start time
         await self.setup_bot()
+
+    async def track_command_usage(self, interaction: discord.Interaction):
+        """Listener to track slash command usage."""
+        if interaction.type == discord.InteractionType.application_command and interaction.command:
+            cmd_conn = await command_database.db_connect()
+            try:
+                await command_database.update_command_stats(cmd_conn, str(interaction.user.id), interaction.command.name)
+            except Exception as e:
+                logging.error(f"Error updating command stats: {str(e)}")
+            finally:
+                await cmd_conn.close()
 
     async def on_disconnect(self):
         self.stats_display.set_status("Disconnected")
@@ -185,7 +175,6 @@ class DrongoBot(commands.Bot):
         try:
             await create_table(conn)
             await create_game_tracker_tables(conn)
-            await self.load_extension("modules.restart")
             self.logger.info('Processing chat messages...')
             for guild in self.guilds:
                 # Only process messages for the primary guild
@@ -215,53 +204,37 @@ class DrongoBot(commands.Bot):
             self.logger.info("Finished processing all channels.")
 
             # Set up commands from modules
-            message_stats.setup(self)
-            message_management.setup(self)
-            wordcount.setup(self)
-            clearchat.setup(self)
-            wordrank.setup(self)
-            
+            # Load Cogs
+            await self.load_extension("modules.cogs.message_management_cog")
+            await self.load_extension("modules.cogs.wordcount_cog")
+            await self.load_extension("modules.cogs.emoji_downloader_cog")
+            await self.load_extension("modules.cogs.clearchat_cog")
+            await self.load_extension("modules.cogs.message_stats_cog")
+            await self.load_extension("modules.cogs.restart_cog")
+            await self.load_extension("modules.cogs.steam_commands_cog")
+            await self.load_extension("modules.cogs.wordrank_cog")
+            await self.load_extension("modules.cogs.jellyfin_cog")
+
             # Initialize and set up AI handler
             self.ai_handler = AIHandler(self, self.anthropic_api_key)
             from modules.ai.anthropic import ai
             ai.setup(self)
             
-            # Setup Civitai AI
-            await self.load_extension("modules.ai.civitai.civitai_handlers")
             
             # Sync application commands
             await self.tree.sync()
 
-            emoji_downloader.setup(self)
-            # Web interface command
-            web_link.setup(self)
-            
-            # Steam commands
-            steam_commands.setup(self)
+            # Load Cogs
+            await self.load_extension("modules.cogs.web_link_cog")
             
             # Load version tracker after AI handler is initialized
-            await self.load_extension("modules.version_tracker")
+            await self.load_extension("modules.cogs.version_tracker_cog")
             
             self.logger.info("Loaded all command modules.")
 
         finally:
             await conn.close()
 
-    async def on_interaction(self, interaction):
-        """Track slash command usage."""
-        try:
-            if interaction.type == discord.InteractionType.application_command:
-                cmd_conn = await command_database.db_connect()
-                try:
-                    await command_database.update_command_stats(cmd_conn, str(interaction.user.id), interaction.command.name)
-                except Exception as e:
-                    logging.error(f"Error updating command stats: {str(e)}") # Use standard logging
-                finally:
-                    await cmd_conn.close()
-                # Let the command tree handle the interaction naturally
-                await interaction.command.callback(interaction)
-        except Exception as e:
-            logging.error(f"Error processing interaction: {str(e)}") # Use standard logging
 
     async def on_message(self, message):
         try:
@@ -347,7 +320,7 @@ class DrongoBot(commands.Bot):
                     finally:
                         await cmd_conn.close()
                 
-                await self.process_commands(message)
+                # await self.process_commands(message) # This is for prefix commands, which are not used.
             except Exception as e:
                 logging.error(f"Error processing message content: {str(e)}") # Use standard logging
         except Exception as e:
@@ -405,11 +378,9 @@ class DrongoBot(commands.Bot):
             await conn.close()
 
 intents = discord.Intents.default()
-intents.messages = True
 intents.message_content = True
-intents.reactions = True
 intents.members = True
-intents.guilds = True
+intents.reactions = True
 
 bot = DrongoBot(command_prefix='!', intents=intents)
 bot.authorized_user_id = authorized_user_id
@@ -425,7 +396,6 @@ signal.signal(signal.SIGTERM, signal_handler)
 
 async def main():
     async with bot:
-        await bot.setup_hook()
         await bot.start(token)
 
 asyncio.run(main())

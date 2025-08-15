@@ -5,7 +5,7 @@ import sys
 from dotenv import load_dotenv
 
 # Load the environment variables from id.env in parent directory
-load_dotenv('../id.env')
+load_dotenv('id.env')
 
 def get_commands():
     return [
@@ -177,6 +177,10 @@ def get_commands():
                     "required": False
                 }
             ]
+        },
+        {
+            "name": "jellyfin",
+            "description": "Get the link to the Jellyfin server"
         }
     ]
 

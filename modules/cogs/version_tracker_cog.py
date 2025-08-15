@@ -1,13 +1,14 @@
 import json
 import os
 from discord import TextChannel
+from discord.ext import commands
 
-class VersionTracker:
-    def __init__(self, bot, ai_handler):
+class VersionTrackerCog(commands.Cog):
+    def __init__(self, bot):
         self.bot = bot
-        self.ai_handler = ai_handler
         self.version_file = 'version.json'
         self.announcement_channel_id = int(os.getenv("ANNOUNCEMENT_CHANNEL_ID"))
+        self.bot.loop.create_task(self.check_and_announce_changes())
 
     def get_version_info(self):
         with open(self.version_file, 'r') as f:
@@ -25,6 +26,7 @@ class VersionTracker:
         return v1_parts > v2_parts
 
     async def check_and_announce_changes(self):
+        await self.bot.wait_until_ready()
         version_info = self.get_version_info()
         current_version = version_info['version']
         last_announced_version = version_info['last_announced_version']
@@ -39,11 +41,11 @@ class VersionTracker:
                 self.update_last_announced_version(current_version)
 
     async def generate_announcement(self, changes):
-        changes_text = "\n".join([f"Version {change['version']} ({change['date']}):\n" + 
+        changes_text = "\n".join([f"Version {change['version']} ({change['date']}):\n" +
                                   "\n".join(f"- {note}" for note in change['notes'])
                                   for change in changes])
         
-        prompt = f"""You are Jaxon, an eshay. For this conversation, you're roleplaying as an Australian eshay. 
+        prompt = f"""You are Jaxon, an eshay. For this conversation, you're roleplaying as an Australian eshay.
 
         Guidelines for your responses:
         - Use eshay slang and expressions liberally.
@@ -65,7 +67,7 @@ class VersionTracker:
         
         Remember to use dot points for each update."""
 
-        response = await self.ai_handler.anthropic_client.messages.create(
+        response = await self.bot.ai_handler.anthropic_client.messages.create(
             model="claude-3-5-sonnet-20240620",
             max_tokens=3000,
             system=prompt,
@@ -76,5 +78,4 @@ class VersionTracker:
         return response.content[0].text
 
 async def setup(bot):
-    version_tracker = VersionTracker(bot, bot.ai_handler)
-    await version_tracker.check_and_announce_changes()
+    await bot.add_cog(VersionTrackerCog(bot))

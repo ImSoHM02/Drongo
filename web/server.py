@@ -1,6 +1,4 @@
 from quart import Quart, render_template, jsonify, request
-import sqlite3
-import time
 from datetime import datetime
 import os
 import sys
@@ -34,44 +32,60 @@ def save_user_mappings(mappings):
         return False
 
 async def get_stats():
-    db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'chat_history.db')
-    print(f"Connecting to database at: {db_path}")
-    
     try:
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
+        conn = await get_db_connection()
         
         # Get total message count
-        cursor.execute('SELECT COUNT(*) FROM messages')
-        total_messages = cursor.fetchone()[0]
+        async with conn.execute('SELECT COUNT(*) FROM messages') as cursor:
+            total_messages = (await cursor.fetchone())[0]
         
         # Get unique users count
-        cursor.execute('SELECT COUNT(DISTINCT user_id) FROM messages')
-        unique_users = cursor.fetchone()[0]
+        async with conn.execute('SELECT COUNT(DISTINCT user_id) FROM messages') as cursor:
+            unique_users = (await cursor.fetchone())[0]
         
         # Get messages in last 24 hours
-        cursor.execute('''
-            SELECT COUNT(*) FROM messages 
+        async with conn.execute('''
+            SELECT COUNT(*) FROM messages
             WHERE datetime(timestamp) > datetime('now', '-1 day')
-        ''')
-        recent_messages = cursor.fetchone()[0]
+        ''') as cursor:
+            recent_messages = (await cursor.fetchone())[0]
         
         # Get top 5 users by message count
-        cursor.execute('''
-            SELECT user_id, COUNT(*) as msg_count 
-            FROM messages 
-            GROUP BY user_id 
-            ORDER BY msg_count DESC 
+        async with conn.execute('''
+            SELECT user_id, COUNT(*) as msg_count
+            FROM messages
+            GROUP BY user_id
+            ORDER BY msg_count DESC
             LIMIT 5
-        ''')
-        top_users_raw = cursor.fetchall()
+        ''') as cursor:
+            top_users_raw = await cursor.fetchall()
         
-        conn.close()
+        await conn.close()
 
         # Map user IDs to usernames
         user_mappings = load_user_mappings()
-        top_users = [(user_mappings.get(str(user_id), f"User {user_id}"), count) 
+        top_users = [(user_mappings.get(str(user_id), f"User {user_id}"), count)
                     for user_id, count in top_users_raw]
+        
+        # If user mappings are missing, attempt to pull usernames from the database
+        if len(top_users) < len(top_users_raw):
+            missing_user_ids = [user_id for user_id, _ in top_users_raw if str(user_id) not in user_mappings]
+            
+            if missing_user_ids:
+                placeholders = ', '.join(['?'] * len(missing_user_ids))
+                async with conn.execute(f'''
+                    SELECT DISTINCT user_id, message_content
+                    FROM messages
+                    WHERE user_id IN ({placeholders})
+                ''', missing_user_ids) as cursor:
+                    user_info = await cursor.fetchall()
+                    
+                    # Update top_users with usernames from the database
+                    for user_id, message_content in user_info:
+                        username = message_content.split()[0]  # Extract the first word as username
+                        for i, (uid, count) in enumerate(top_users_raw):
+                            if uid == user_id:
+                                top_users[i] = (username, count)
         
         return {
             'total_messages': total_messages,
@@ -102,6 +116,80 @@ async def admin():
 @app.route('/api/stats')
 async def stats():
     return jsonify(await get_stats())
+
+async def get_chart_data():
+    try:
+        conn = await get_db_connection()
+
+        # Messages Over Time
+        async with conn.execute('''
+            SELECT DATE(timestamp) as date, COUNT(*) as message_count
+            FROM messages
+            GROUP BY DATE(timestamp)
+            ORDER BY DATE(timestamp)
+        ''') as cursor:
+            messages_over_time = await cursor.fetchall()
+        
+        messages_data = [{'date': row[0], 'message_count': row[1]} for row in messages_over_time]
+
+        # User Activity Over Time
+        async with conn.execute('''
+            SELECT DATE(timestamp) as date, COUNT(DISTINCT user_id) as active_users
+            FROM messages
+            GROUP BY DATE(timestamp)
+            ORDER BY DATE(timestamp)
+        ''') as cursor:
+            user_activity_over_time = await cursor.fetchall()
+
+        user_activity_data = [{'date': row[0], 'active_users': row[1]} for row in user_activity_over_time]
+
+        # User Activity by Time
+        async with conn.execute('''
+            SELECT STRFTIME('%H', timestamp) as hour, COUNT(*) as message_count
+            FROM messages
+            GROUP BY hour
+            ORDER BY hour
+        ''') as cursor:
+            user_activity_by_time = await cursor.fetchall()
+
+        user_activity_by_time_data = [{'hour': row[0], 'message_count': row[1]} for row in user_activity_by_time]
+
+        await conn.close()
+
+        return {
+            'messages_over_time': messages_data,
+            'user_activity_over_time': user_activity_data,
+            'user_activity_by_time': user_activity_by_time_data
+        }
+    except Exception as e:
+        print(f"Error accessing database: {e}")
+        return {
+            'messages_over_time': [],
+            'user_activity_over_time': [],
+            'user_activity_by_time': [],
+            'error': str(e)
+        }
+
+@app.route('/api/chart_data')
+async def chart_data():
+    return jsonify(await get_chart_data())
+
+@app.route('/api/test_data')
+async def test_data():
+    try:
+        conn = await get_db_connection()
+        async with conn.execute("SELECT * FROM messages LIMIT 10;") as cursor:
+            rows = await cursor.fetchall()
+        await conn.close()
+        
+        # Convert rows to a list of dictionaries
+        column_names = [description[0] for description in cursor.description]
+        data = [dict(zip(column_names, row)) for row in rows]
+        
+        return jsonify(data)
+    except Exception as e:
+        print(f"Error accessing database: {e}")
+        return jsonify({'error': str(e)})
 
 @app.route('/api/mappings', methods=['GET'])
 async def get_mappings():
