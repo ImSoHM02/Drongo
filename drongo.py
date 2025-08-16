@@ -7,11 +7,13 @@ import asyncio
 from rich.logging import RichHandler
 from rich.console import Console
 from discord.ext import commands
-from database import (create_table, store_message, get_db_connection, 
+from database import (create_table, store_message, get_db_connection,
                       set_last_message_id, get_last_message_id,
                       create_game_tracker_tables, track_voice_join,
                       track_voice_leave, get_user_voice_stats,
-                      get_voice_leaderboard)
+                      get_voice_leaderboard, initialize_database,
+                      store_message_optimized, flush_message_batches)
+from database_pool import close_all_pools
 import command_database
 from dotenv import load_dotenv
 from modules.stats_display import StatsDisplay
@@ -100,6 +102,35 @@ class DrongoBot(commands.Bot):
 
     async def setup_hook(self):
         self.stats_display.start()
+        
+        # Start periodic maintenance task
+        self.loop.create_task(self.periodic_maintenance())
+    
+    async def periodic_maintenance(self):
+        """Periodic maintenance task for database optimization."""
+        while not self.is_closed():
+            try:
+                # Wait 5 minutes between maintenance cycles
+                await asyncio.sleep(300)
+                
+                # Flush any pending message batches
+                await flush_message_batches()
+                
+                # Every hour, do more intensive maintenance
+                if hasattr(self, '_maintenance_counter'):
+                    self._maintenance_counter += 1
+                else:
+                    self._maintenance_counter = 1
+                    
+                if self._maintenance_counter >= 12:  # Every hour (12 * 5 minutes)
+                    self._maintenance_counter = 0
+                    # Could add more maintenance tasks here
+                    self.logger.info("Performed periodic database maintenance")
+                    
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logging.error(f"Error in periodic maintenance: {e}")
 
     async def on_ready(self):
         self.stats_display.set_status("Connected")
@@ -163,18 +194,22 @@ class DrongoBot(commands.Bot):
             logging.error("Max reconnection attempts reached. Please restart the bot manually.") # Use standard logging
 
     async def setup_bot(self):
-        # Initialize command stats database first
+        # Initialize databases with optimizations
+        try:
+            await initialize_database()
+        except Exception as e:
+            logging.error(f"Failed to initialize database: {e}")
+            
+        # Initialize command stats database
         cmd_conn = await command_database.db_connect()
         try:
             await command_database.create_tables(cmd_conn)
         finally:
             await cmd_conn.close()
-
-        # Initialize main database
-        conn = await get_db_connection()
+            
+        conn = None
         try:
-            await create_table(conn)
-            await create_game_tracker_tables(conn)
+            conn = await get_db_connection()
             self.logger.info('Processing chat messages...')
             for guild in self.guilds:
                 # Only process messages for the primary guild
@@ -229,6 +264,9 @@ class DrongoBot(commands.Bot):
             
             # Load version tracker after AI handler is initialized
             await self.load_extension("modules.cogs.version_tracker_cog")
+            
+            # Load database management cog
+            await self.load_extension("modules.cogs.database_management_cog")
             
             self.logger.info("Loaded all command modules.")
 
@@ -288,7 +326,8 @@ class DrongoBot(commands.Bot):
                     conn = await get_db_connection()
                     try:
                         if full_message_content:
-                            await store_message(conn, message, full_message_content)
+                            # Use optimized batch storage for better performance
+                            await store_message_optimized(message, full_message_content)
                             await set_last_message_id(conn, message.channel.id, message.id)
                             
                             # Log the message in the stats display
@@ -388,7 +427,21 @@ bot.authorized_user_id = authorized_user_id
 def signal_handler(sig, frame):
     bot.stats_display.set_status("Shutting down")
     bot.stats_display.stop()
-    # Perform any other necessary cleanup
+    
+    # Cleanup database resources
+    async def cleanup():
+        try:
+            await flush_message_batches()
+            await close_all_pools()
+        except Exception as e:
+            logging.error(f"Error during cleanup: {e}")
+    
+    # Run cleanup
+    try:
+        asyncio.run(cleanup())
+    except Exception as e:
+        logging.error(f"Failed to run cleanup: {e}")
+    
     sys.exit(0)
 
 signal.signal(signal.SIGINT, signal_handler)

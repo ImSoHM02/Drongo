@@ -1,9 +1,16 @@
 import aiosqlite
 import logging
 import re
+from database_pool import get_main_pool, get_db_connection as pool_get_connection
+from database_utils import optimized_db, batch_store_message
+import asyncio
 
 async def db_connect(db_name='database/chat_history.db'):
-    return await aiosqlite.connect(db_name)
+    """
+    Legacy function for backward compatibility.
+    Prefer using the connection pool for better performance.
+    """
+    return await pool_get_connection(db_name)
 
 async def create_table(conn):
     try:
@@ -229,8 +236,48 @@ async def get_users_tracking_game(conn, app_id):
         return [row[0] for row in await cursor.fetchall()]
 
 async def get_db_connection(db_name='database/chat_history.db'):
-    conn = await db_connect(db_name)
-    return conn
+    """
+    Get database connection with improved connection management.
+    Uses connection pooling when available.
+    """
+    return await pool_get_connection(db_name)
+
+async def initialize_database():
+    """Initialize database with optimizations."""
+    # Initialize connection pools
+    pool = await get_main_pool()
+    
+    # Create tables
+    conn = await get_db_connection()
+    try:
+        await create_table(conn)
+        await create_game_tracker_tables(conn)
+    finally:
+        await conn.close()
+    
+    # Add indexes and optimizations
+    await optimized_db.add_missing_indexes()
+    logging.info("Database initialization completed with optimizations")
+
+# New optimized functions
+async def store_message_optimized(message, full_message_content):
+    """
+    Optimized message storage using batching.
+    Use this instead of store_message for better performance.
+    """
+    await batch_store_message(message, full_message_content)
+
+async def flush_message_batches():
+    """Flush any pending message batches."""
+    await optimized_db.flush_message_batch()
+
+async def cleanup_old_data(days_to_keep: int = 365):
+    """Clean up old database records."""
+    return await optimized_db.cleanup_old_data(days_to_keep)
+
+async def get_database_health():
+    """Get database health information."""
+    return await optimized_db.analyze_database_health()
 
 
 async def track_voice_join(conn, user_id: str, channel_id: str):

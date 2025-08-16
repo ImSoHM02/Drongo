@@ -22,3 +22,4 @@ database/command_stats.db
 /database
 /.vscode
 security_review.md
+ENHANCEMENT_SUGGESTIONS.md
