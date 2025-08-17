@@ -4,8 +4,7 @@ import logging
 import signal
 import sys
 import asyncio
-from rich.logging import RichHandler
-from rich.console import Console
+import webbrowser
 from discord.ext import commands
 from database import (create_table, store_message, get_db_connection,
                       set_last_message_id, get_last_message_id,
@@ -16,40 +15,54 @@ from database import (create_table, store_message, get_db_connection,
 from database_pool import close_all_pools
 import command_database
 from dotenv import load_dotenv
-from modules.stats_display import StatsDisplay
+from modules.dashboard_manager import DashboardManager
+from web.dashboard_server import app as dashboard_app
 from discord import Client
 from modules.ai import AIHandler
 
-console = Console()
-
 # Set up logging
-discord.utils.setup_logging(level=logging.INFO, root=False)
+logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler()])
 
-# Custom logger that only logs to the stats display
+
+# Custom logger that logs to the dashboard
 class StatsLogger:
-    def __init__(self, stats_display):
-        self.stats_display = stats_display
+    def __init__(self, dashboard_manager):
+        self.dashboard_manager = dashboard_manager
 
     def info(self, msg):
-        self.stats_display.log_event(f"INFO: {msg}")
+        self.dashboard_manager.log_event(f"INFO: {msg}")
 
     def warning(self, msg):
-        self.stats_display.log_event(f"WARNING: {msg}")
+        self.dashboard_manager.log_event(f"WARNING: {msg}")
 
     def error(self, msg):
-        self.stats_display.log_event(f"ERROR: {msg}")
+        self.dashboard_manager.log_event(f"ERROR: {msg}")
 
 load_dotenv('id.env')
 
+# Validate required environment variables
 token = os.getenv("DISCORD_BOT_TOKEN")
+if not token:
+    raise ValueError("DISCORD_BOT_TOKEN is not set in the environment variables")
+
 client_id = os.getenv("DISCORD_CLIENT_ID")
-primary_guild_id = os.getenv("DISCORD_GUILD_ID").split(',')[0].strip()  # Get first guild ID for logging
+if not client_id:
+    raise ValueError("DISCORD_CLIENT_ID is not set in the environment variables")
+
+guild_id_env = os.getenv("DISCORD_GUILD_ID")
+if not guild_id_env:
+    raise ValueError("DISCORD_GUILD_ID is not set in the environment variables")
+
+primary_guild_id = guild_id_env.split(',')[0].strip()  # Get first guild ID for logging
 authorized_user_id = os.getenv("AUTHORIZED_USER_ID")
 my_user_id = os.getenv("BLACKTHENWHITE_USER_ID")
 anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
 
 if not anthropic_api_key:
     raise ValueError("ANTHROPIC_API_KEY is not set in the environment variables")
+
+# Log environment validation success (without exposing sensitive data)
+logging.info("Environment variables validated successfully")
 
 class HeartbeatClient(Client):
     def __init__(self, *args, **kwargs):
@@ -91,17 +104,21 @@ class HeartbeatClient(Client):
 class DrongoBot(commands.Bot):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs, client_class=HeartbeatClient)
-        self.stats_display = StatsDisplay(console)
-        self.logger = StatsLogger(self.stats_display)
+        self.dashboard_manager = DashboardManager(self)
+        self.logger = StatsLogger(self.dashboard_manager)
         self.reconnect_attempts = 0
         self.max_reconnect_attempts = 5
         self.anthropic_api_key = anthropic_api_key
         self.ai_handler = None  # Initialize ai_handler as None
         self.start_time = None  # Will be set when bot is ready
+        self.dashboard_opened = False
         self.add_listener(self.track_command_usage, 'on_interaction')
 
     async def setup_hook(self):
-        self.stats_display.start()
+        self.dashboard_manager.start()
+        
+        # Start the dashboard server
+        self.loop.create_task(self.run_dashboard())
         
         # Start periodic maintenance task
         self.loop.create_task(self.periodic_maintenance())
@@ -133,15 +150,30 @@ class DrongoBot(commands.Bot):
                 logging.error(f"Error in periodic maintenance: {e}")
 
     async def on_ready(self):
-        self.stats_display.set_status("Connected")
+        self.dashboard_manager.set_status("Connected")
         self.reconnect_attempts = 0
         self.logger.info(f'Logged in as {self.user}')
         self.start_time = discord.utils.utcnow()  # Set bot start time
+        
+        # Verify connection is stable before opening dashboard
+        try:
+            # Test connection with a simple API call
+            await self.fetch_guild(int(primary_guild_id))
+            if not self.dashboard_opened:
+                webbrowser.open('http://localhost:5001')
+                self.dashboard_opened = True
+                self.logger.info("Dashboard opened at http://localhost:5001")
+        except Exception as e:
+            self.logger.warning(f"Connection may be unstable, delaying dashboard open: {e}")
+            
         await self.setup_bot()
 
     async def track_command_usage(self, interaction: discord.Interaction):
         """Listener to track slash command usage."""
         if interaction.type == discord.InteractionType.application_command and interaction.command:
+            # Update dashboard command counter
+            self.dashboard_manager.increment_command_count()
+            
             cmd_conn = await command_database.db_connect()
             try:
                 await command_database.update_command_stats(cmd_conn, str(interaction.user.id), interaction.command.name)
@@ -151,7 +183,7 @@ class DrongoBot(commands.Bot):
                 await cmd_conn.close()
 
     async def on_disconnect(self):
-        self.stats_display.set_status("Disconnected")
+        self.dashboard_manager.set_status("Disconnected")
         self.logger.warning("Bot disconnected")
         # Don't attempt reconnect here - let Discord.py handle initial reconnection
         if not self.is_closed():
@@ -163,7 +195,7 @@ class DrongoBot(commands.Bot):
                 logging.error(f"Error during disconnect handling: {e}") # Use standard logging
 
     async def on_resumed(self):
-        self.stats_display.set_status("Connected")
+        self.dashboard_manager.set_status("Connected")
         self.reconnect_attempts = 0  # Reset reconnect attempts on successful reconnection
         self.logger.info("Bot reconnected")
         # Verify connection is stable
@@ -207,10 +239,44 @@ class DrongoBot(commands.Bot):
         finally:
             await cmd_conn.close()
             
+        # PRIORITY: Load commands FIRST before processing messages
+        self.logger.info("Loading command modules...")
+        
+        # Load Cogs
+        await self.load_extension("modules.cogs.message_management_cog")
+        await self.load_extension("modules.cogs.wordcount_cog")
+        await self.load_extension("modules.cogs.emoji_downloader_cog")
+        await self.load_extension("modules.cogs.clearchat_cog")
+        await self.load_extension("modules.cogs.message_stats_cog")
+        await self.load_extension("modules.cogs.restart_cog")
+        await self.load_extension("modules.cogs.steam_commands_cog")
+        await self.load_extension("modules.cogs.wordrank_cog")
+        await self.load_extension("modules.cogs.jellyfin_cog")
+
+        # Initialize and set up AI handler
+        self.ai_handler = AIHandler(self, self.anthropic_api_key)
+        from modules.ai.anthropic import ai
+        ai.setup(self)
+        
+        # Sync application commands
+        await self.tree.sync()
+
+        # Load remaining Cogs
+        await self.load_extension("modules.cogs.web_link_cog")
+        
+        # Load version tracker after AI handler is initialized
+        await self.load_extension("modules.cogs.version_tracker_cog")
+        
+        # Load database management cog
+        await self.load_extension("modules.cogs.database_management_cog")
+        
+        self.logger.info("Loaded all command modules.")
+        
+        # NOW process historical messages after commands are loaded
         conn = None
         try:
             conn = await get_db_connection()
-            self.logger.info('Processing chat messages...')
+            self.logger.info('Processing historical chat messages...')
             for guild in self.guilds:
                 # Only process messages for the primary guild
                 if str(guild.id) == primary_guild_id:
@@ -236,42 +302,11 @@ class DrongoBot(commands.Bot):
                         if messages:
                             await set_last_message_id(conn, channel.id, messages[-1].id)
 
-            self.logger.info("Finished processing all channels.")
-
-            # Set up commands from modules
-            # Load Cogs
-            await self.load_extension("modules.cogs.message_management_cog")
-            await self.load_extension("modules.cogs.wordcount_cog")
-            await self.load_extension("modules.cogs.emoji_downloader_cog")
-            await self.load_extension("modules.cogs.clearchat_cog")
-            await self.load_extension("modules.cogs.message_stats_cog")
-            await self.load_extension("modules.cogs.restart_cog")
-            await self.load_extension("modules.cogs.steam_commands_cog")
-            await self.load_extension("modules.cogs.wordrank_cog")
-            await self.load_extension("modules.cogs.jellyfin_cog")
-
-            # Initialize and set up AI handler
-            self.ai_handler = AIHandler(self, self.anthropic_api_key)
-            from modules.ai.anthropic import ai
-            ai.setup(self)
-            
-            
-            # Sync application commands
-            await self.tree.sync()
-
-            # Load Cogs
-            await self.load_extension("modules.cogs.web_link_cog")
-            
-            # Load version tracker after AI handler is initialized
-            await self.load_extension("modules.cogs.version_tracker_cog")
-            
-            # Load database management cog
-            await self.load_extension("modules.cogs.database_management_cog")
-            
-            self.logger.info("Loaded all command modules.")
+            self.logger.info("Finished processing historical messages.")
 
         finally:
-            await conn.close()
+            if conn:
+                await conn.close()
 
 
     async def on_message(self, message):
@@ -280,8 +315,8 @@ class DrongoBot(commands.Bot):
                 return
 
             # Update message count
-            self.stats_display.update_stats("Messages Processed", self.stats_display.stats["Messages Processed"] + 1)
-
+            # This will be handled by the dashboard server querying the database
+            
             # Process AI response for all guilds if ai_handler is initialized
             ai_response = None
             if self.ai_handler is not None:
@@ -323,15 +358,15 @@ class DrongoBot(commands.Bot):
 
                 # Store messages and stats only for primary guild
                 if str(message.guild.id) == primary_guild_id:
+                    # Log the message in the dashboard ALWAYS for primary guild messages
+                    self.dashboard_manager.log_message(message.author, message.guild.name, message.channel.name)
+                    
                     conn = await get_db_connection()
                     try:
                         if full_message_content:
-                            # Use optimized batch storage for better performance
-                            await store_message_optimized(message, full_message_content)
+                            # Use immediate storage for real-time dashboard updates
+                            await store_message(conn, message, full_message_content)
                             await set_last_message_id(conn, message.channel.id, message.id)
-                            
-                            # Log the message in the stats display
-                            self.stats_display.log_message(message.author, message.guild.name, message.channel.name)
                     except Exception as e:
                         logging.error(f"Error storing message: {str(e)}") # Use standard logging
                     finally:
@@ -341,6 +376,10 @@ class DrongoBot(commands.Bot):
                 if message.content.startswith(('/', '!')):  # Track both slash and ! commands
                     command_text = message.content[1:]  # Remove the prefix (/ or !)
                     command_name = command_text.split()[0]  # Get just the command name
+                    
+                    # Update dashboard command counter
+                    self.dashboard_manager.increment_command_count()
+                    
                     cmd_conn = await command_database.db_connect()
                     try:
                         await command_database.update_command_stats(cmd_conn, str(message.author.id), command_name)
@@ -351,6 +390,9 @@ class DrongoBot(commands.Bot):
                 
                 # Track "oi drongo" usage in separate database
                 elif message.content.lower().startswith('oi drongo'):
+                    # Update dashboard command counter
+                    self.dashboard_manager.increment_command_count()
+                    
                     cmd_conn = await command_database.db_connect()
                     try:
                         await command_database.update_command_stats(cmd_conn, str(message.author.id), 'oi_drongo')
@@ -416,6 +458,19 @@ class DrongoBot(commands.Bot):
         finally:
             await conn.close()
 
+    async def run_dashboard(self):
+        """Run the Quart dashboard server using Hypercorn."""
+        from hypercorn.asyncio import serve
+        from hypercorn.config import Config
+
+        config = Config()
+        config.bind = ["0.0.0.0:5001"]
+        config.use_reloader = False
+        
+        self.hypercorn_task = self.loop.create_task(
+            serve(dashboard_app, config)
+        )
+
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
@@ -425,30 +480,79 @@ bot = DrongoBot(command_prefix='!', intents=intents)
 bot.authorized_user_id = authorized_user_id
 
 def signal_handler(sig, frame):
-    bot.stats_display.set_status("Shutting down")
-    bot.stats_display.stop()
+    bot.dashboard_manager.set_status("Shutting down")
     
-    # Cleanup database resources
-    async def cleanup():
+    async def shutdown():
         try:
-            await flush_message_batches()
-            await close_all_pools()
+            # Cancel the Hypercorn server task
+            if hasattr(bot, 'hypercorn_task'):
+                bot.hypercorn_task.cancel()
+                await bot.hypercorn_task
+        except asyncio.CancelledError:
+            pass  # Expected
         except Exception as e:
-            logging.error(f"Error during cleanup: {e}")
+            logging.error(f"Error shutting down dashboard server: {e}")
+        finally:
+            try:
+                await flush_message_batches()
+                await close_all_pools()
+            except Exception as e:
+                logging.error(f"Error during cleanup: {e}")
+            finally:
+                await bot.close()
     
-    # Run cleanup
-    try:
-        asyncio.run(cleanup())
-    except Exception as e:
-        logging.error(f"Failed to run cleanup: {e}")
-    
-    sys.exit(0)
+    # Run shutdown task
+    bot.loop.create_task(shutdown())
 
 signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
 async def main():
-    async with bot:
-        await bot.start(token)
+    """Main function with Discord connection retry logic."""
+    max_retries = 5
+    retry_delay = 10  # seconds
+    
+    for attempt in range(max_retries):
+        try:
+            async with bot:
+                await bot.start(token)
+            break  # If successful, break out of the retry loop
+            
+        except discord.errors.DiscordServerError as e:
+            if "503" in str(e) or "Service Unavailable" in str(e):
+                if attempt < max_retries - 1:
+                    logging.warning(f"Discord API unavailable (attempt {attempt + 1}/{max_retries}). Retrying in {retry_delay} seconds...")
+                    await asyncio.sleep(retry_delay)
+                    retry_delay *= 2  # Exponential backoff
+                else:
+                    logging.error("Failed to connect to Discord after all retry attempts. Discord API may be down.")
+                    logging.error("Check Discord status at: https://discordstatus.com/")
+                    raise
+            else:
+                # Re-raise other Discord errors
+                raise
+                
+        except discord.errors.HTTPException as e:
+            if attempt < max_retries - 1:
+                logging.warning(f"HTTP error connecting to Discord (attempt {attempt + 1}/{max_retries}): {e}")
+                await asyncio.sleep(retry_delay)
+                retry_delay *= 2
+            else:
+                logging.error("Failed to connect to Discord due to HTTP errors.")
+                raise
+                
+        except Exception as e:
+            # For other exceptions, don't retry
+            logging.error(f"Unexpected error during bot startup: {e}")
+            raise
 
-asyncio.run(main())
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logging.info("Shutting down...")
+    except discord.errors.DiscordServerError as e:
+        logging.error(f"Discord server error: {e}")
+        logging.error("This is likely a temporary Discord API issue. Please try again later.")
+    except Exception as e:
+        logging.error(f"Failed to start bot: {e}")
