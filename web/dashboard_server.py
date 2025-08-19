@@ -330,7 +330,7 @@ async def websocket_endpoint():
 @app.route('/')
 async def dashboard():
     """Main dashboard route."""
-    return await render_template('dashboard.html')
+    return await render_template('dashboard/dashboard.html')
 
 @app.route('/api/stats')
 async def api_stats():

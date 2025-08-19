@@ -1,25 +1,25 @@
 // Global functions for HTML onclick handlers (defined early)
-function showDashboardSection() {
-    const dash = document.getElementById('dashboard-view');
+function showMainSection() {
+    const main = document.getElementById('dashboard-view');
     const config = document.getElementById('config-view');
     const stats = document.getElementById('stats-view');
-    if (!dash || !config) {
-        console.warn('showDashboardSection(): required elements missing');
+    if (!main || !config) {
+        console.warn('showMainSection(): required elements missing');
     }
-    if (dash) dash.style.display = 'block';
+    if (main) main.style.display = 'block';
     if (config) config.style.display = 'none';
     if (stats) stats.style.display = 'none';
-    console.debug('showDashboardSection(): activated');
+    console.debug('showMainSection(): activated');
 }
 
 function showConfigSection() {
-    const dash = document.getElementById('dashboard-view');
+    const main = document.getElementById('dashboard-view');
     const config = document.getElementById('config-view');
     const stats = document.getElementById('stats-view');
-    if (!dash || !config) {
+    if (!main || !config) {
         console.warn('showConfigSection(): required elements missing');
     }
-    if (dash) dash.style.display = 'none';
+    if (main) main.style.display = 'none';
     if (config) config.style.display = 'block';
     if (stats) stats.style.display = 'none';
     
@@ -31,13 +31,13 @@ function showConfigSection() {
 }
 
 function showStatsSection() {
-    const dash = document.getElementById('dashboard-view');
+    const main = document.getElementById('dashboard-view');
     const config = document.getElementById('config-view');
     const stats = document.getElementById('stats-view');
     if (!stats) {
         console.warn('showStatsSection(): stats-view not found');
     }
-    if (dash) dash.style.display = 'none';
+    if (main) main.style.display = 'none';
     if (config) config.style.display = 'none';
     if (stats) stats.style.display = 'block';
     
@@ -399,68 +399,64 @@ class DashboardManager {
     }
     
     async registerCommands() {
+        if (!confirm('Are you sure you want to register the commands?')) {
+            return;
+        }
+
         const button = document.getElementById('register-commands-btn');
-        const statusDiv = document.getElementById('command-status');
-        
+        const originalText = button.innerHTML;
         button.disabled = true;
         button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Registering...';
-        
+
         try {
             const response = await fetch('/api/commands/register', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
+                method: 'POST'
             });
-            
             const result = await response.json();
-            
             if (response.ok) {
                 this.showCommandStatus('Commands registered successfully!', 'success');
-                this.loadCommands(); // Refresh the commands list
+                this.loadCommands();
             } else {
-                this.showCommandStatus(`Error: ${result.error || 'Failed to register commands'}`, 'error');
+                this.showCommandStatus(`Error: ${result.error || 'Failed to register'}`, 'error');
             }
         } catch (error) {
-            this.showCommandStatus('Network error occurred while registering commands', 'error');
+            this.showCommandStatus('Network error occurred', 'error');
         } finally {
-            button.disabled = false;
-            button.innerHTML = '<i class="fas fa-plus"></i> Register Commands';
+            setTimeout(() => {
+                button.disabled = false;
+                button.innerHTML = originalText;
+            }, 2000);
         }
     }
     
     async deleteCommands() {
-        if (!confirm('Are you sure you want to delete ALL Discord commands? This action cannot be undone.')) {
+        if (!confirm('Are you sure you want to delete ALL commands?')) {
             return;
         }
-        
+
         const button = document.getElementById('delete-commands-btn');
-        const statusDiv = document.getElementById('command-status');
-        
+        const originalText = button.innerHTML;
         button.disabled = true;
         button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
-        
+
         try {
             const response = await fetch('/api/commands/delete', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
+                method: 'POST'
             });
-            
             const result = await response.json();
-            
             if (response.ok) {
                 this.showCommandStatus('Commands deleted successfully!', 'success');
-                this.loadCommands(); // Refresh the commands list
+                this.loadCommands();
             } else {
-                this.showCommandStatus(`Error: ${result.error || 'Failed to delete commands'}`, 'error');
+                this.showCommandStatus(`Error: ${result.error || 'Failed to delete'}`, 'error');
             }
         } catch (error) {
-            this.showCommandStatus('Network error occurred while deleting commands', 'error');
+            this.showCommandStatus('Network error occurred', 'error');
         } finally {
-            button.disabled = false;
-            button.innerHTML = '<i class="fas fa-trash"></i> Delete All Commands';
+            setTimeout(() => {
+                button.disabled = false;
+                button.innerHTML = originalText;
+            }, 2000);
         }
     }
     
@@ -513,81 +509,52 @@ class DashboardManager {
     }
     
     async restartBot() {
-        if (!confirm('Are you sure you want to restart the bot? This will temporarily disconnect all services.')) {
+        if (!confirm('Are you sure you want to restart the bot?')) {
             return;
         }
-        
+
         const button = document.getElementById('restart-bot-btn');
+        const originalText = button.innerHTML;
         button.disabled = true;
-        button.innerHTML = 'Restarting...';
-        
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Restarting...';
+
         try {
-            const response = await fetch('/api/bot/restart', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
+            await fetch('/api/bot/restart', {
+                method: 'POST'
             });
-            
-            const result = await response.json();
-            
-            if (response.ok) {
-                // Just indicate completion without visual changes
-                // Connection will be lost when bot restarts
-                setTimeout(() => {
-                    this.updateConnectionStatus(false);
-                }, 2000);
-            } else {
-                // Reset button on failure
-                setTimeout(() => {
-                    button.disabled = false;
-                }, 3000);
-            }
+            this.showCommandStatus('Bot is restarting...', 'success');
         } catch (error) {
-            // Reset button on error
+            this.showCommandStatus('Failed to send restart command', 'error');
+        } finally {
             setTimeout(() => {
                 button.disabled = false;
-            }, 3000);
+                button.innerHTML = originalText;
+            }, 5000);
         }
     }
     
     async shutdownBot() {
-        if (!confirm('Are you sure you want to shutdown the bot? This will stop all bot services until manually restarted.')) {
+        if (!confirm('Are you sure you want to shut down the bot?')) {
             return;
         }
-        
+
         const button = document.getElementById('shutdown-bot-btn');
+        const originalText = button.innerHTML;
         button.disabled = true;
-        button.innerHTML = 'Shutting Down...';
-        
+        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Shutting down...';
+
         try {
-            const response = await fetch('/api/bot/shutdown', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
+            await fetch('/api/bot/shutdown', {
+                method: 'POST'
             });
-            
-            const result = await response.json();
-            
-            if (response.ok) {
-                // Just indicate completion without visual changes
-                // Connection will be lost when bot shuts down
-                setTimeout(() => {
-                    this.updateConnectionStatus(false);
-                    this.updateBotStatus('offline');
-                }, 2000);
-            } else {
-                // Reset button on failure
-                setTimeout(() => {
-                    button.disabled = false;
-                }, 3000);
-            }
+            this.showCommandStatus('Bot is shutting down...', 'success');
         } catch (error) {
-            // Reset button on error
+            this.showCommandStatus('Failed to send shutdown command', 'error');
+        } finally {
             setTimeout(() => {
                 button.disabled = false;
-            }, 3000);
+                button.innerHTML = originalText;
+            }, 5000);
         }
     }
     
@@ -691,7 +658,7 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (href === '#stats') {
                 showStatsSection();
             } else {
-                showDashboardSection();
+                showMainSection();
             }
         });
     });

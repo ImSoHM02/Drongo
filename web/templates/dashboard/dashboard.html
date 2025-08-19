@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drongo Dashboard</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>Drongo</h2>
+            </div>
+            <nav>
+                <ul class="nav-menu">
+                    <li class="nav-item">
+                        <a href="#" class="nav-link active" onclick="showMainSection()">
+                            Main
+                        </a>
+                    </li>
+                    <li class="nav-header">Config</li>
+                    <li class="nav-item">
+                        <a href="#commands" class="nav-link" onclick="showConfigSection()">
+                            Commands
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#stats" class="nav-link" onclick="showStatsSection()">
+                            Stats
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </aside>
+
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Main View -->
+            <div id="dashboard-view">
+                <h2 style="margin-bottom: 2rem; color: var(--text-primary);">Main</h2>
+                <!-- Activity Feed -->
+                <div class="activity-section">
+                    <div class="activity-card">
+                        <div class="activity-header">
+                            <h3 class="activity-title">Recent Messages</h3>
+                        </div>
+                        <div class="activity-list" id="recent-messages">
+                            <!-- Messages will be populated by JavaScript -->
+                        </div>
+                    </div>
+
+                    <div class="activity-card">
+                        <div class="activity-header">
+                            <h3 class="activity-title">Recent Events</h3>
+                        </div>
+                        <div class="activity-list" id="recent-events">
+                            <!-- Events will be populated by JavaScript -->
+                        </div>
+                    </div>
+                    <div class="activity-card">
+                        <div class="activity-header">
+                            <h3 class="activity-title">Actions</h3>
+                        </div>
+                        <div id="actions-container" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                            <button id="register-commands-btn" class="modern-button">
+                                Register Commands
+                            </button>
+                            <button id="delete-commands-btn" class="modern-button">
+                                Delete All Commands
+                            </button>
+                            <button id="restart-bot-btn" class="modern-button">
+                                Restart Bot
+                            </button>
+                            <button id="shutdown-bot-btn" class="modern-button">
+                                Shutdown Bot
+                            </button>
+                        </div>
+                        <!-- Status Messages -->
+                        <div id="command-status" style="margin-top: 1rem; padding: 0.75rem; border-radius: 0.25rem; display: none;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Config View -->
+            <div id="config-view" style="display: none;">
+                <h2 style="margin-bottom: 2rem; color: var(--text-primary);">Commands</h2>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-title">Commands Executed</span>
+                        </div>
+                        <div class="stat-value" id="commands-executed">0</div>
+                    </div>
+                </div>
+                
+                {% include 'dashboard/config/commands.html' %}
+            </div>
+
+            <!-- Stats View -->
+            <div id="stats-view" style="display: none;">
+                <h2 style="margin-bottom: 2rem; color: var(--text-primary);">Stats</h2>
+                
+                <!-- Stats Grid -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-title">Messages Processed</span>
+                        </div>
+                        <div class="stat-value" id="messages-processed">0</div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-title">Active Users</span>
+                        </div>
+                        <div class="stat-value" id="active-users">0</div>
+                        <div class="stat-change neutral">
+                            <span>Total unique</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-title">Uptime</span>
+                        </div>
+                        <div class="stat-value" id="uptime">00:00:00</div>
+                        <div class="stat-change neutral">
+                            <span>Since startup</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="charts-section">
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3 class="chart-title">Message Activity</h3>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="activity-chart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <h3 class="chart-title">Database Health</h3>
+                        </div>
+                        <div style="padding: 1rem;">
+                            <div style="margin-bottom: 1rem;">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                                    <span style="font-size: 0.875rem; color: var(--text-secondary);">Database Size</span>
+                                    <span id="db-size" style="font-size: 0.875rem;">0 MB</span>
+                                </div>
+                                <div style="background: var(--bg-tertiary); height: 8px; border-radius: 4px;">
+                                    <div id="db-size-bar" style="background: var(--primary); height: 100%; width: 0%; border-radius: 4px; transition: width 0.3s;"></div>
+                                </div>
+                            </div>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                                    <span style="font-size: 0.875rem; color: var(--text-secondary);">Tables</span>
+                                    <span id="db-tables" style="font-size: 0.875rem;">0</span>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem;">
+                                    <span style="font-size: 0.875rem; color: var(--text-secondary);">Indexes</span>
+                                    <span id="db-indexes" style="font-size: 0.875rem;">0</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Connection Status -->
+    <div id="connection-status" class="connection-status disconnected">
+        Disconnected
+    </div>
+
+    <script src="{{ url_for('static', filename='dashboard.js') }}"></script>
+    
+</body>
+</html>
