@@ -16,9 +16,10 @@ from database_pool import close_all_pools
 import command_database
 from dotenv import load_dotenv
 from modules.dashboard_manager import DashboardManager
-from web.dashboard_server import app as dashboard_app
+from web.dashboard_server import app as dashboard_app, set_bot_instance
 from discord import Client
 from modules.ai import AIHandler
+from modules.leveling_system import get_leveling_system
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, handlers=[logging.StreamHandler()])
@@ -110,6 +111,7 @@ class DrongoBot(commands.Bot):
         self.max_reconnect_attempts = 5
         self.anthropic_api_key = anthropic_api_key
         self.ai_handler = None  # Initialize ai_handler as None
+        self.leveling_system = None  # Initialize leveling_system as None
         self.start_time = None  # Will be set when bot is ready
         self.dashboard_opened = False
         self.add_listener(self.track_command_usage, 'on_interaction')
@@ -154,6 +156,9 @@ class DrongoBot(commands.Bot):
         self.reconnect_attempts = 0
         self.logger.info(f'Logged in as {self.user}')
         self.start_time = discord.utils.utcnow()  # Set bot start time
+        
+        # Set bot instance for dashboard name resolution
+        set_bot_instance(self)
         
         # Verify connection is stable before opening dashboard
         try:
@@ -229,6 +234,11 @@ class DrongoBot(commands.Bot):
         # Initialize databases with optimizations
         try:
             await initialize_database()
+            
+            # Initialize leveling system database
+            from migrate_leveling_database import migrate_leveling_database
+            await migrate_leveling_database()
+            
         except Exception as e:
             logging.error(f"Failed to initialize database: {e}")
             
@@ -258,6 +268,10 @@ class DrongoBot(commands.Bot):
         from modules.ai.anthropic import ai
         ai.setup(self)
         
+        # Initialize leveling system
+        self.leveling_system = get_leveling_system(self)
+        self.logger.info("Leveling system initialized")
+        
         # Sync application commands
         await self.tree.sync()
 
@@ -269,6 +283,9 @@ class DrongoBot(commands.Bot):
         
         # Load database management cog
         await self.load_extension("modules.cogs.database_management_cog")
+        
+        # Load leveling cog
+        await self.load_extension("modules.cogs.leveling_cog")
         
         self.logger.info("Loaded all command modules.")
         
@@ -354,7 +371,9 @@ class DrongoBot(commands.Bot):
 
                 # Only process messages that occur after bot start
                 if message.created_at >= self.start_time:
-                    pass # Placeholder where achievement check used to be
+                    # Process XP award asynchronously to avoid blocking message processing
+                    if self.leveling_system and message.guild:
+                        asyncio.create_task(self._process_xp_award(message))
 
                 # Store messages and stats only for primary guild
                 if str(message.guild.id) == primary_guild_id:
@@ -406,6 +425,57 @@ class DrongoBot(commands.Bot):
                 logging.error(f"Error processing message content: {str(e)}") # Use standard logging
         except Exception as e:
             logging.error(f"Unhandled error in message processing: {str(e)}") # Use standard logging
+
+    async def _process_xp_award(self, message: discord.Message):
+        """Process XP award for a message asynchronously."""
+        try:
+            result = await self.leveling_system.process_message(message)
+            if result and result.get('level_up'):
+                # Handle level up announcements
+                await self._handle_level_up_announcement(message, result)
+        except Exception as e:
+            logging.error(f"Error processing XP award: {e}")
+
+    async def _handle_level_up_announcement(self, message: discord.Message, level_result: dict):
+        """Handle level up announcements."""
+        try:
+            # Get guild configuration for announcements
+            config = await self.leveling_system.get_guild_config(str(message.guild.id))
+            
+            if not config.get('level_up_announcements', True):
+                return
+                
+            old_level = level_result['old_level']
+            new_level = level_result['new_level']
+            
+            # Create level up message
+            level_up_message = f"🎉 {message.author.mention} leveled up! **Level {old_level}** → **Level {new_level}**"
+            
+            # Send to announcement channel if configured, otherwise use current channel
+            announcement_channel_id = config.get('announcement_channel_id')
+            if announcement_channel_id:
+                try:
+                    channel = self.get_channel(int(announcement_channel_id))
+                    if channel:
+                        await channel.send(level_up_message)
+                    else:
+                        # Fall back to current channel if announcement channel not found
+                        await message.channel.send(level_up_message)
+                except:
+                    await message.channel.send(level_up_message)
+            else:
+                await message.channel.send(level_up_message)
+                
+            # Send DM notification if enabled
+            if config.get('dm_level_notifications', False):
+                try:
+                    await message.author.send(f"🎉 You leveled up in **{message.guild.name}**! You are now **Level {new_level}**!")
+                except:
+                    # User may have DMs disabled
+                    pass
+                    
+        except Exception as e:
+            logging.error(f"Error handling level up announcement: {e}")
 
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent):
         """Handle reaction achievements."""

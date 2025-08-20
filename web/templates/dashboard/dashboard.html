@@ -43,6 +43,11 @@
                             Stats
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a href="#leveling" class="nav-link" onclick="showLevelingSection()">
+                            Leveling
+                        </a>
+                    </li>
                 </ul>
             </nav>
         </aside>
@@ -188,6 +193,241 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Leveling View -->
+            <div id="leveling-view" style="display: none;">
+                <h2 style="margin-bottom: 2rem; color: var(--text-primary);">Leveling System</h2>
+                
+                <!-- Guild Selection -->
+                <div class="guild-selector">
+                    <label for="guild-select">Select Guild:</label>
+                    <select id="guild-select" class="form-select">
+                        <option value="">Select a guild...</option>
+                    </select>
+                </div>
+
+                <!-- Stats Overview -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-title">Total Users</span>
+                        </div>
+                        <div class="stat-value" id="total-users">0</div>
+                        <div class="stat-change neutral">
+                            <span>With XP data</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-title">Average Level</span>
+                        </div>
+                        <div class="stat-value" id="avg-level">0</div>
+                        <div class="stat-change neutral">
+                            <span>Across server</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-title">XP Today</span>
+                        </div>
+                        <div class="stat-value" id="xp-today">0</div>
+                        <div class="stat-change neutral">
+                            <span>Total awarded</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-title">Active Users</span>
+                        </div>
+                        <div class="stat-value" id="active-users-today">0</div>
+                        <div class="stat-change neutral">
+                            <span>Today</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live XP Feed and Leaderboard -->
+                <div class="leveling-main-section">
+                    <!-- Live XP Feed -->
+                    <div class="activity-card leveling-feed-card">
+                        <div class="activity-header">
+                            <h3 class="activity-title">Live XP Feed</h3>
+                            <button id="toggle-feed" class="toggle-btn">
+                                <i class="fas fa-pause"></i>
+                            </button>
+                        </div>
+                        <div class="xp-feed" id="xp-feed">
+                            <!-- XP awards will be populated here -->
+                        </div>
+                    </div>
+
+                    <!-- Leaderboard -->
+                    <div class="activity-card leaderboard-card">
+                        <div class="activity-header">
+                            <h3 class="activity-title">Leaderboard</h3>
+                            <div class="leaderboard-controls">
+                                <select id="leaderboard-limit" class="form-select">
+                                    <option value="10">Top 10</option>
+                                    <option value="25" selected>Top 25</option>
+                                    <option value="50">Top 50</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="leaderboard-container">
+                            <table class="leaderboard-table" id="leaderboard-table">
+                                <thead>
+                                    <tr>
+                                        <th>Rank</th>
+                                        <th>User</th>
+                                        <th>Level</th>
+                                        <th>XP</th>
+                                        <th>Progress</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="leaderboard-body">
+                                    <!-- Leaderboard entries will be populated here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Configuration Panel -->
+                <div class="config-section">
+                    <div class="activity-card config-card">
+                        <div class="activity-header">
+                            <h3 class="activity-title">Configuration</h3>
+                            <button id="save-config" class="modern-button save-btn">
+                                <i class="fas fa-save"></i> Save Configuration
+                            </button>
+                        </div>
+                        <div class="config-form" id="config-form">
+                            <div class="config-group">
+                                <h4>Basic Settings</h4>
+                                <div class="form-row">
+                                    <div class="form-field">
+                                        <label class="form-label">
+                                            <input type="checkbox" id="leveling-enabled"> Enable Leveling System
+                                        </label>
+                                    </div>
+                                    <div class="form-field">
+                                        <label class="form-label">
+                                            <input type="checkbox" id="level-announcements"> Level Up Announcements
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="config-group">
+                                <h4>XP Settings</h4>
+                                <div class="form-row">
+                                    <div class="form-field">
+                                        <label for="base-xp">Base XP</label>
+                                        <input type="number" id="base-xp" min="1" max="100" value="5">
+                                    </div>
+                                    <div class="form-field">
+                                        <label for="max-xp">Max XP</label>
+                                        <input type="number" id="max-xp" min="1" max="200" value="25">
+                                    </div>
+                                    <div class="form-field">
+                                        <label for="daily-cap">Daily XP Cap</label>
+                                        <input type="number" id="daily-cap" min="100" max="10000" value="1000">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="config-group">
+                                <h4>Cooldown Settings</h4>
+                                <div class="form-row">
+                                    <div class="form-field">
+                                        <label for="min-cooldown">Min Cooldown (seconds)</label>
+                                        <input type="number" id="min-cooldown" min="5" max="300" value="30">
+                                    </div>
+                                    <div class="form-field">
+                                        <label for="max-cooldown">Max Cooldown (seconds)</label>
+                                        <input type="number" id="max-cooldown" min="5" max="300" value="60">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="config-group">
+                                <h4>Message Requirements</h4>
+                                <div class="form-row">
+                                    <div class="form-field">
+                                        <label for="min-chars">Min Characters</label>
+                                        <input type="number" id="min-chars" min="1" max="50" value="5">
+                                    </div>
+                                    <div class="form-field">
+                                        <label for="min-words">Min Words</label>
+                                        <input type="number" id="min-words" min="1" max="20" value="2">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Manual Adjustments -->
+                    <div class="activity-card manual-adjust-card">
+                        <div class="activity-header">
+                            <h3 class="activity-title">Manual Adjustments</h3>
+                        </div>
+                        <div class="manual-adjust-form">
+                            <div class="form-row">
+                                <div class="form-field">
+                                    <label for="target-user">User ID</label>
+                                    <input type="text" id="target-user" placeholder="Discord User ID">
+                                </div>
+                                <div class="form-field">
+                                    <label for="adjust-type">Adjustment Type</label>
+                                    <select id="adjust-type" class="form-select">
+                                        <option value="add_xp">Add XP</option>
+                                        <option value="remove_xp">Remove XP</option>
+                                        <option value="set_level">Set Level</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-field">
+                                    <label for="adjust-amount">Amount</label>
+                                    <input type="number" id="adjust-amount" min="0" placeholder="Amount">
+                                </div>
+                                <div class="form-field">
+                                    <button id="apply-adjustment" class="modern-button">
+                                        <i class="fas fa-edit"></i> Apply Adjustment
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- User Lookup -->
+                <div class="user-lookup-section">
+                    <div class="activity-card user-lookup-card">
+                        <div class="activity-header">
+                            <h3 class="activity-title">User Lookup</h3>
+                        </div>
+                        <div class="user-lookup-form">
+                            <div class="form-row">
+                                <div class="form-field">
+                                    <input type="text" id="lookup-user" placeholder="Enter Discord User ID">
+                                </div>
+                                <div class="form-field">
+                                    <button id="lookup-btn" class="modern-button">
+                                        <i class="fas fa-search"></i> Lookup User
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="user-stats" id="user-stats" style="display: none;">
+                            <!-- User stats will be populated here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
         </main>
     </div>
 
@@ -195,6 +435,9 @@
     <div id="connection-status" class="connection-status disconnected">
         Disconnected
     </div>
+
+    <!-- Status Messages -->
+    <div id="status-message" class="status-message" style="display: none;"></div>
 
     <script src="{{ url_for('static', filename='dashboard.js') }}"></script>
     

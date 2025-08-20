@@ -210,6 +210,71 @@ def get_commands():
                     "type": 1  # SUB_COMMAND
                 }
             ]
+        },
+        {
+            "name": "level",
+            "description": "Leveling system commands",
+            "options": [
+                {
+                    "name": "stats",
+                    "description": "View your or another user's level statistics",
+                    "type": 1,  # SUB_COMMAND
+                    "options": [
+                        {
+                            "name": "user",
+                            "description": "The user to check stats for (optional)",
+                            "type": 6,  # USER
+                            "required": False
+                        }
+                    ]
+                },
+                {
+                    "name": "leaderboard",
+                    "description": "View the server's XP leaderboard",
+                    "type": 1,  # SUB_COMMAND
+                    "options": [
+                        {
+                            "name": "limit",
+                            "description": "Number of users to show (max 20)",
+                            "type": 4,  # INTEGER
+                            "required": False
+                        }
+                    ]
+                },
+                {
+                    "name": "config",
+                    "description": "Configure leveling system settings (Admin only)",
+                    "type": 1,  # SUB_COMMAND
+                    "options": [
+                        {
+                            "name": "setting",
+                            "description": "The setting to modify",
+                            "type": 3,  # STRING
+                            "required": True,
+                            "choices": [
+                                {"name": "Enable/Disable Leveling", "value": "enabled"},
+                                {"name": "Base XP per Message", "value": "base_xp"},
+                                {"name": "Max XP per Message", "value": "max_xp"},
+                                {"name": "Daily XP Cap", "value": "daily_xp_cap"},
+                                {"name": "Level Up Announcements", "value": "level_up_announcements"},
+                                {"name": "Announcement Channel", "value": "announcement_channel"},
+                                {"name": "DM Notifications", "value": "dm_level_notifications"}
+                            ]
+                        },
+                        {
+                            "name": "value",
+                            "description": "The new value for the setting",
+                            "type": 3,  # STRING
+                            "required": True
+                        }
+                    ]
+                },
+                {
+                    "name": "view-config",
+                    "description": "View current leveling system configuration",
+                    "type": 1  # SUB_COMMAND
+                }
+            ]
         }
     ]
 

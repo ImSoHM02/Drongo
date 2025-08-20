@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leveling Dashboard - Drongo</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>Drongo</h2>
+            </div>
+            <nav>
+                <ul class="nav-menu">
+                    <li class="nav-item">
+                        <a href="/" class="nav-link">
+                            Main
+                        </a>
+                    </li>
+                    <li class="nav-header">Config</li>
+                    <li class="nav-item">
+                        <a href="#commands" class="nav-link">
+                            Commands
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#stats" class="nav-link">
+                            Stats
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="/dashboard/leveling" class="nav-link active">
+                            Leveling
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <div class="leveling-dashboard">
+                <h2 style="margin-bottom: 2rem; color: var(--text-primary);">Leveling System</h2>
+                
+                <!-- Guild Selection -->
+                <div class="guild-selector">
+                    <label for="guild-select">Select Guild:</label>
+                    <select id="guild-select" class="form-select">
+                        <option value="">Select a guild...</option>
+                    </select>
+                </div>
+
+                <!-- Stats Overview -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-title">Total Users</span>
+                        </div>
+                        <div class="stat-value" id="total-users">0</div>
+                        <div class="stat-change neutral">
+                            <span>With XP data</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-title">Average Level</span>
+                        </div>
+                        <div class="stat-value" id="avg-level">0</div>
+                        <div class="stat-change neutral">
+                            <span>Across server</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-title">XP Today</span>
+                        </div>
+                        <div class="stat-value" id="xp-today">0</div>
+                        <div class="stat-change neutral">
+                            <span>Total awarded</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-title">Active Users</span>
+                        </div>
+                        <div class="stat-value" id="active-users-today">0</div>
+                        <div class="stat-change neutral">
+                            <span>Today</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live XP Feed and Leaderboard -->
+                <div class="leveling-main-section">
+                    <!-- Live XP Feed -->
+                    <div class="activity-card leveling-feed-card">
+                        <div class="activity-header">
+                            <h3 class="activity-title">Live XP Feed</h3>
+                            <button id="toggle-feed" class="toggle-btn">
+                                <i class="fas fa-pause"></i>
+                            </button>
+                        </div>
+                        <div class="xp-feed" id="xp-feed">
+                            <!-- XP awards will be populated here -->
+                        </div>
+                    </div>
+
+                    <!-- Leaderboard -->
+                    <div class="activity-card leaderboard-card">
+                        <div class="activity-header">
+                            <h3 class="activity-title">Leaderboard</h3>
+                            <div class="leaderboard-controls">
+                                <select id="leaderboard-limit" class="form-select">
+                                    <option value="10">Top 10</option>
+                                    <option value="25" selected>Top 25</option>
+                                    <option value="50">Top 50</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="leaderboard-container">
+                            <table class="leaderboard-table" id="leaderboard-table">
+                                <thead>
+                                    <tr>
+                                        <th>Rank</th>
+                                        <th>User</th>
+                                        <th>Level</th>
+                                        <th>XP</th>
+                                        <th>Progress</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="leaderboard-body">
+                                    <!-- Leaderboard entries will be populated here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Configuration Panel -->
+                <div class="config-section">
+                    <div class="activity-card config-card">
+                        <div class="activity-header">
+                            <h3 class="activity-title">Configuration</h3>
+                            <button id="save-config" class="modern-button save-btn">
+                                <i class="fas fa-save"></i> Save Configuration
+                            </button>
+                        </div>
+                        <div class="config-form" id="config-form">
+                            <div class="config-group">
+                                <h4>Basic Settings</h4>
+                                <div class="form-row">
+                                    <div class="form-field">
+                                        <label class="form-label">
+                                            <input type="checkbox" id="leveling-enabled"> Enable Leveling System
+                                        </label>
+                                    </div>
+                                    <div class="form-field">
+                                        <label class="form-label">
+                                            <input type="checkbox" id="level-announcements"> Level Up Announcements
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="config-group">
+                                <h4>XP Settings</h4>
+                                <div class="form-row">
+                                    <div class="form-field">
+                                        <label for="base-xp">Base XP</label>
+                                        <input type="number" id="base-xp" min="1" max="100" value="5">
+                                    </div>
+                                    <div class="form-field">
+                                        <label for="max-xp">Max XP</label>
+                                        <input type="number" id="max-xp" min="1" max="200" value="25">
+                                    </div>
+                                    <div class="form-field">
+                                        <label for="daily-cap">Daily XP Cap</label>
+                                        <input type="number" id="daily-cap" min="100" max="10000" value="1000">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="config-group">
+                                <h4>Cooldown Settings</h4>
+                                <div class="form-row">
+                                    <div class="form-field">
+                                        <label for="min-cooldown">Min Cooldown (seconds)</label>
+                                        <input type="number" id="min-cooldown" min="5" max="300" value="30">
+                                    </div>
+                                    <div class="form-field">
+                                        <label for="max-cooldown">Max Cooldown (seconds)</label>
+                                        <input type="number" id="max-cooldown" min="5" max="300" value="60">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="config-group">
+                                <h4>Message Requirements</h4>
+                                <div class="form-row">
+                                    <div class="form-field">
+                                        <label for="min-chars">Min Characters</label>
+                                        <input type="number" id="min-chars" min="1" max="50" value="5">
+                                    </div>
+                                    <div class="form-field">
+                                        <label for="min-words">Min Words</label>
+                                        <input type="number" id="min-words" min="1" max="20" value="2">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Manual Adjustments -->
+                    <div class="activity-card manual-adjust-card">
+                        <div class="activity-header">
+                            <h3 class="activity-title">Manual Adjustments</h3>
+                        </div>
+                        <div class="manual-adjust-form">
+                            <div class="form-row">
+                                <div class="form-field">
+                                    <label for="target-user">User ID</label>
+                                    <input type="text" id="target-user" placeholder="Discord User ID (e.g., 123456789012345678)">
+                                </div>
+                                <div class="form-field">
+                                    <label for="adjust-type">Adjustment Type</label>
+                                    <select id="adjust-type" class="form-select">
+                                        <option value="add_xp">Add XP</option>
+                                        <option value="remove_xp">Remove XP</option>
+                                        <option value="set_level">Set Level</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-field">
+                                    <label for="adjust-amount">Amount</label>
+                                    <input type="number" id="adjust-amount" min="0" placeholder="XP amount or level number">
+                                </div>
+                                <div class="form-field">
+                                    <button id="apply-adjustment" class="modern-button">
+                                        <i class="fas fa-edit"></i> Apply Adjustment
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Ranks Management Section -->
+                <div class="ranks-management-section">
+                    <div class="activity-card ranks-card">
+                        <div class="activity-header">
+                            <h3 class="activity-title">Rank Management</h3>
+                            <button id="add-rank-btn" class="modern-button">
+                                <i class="fas fa-plus"></i> Add Rank
+                            </button>
+                        </div>
+                        <div class="ranks-container">
+                            <div class="ranks-table-container">
+                                <table class="ranks-table" id="ranks-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Rank</th>
+                                            <th>Level Range</th>
+                                            <th>Users</th>
+                                            <th>Color</th>
+                                            <th>Role</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="ranks-body">
+                                        <!-- Ranks will be populated here -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Message Templates Section -->
+                <div class="message-templates-section">
+                    <div class="activity-card templates-card">
+                        <div class="activity-header">
+                            <h3 class="activity-title">Level-Up Message Templates</h3>
+                            <button id="add-template-btn" class="modern-button">
+                                <i class="fas fa-plus"></i> Add Template
+                            </button>
+                        </div>
+                        <div class="templates-container">
+                            <div class="template-types-tabs">
+                                <button class="tab-btn active" data-type="default_levelup">Default Level-Up</button>
+                                <button class="tab-btn" data-type="rank_promotion">Rank Promotion</button>
+                                <button class="tab-btn" data-type="milestone_level">Milestone</button>
+                                <button class="tab-btn" data-type="first_level">First Level</button>
+                                <button class="tab-btn" data-type="major_milestone">Major Milestone</button>
+                            </div>
+                            <div class="templates-content" id="templates-content">
+                                <!-- Templates will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- User Lookup -->
+                <div class="user-lookup-section">
+                    <div class="activity-card user-lookup-card">
+                        <div class="activity-header">
+                            <h3 class="activity-title">User Lookup</h3>
+                        </div>
+                        <div class="user-lookup-form">
+                            <div class="form-row">
+                                <div class="form-field">
+                                    <input type="text" id="lookup-user" placeholder="Enter Discord User ID (e.g., 123456789012345678)">
+                                </div>
+                                <div class="form-field">
+                                    <button id="lookup-btn" class="modern-button">
+                                        <i class="fas fa-search"></i> Lookup User
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="user-stats" id="user-stats" style="display: none;">
+                            <!-- User stats will be populated here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Connection Status -->
+    <div id="connection-status" class="connection-status disconnected">
+        Disconnected
+    </div>
+
+    <!-- Status Messages -->
+    <div id="status-message" class="status-message" style="display: none;"></div>
+
+    <!-- Rank Management Modal -->
+    <div id="rank-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="rank-modal-title">Add New Rank</h3>
+                <button class="modal-close" onclick="closeModal('rank-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="rank-form">
+                    <input type="hidden" id="rank-id" value="">
+                    <div class="form-group">
+                        <label for="rank-name">Rank Name *</label>
+                        <input type="text" id="rank-name" required placeholder="e.g., Novice">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="rank-level-min">Min Level *</label>
+                            <input type="number" id="rank-level-min" required min="1" placeholder="1">
+                        </div>
+                        <div class="form-group">
+                            <label for="rank-level-max">Max Level</label>
+                            <input type="number" id="rank-level-max" min="1" placeholder="10 (optional)">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="rank-color">Color</label>
+                            <input type="color" id="rank-color" value="#ffffff">
+                        </div>
+                        <div class="form-group">
+                            <label for="rank-emoji">Emoji</label>
+                            <input type="text" id="rank-emoji" placeholder="🏆">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="rank-role-id">Discord Role ID</label>
+                        <input type="text" id="rank-role-id" placeholder="123456789012345678 (optional)">
+                    </div>
+                    <div class="form-group">
+                        <label for="rank-description">Description</label>
+                        <textarea id="rank-description" rows="3" placeholder="Rank description (optional)"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('rank-modal')">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveRank()">Save Rank</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Template Management Modal -->
+    <div id="template-modal" class="modal" style="display: none;">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3 id="template-modal-title">Add Message Template</h3>
+                <button class="modal-close" onclick="closeModal('template-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="template-form">
+                    <input type="hidden" id="template-id" value="">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="template-name">Template Name *</label>
+                            <input type="text" id="template-name" required placeholder="e.g., Default Level Up">
+                        </div>
+                        <div class="form-group">
+                            <label for="template-type">Template Type *</label>
+                            <select id="template-type" required>
+                                <option value="">Select type...</option>
+                                <option value="default_levelup">Default Level-Up</option>
+                                <option value="rank_promotion">Rank Promotion</option>
+                                <option value="milestone_level">Milestone Level</option>
+                                <option value="first_level">First Level</option>
+                                <option value="major_milestone">Major Milestone</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="template-content">Message Content *</label>
+                        <div class="template-editor">
+                            <textarea id="template-content" required rows="6"
+                                placeholder="🎉 Congratulations {user}! You've reached level {level}!"></textarea>
+                            <div class="template-help">
+                                <button type="button" class="btn btn-link" onclick="showVariableReference()">
+                                    <i class="fas fa-question-circle"></i> Available Variables
+                                </button>
+                                <button type="button" class="btn btn-link" onclick="previewTemplate()">
+                                    <i class="fas fa-eye"></i> Preview
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="template-conditions">Conditions (JSON)</label>
+                            <textarea id="template-conditions" rows="3"
+                                placeholder='{"min_level": 5, "max_level": 10}'></textarea>
+                            <small class="form-text">Optional conditions for when this template should be used</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="template-priority">Priority</label>
+                            <input type="number" id="template-priority" value="0" min="0" max="100">
+                            <small class="form-text">Higher priority templates are used first (0-100)</small>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="template-enabled" checked> Enabled
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('template-modal')">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveTemplate()">Save Template</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Variable Reference Modal -->
+    <div id="variable-reference-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Available Template Variables</h3>
+                <button class="modal-close" onclick="closeModal('variable-reference-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="variable-list">
+                    <div class="variable-item">
+                        <code>{user}</code>
+                        <span>User mention or display name</span>
+                    </div>
+                    <div class="variable-item">
+                        <code>{level}</code>
+                        <span>New level achieved</span>
+                    </div>
+                    <div class="variable-item">
+                        <code>{previous_level}</code>
+                        <span>Previous level</span>
+                    </div>
+                    <div class="variable-item">
+                        <code>{xp}</code>
+                        <span>Current XP amount</span>
+                    </div>
+                    <div class="variable-item">
+                        <code>{xp_needed}</code>
+                        <span>XP needed for next level</span>
+                    </div>
+                    <div class="variable-item">
+                        <code>{rank}</code>
+                        <span>Current rank name</span>
+                    </div>
+                    <div class="variable-item">
+                        <code>{previous_rank}</code>
+                        <span>Previous rank name</span>
+                    </div>
+                    <div class="variable-item">
+                        <code>{guild}</code>
+                        <span>Server/guild name</span>
+                    </div>
+                    <div class="variable-item">
+                        <code>{leaderboard_position}</code>
+                        <span>Position on leaderboard</span>
+                    </div>
+                </div>
+                <p class="variable-note">
+                    Click on any variable to copy it to your clipboard. Variables are replaced with actual values when the message is sent.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" onclick="closeModal('variable-reference-modal')">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Template Preview Modal -->
+    <div id="preview-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Message Preview</h3>
+                <button class="modal-close" onclick="closeModal('preview-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="preview-container">
+                    <div class="preview-label">Preview with sample data:</div>
+                    <div id="preview-content" class="preview-message">
+                        <!-- Preview content will be populated here -->
+                    </div>
+                </div>
+                <div class="preview-sample-data">
+                    <strong>Sample data used:</strong>
+                    <ul>
+                        <li>User: @TestUser</li>
+                        <li>Level: 10</li>
+                        <li>Previous Level: 9</li>
+                        <li>XP: 2500</li>
+                        <li>XP Needed: 275</li>
+                        <li>Rank: Advanced</li>
+                        <li>Previous Rank: Intermediate</li>
+                        <li>Guild: Test Server</li>
+                        <li>Leaderboard Position: 15</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" onclick="closeModal('preview-modal')">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirm-modal" class="modal" style="display: none;">
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h3 id="confirm-title">Confirm Action</h3>
+                <button class="modal-close" onclick="closeModal('confirm-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="confirm-message">Are you sure you want to continue?</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('confirm-modal')">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirm-action-btn" onclick="confirmAction()">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='dashboard.js') }}"></script>
+    <script>
+        // Initialize leveling dashboard when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            if (window.LevelingDashboard) {
+                window.levelingDashboard = new LevelingDashboard();
+            }
+        });
+    </script>
+</body>
+</html>
