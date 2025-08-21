@@ -15,6 +15,7 @@ from typing import Dict, List, Set
 from quart import Quart, render_template, jsonify, websocket, request
 from quart_cors import cors
 from collections import deque
+import discord
 
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -48,40 +49,38 @@ async def resolve_user_name(user_id: str) -> str:
     # Try to resolve using Discord API
     try:
         if bot_instance:
+            # First try cache, then fetch from API if needed
             user = bot_instance.get_user(int(user_id))
+            if not user:
+                # Try to fetch from Discord API if not in cache
+                try:
+                    user = await bot_instance.fetch_user(int(user_id))
+                except discord.NotFound:
+                    logging.debug(f"User {user_id} not found on Discord")
+                except discord.HTTPException as e:
+                    logging.debug(f"HTTP error fetching user {user_id}: {e}")
+            
             if user:
-                display_name = f"{user.display_name} ({user_id[-4:]})"
+                # Changed to show full ID instead of last 4 digits
+                display_name = f"{user.display_name} ({user_id})"
                 name_cache[cache_key] = display_name
                 cache_expiry[cache_key] = current_time + CACHE_DURATION
+                logging.debug(f"Resolved user {user_id} to {display_name} via Discord API")
                 return display_name
-    except:
-        pass
+            else:
+                logging.debug(f"User {user_id} not found in Discord")
+        else:
+            logging.debug("Bot instance not available for user name resolution")
+    except Exception as e:
+        logging.error(f"Error resolving user name via Discord API: {e}")
     
-    # Try to get name from database as fallback
-    try:
-        conn = await get_db_connection()
-        # Try to get a recent message from this user to see if we have any name info
-        async with conn.execute('''
-            SELECT author_name FROM messages
-            WHERE user_id = ?
-            ORDER BY timestamp DESC
-            LIMIT 1
-        ''', (user_id,)) as cursor:
-            result = await cursor.fetchone()
-            if result and result[0]:
-                display_name = f"{result[0]} ({user_id[-4:]})"
-                name_cache[cache_key] = display_name
-                cache_expiry[cache_key] = current_time + CACHE_DURATION
-                await conn.close()
-                return display_name
-        await conn.close()
-    except:
-        pass
+    # Database fallback removed since messages table doesn't have author_name column
     
-    # Final fallback
-    fallback_name = f"User {user_id[-4:]}"
+    # Final fallback - show full ID
+    fallback_name = f"User ({user_id})"
     name_cache[cache_key] = fallback_name
     cache_expiry[cache_key] = current_time + CACHE_DURATION
+    logging.debug(f"Using fallback name for user {user_id}: {fallback_name}")
     return fallback_name
 
 async def resolve_guild_name(guild_id: str) -> str:
@@ -99,40 +98,38 @@ async def resolve_guild_name(guild_id: str) -> str:
     # Try to resolve using Discord API
     try:
         if bot_instance:
+            # First try cache, then fetch from API if needed
             guild = bot_instance.get_guild(int(guild_id))
+            if not guild:
+                # Try to fetch from Discord API if not in cache
+                try:
+                    guild = await bot_instance.fetch_guild(int(guild_id))
+                except discord.NotFound:
+                    logging.debug(f"Guild {guild_id} not found on Discord")
+                except discord.HTTPException as e:
+                    logging.debug(f"HTTP error fetching guild {guild_id}: {e}")
+            
             if guild:
-                display_name = f"{guild.name} ({guild_id[-4:]})"
+                # Changed to show full ID instead of last 4 digits
+                display_name = f"{guild.name} ({guild_id})"
                 name_cache[cache_key] = display_name
                 cache_expiry[cache_key] = current_time + CACHE_DURATION
+                logging.debug(f"Resolved guild {guild_id} to {display_name} via Discord API")
                 return display_name
-    except:
-        pass
+            else:
+                logging.debug(f"Guild {guild_id} not found in Discord")
+        else:
+            logging.debug("Bot instance not available for guild name resolution")
+    except Exception as e:
+        logging.error(f"Error resolving guild name via Discord API: {e}")
     
-    # Try to get name from database as fallback
-    try:
-        conn = await get_db_connection()
-        # Try to get a recent message from this guild to see if we have any name info
-        async with conn.execute('''
-            SELECT guild_name FROM messages
-            WHERE guild_id = ?
-            ORDER BY timestamp DESC
-            LIMIT 1
-        ''', (guild_id,)) as cursor:
-            result = await cursor.fetchone()
-            if result and result[0]:
-                display_name = f"{result[0]} ({guild_id[-4:]})"
-                name_cache[cache_key] = display_name
-                cache_expiry[cache_key] = current_time + CACHE_DURATION
-                await conn.close()
-                return display_name
-        await conn.close()
-    except:
-        pass
+    # Database fallback removed since messages table doesn't have guild_name column
     
-    # Final fallback
-    fallback_name = f"Guild {guild_id[-4:]}"
+    # Final fallback - show full ID
+    fallback_name = f"Guild ({guild_id})"
     name_cache[cache_key] = fallback_name
     cache_expiry[cache_key] = current_time + CACHE_DURATION
+    logging.debug(f"Using fallback name for guild {guild_id}: {fallback_name}")
     return fallback_name
 
 async def bulk_resolve_names(user_ids: List[str] = None, guild_ids: List[str] = None) -> Dict[str, str]:
@@ -352,7 +349,7 @@ async def get_database_health(conn):
     try:
         # Get database file size
         import os
-        db_file = "chat_database.db"  # Adjust to your database file path
+        db_file = "database/chat_history.db"  # Fixed database path
         try:
             db_size_bytes = os.path.getsize(db_file)
             db_size_mb = db_size_bytes / (1024 * 1024)
@@ -977,13 +974,13 @@ async def api_leveling_ranks_get():
         for rank in ranks:
             rank_list.append({
                 'id': rank[0],
-                'min_level': rank[1],
-                'max_level': rank[2],
-                'title': rank[3],
+                'level_min': rank[1],
+                'level_max': rank[2],
+                'name': rank[3],
                 'description': rank[4],
-                'color_hex': rank[5],
+                'color': rank[5],
                 'emoji': rank[6],
-                'role_id': rank[7],
+                'discord_role_id': rank[7],
                 'created_at': rank[8],
                 'user_count': rank[9] or 0
             })
@@ -1666,6 +1663,588 @@ async def api_message_template_preview():
         
     except Exception as e:
         logging.error(f"Error previewing message template: {e}")
+        return jsonify({"error": str(e)}), 500
+
+# =========================================================================
+# TEMPLATES API ROUTES (for JavaScript compatibility)
+# =========================================================================
+
+@app.route('/api/leveling/templates', methods=['GET'])
+async def api_leveling_templates_get():
+    """Get message templates (alias for message-templates)."""
+    try:
+        guild_id = request.args.get('guild_id')
+        template_type = request.args.get('type', 'default_levelup')
+        
+        if not guild_id:
+            return jsonify({"error": "guild_id parameter required"}), 400
+            
+        conn = await get_db_connection()
+        
+        # Get templates for the guild and type
+        async with conn.execute('''
+            SELECT id, template_type, template_name, message_content, embed_enabled,
+                   embed_config, milestone_interval, min_level, max_level, enabled,
+                   send_to_channel, send_as_dm, mention_user, priority, created_at, updated_at
+            FROM level_up_message_templates
+            WHERE guild_id = ? AND template_type = ?
+            ORDER BY priority DESC, template_name
+        ''', (guild_id, template_type)) as cursor:
+            templates = await cursor.fetchall()
+        
+        await conn.close()
+        
+        template_list = []
+        for template in templates:
+            template_list.append({
+                'id': template[0],
+                'type': template[1],
+                'name': template[2],
+                'content': template[3],
+                'embed_enabled': bool(template[4]),
+                'embed_config': json.loads(template[5]) if template[5] else {},
+                'milestone_interval': template[6],
+                'min_level': template[7],
+                'max_level': template[8],
+                'enabled': bool(template[9]),
+                'send_to_channel': bool(template[10]),
+                'send_as_dm': bool(template[11]),
+                'mention_user': bool(template[12]),
+                'priority': template[13],
+                'created_at': template[14],
+                'updated_at': template[15],
+                'conditions': json.dumps({
+                    'min_level': template[7],
+                    'max_level': template[8]
+                }) if template[7] or template[8] else ''
+            })
+        
+        return jsonify(template_list)
+        
+    except Exception as e:
+        logging.error(f"Error getting templates: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/leveling/templates', methods=['POST'])
+async def api_leveling_templates_create():
+    """Create message template (alias for message-templates)."""
+    try:
+        data = await request.get_json()
+        guild_id = data.get('guild_id')
+        template_type = data.get('type')
+        template_name = data.get('name')
+        message_content = data.get('content')
+        
+        if not all([guild_id, template_type, template_name, message_content]):
+            return jsonify({"error": "guild_id, type, name, and content are required"}), 400
+        
+        # Validate template type
+        valid_types = ['default_levelup', 'rank_promotion', 'milestone_level', 'first_level', 'major_milestone']
+        if template_type not in valid_types:
+            return jsonify({"error": f"Invalid template type. Must be one of: {', '.join(valid_types)}"}), 400
+            
+        conn = await get_db_connection()
+        
+        # Check for duplicate template name within guild and type
+        async with conn.execute(
+            'SELECT id FROM level_up_message_templates WHERE guild_id = ? AND template_type = ? AND template_name = ?',
+            (guild_id, template_type, template_name)
+        ) as cursor:
+            existing = await cursor.fetchone()
+            
+        if existing:
+            await conn.close()
+            return jsonify({"error": f"Template '{template_name}' already exists for {template_type}"}), 400
+        
+        # Parse conditions if provided
+        conditions = data.get('conditions', '')
+        min_level = None
+        max_level = None
+        
+        if conditions:
+            try:
+                cond_data = json.loads(conditions)
+                min_level = cond_data.get('min_level')
+                max_level = cond_data.get('max_level')
+            except (json.JSONDecodeError, TypeError):
+                pass
+        
+        # Create the template
+        await conn.execute('''
+            INSERT INTO level_up_message_templates
+            (guild_id, template_type, template_name, message_content, embed_enabled, embed_config,
+             milestone_interval, min_level, max_level, enabled, send_to_channel, send_as_dm,
+             mention_user, priority)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (
+            guild_id, template_type, template_name, message_content,
+            data.get('embed_enabled', False),
+            json.dumps(data.get('embed_config', {})),
+            data.get('milestone_interval'),
+            min_level,
+            max_level,
+            data.get('enabled', True),
+            data.get('send_to_channel', True),
+            data.get('send_as_dm', False),
+            data.get('mention_user', True),
+            data.get('priority', 0)
+        ))
+        
+        await conn.commit()
+        
+        # Get the created template ID
+        async with conn.execute('SELECT last_insert_rowid()') as cursor:
+            template_id = (await cursor.fetchone())[0]
+            
+        await conn.close()
+        
+        return jsonify({
+            "success": True,
+            "template_id": template_id,
+            "message": f"Template '{template_name}' created successfully"
+        })
+        
+    except Exception as e:
+        logging.error(f"Error creating template: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/leveling/templates/<int:template_id>', methods=['GET'])
+async def api_leveling_templates_get_single(template_id):
+    """Get single template by ID."""
+    try:
+        guild_id = request.args.get('guild_id')
+        if not guild_id:
+            return jsonify({"error": "guild_id parameter required"}), 400
+            
+        conn = await get_db_connection()
+        
+        async with conn.execute('''
+            SELECT id, template_type, template_name, message_content, embed_enabled,
+                   embed_config, milestone_interval, min_level, max_level, enabled,
+                   send_to_channel, send_as_dm, mention_user, priority, created_at, updated_at
+            FROM level_up_message_templates
+            WHERE id = ? AND guild_id = ?
+        ''', (template_id, guild_id)) as cursor:
+            template = await cursor.fetchone()
+        
+        await conn.close()
+        
+        if template:
+            return jsonify({
+                'id': template[0],
+                'type': template[1],
+                'name': template[2],
+                'content': template[3],
+                'embed_enabled': bool(template[4]),
+                'embed_config': json.loads(template[5]) if template[5] else {},
+                'milestone_interval': template[6],
+                'min_level': template[7],
+                'max_level': template[8],
+                'enabled': bool(template[9]),
+                'send_to_channel': bool(template[10]),
+                'send_as_dm': bool(template[11]),
+                'mention_user': bool(template[12]),
+                'priority': template[13],
+                'created_at': template[14],
+                'updated_at': template[15],
+                'conditions': json.dumps({
+                    'min_level': template[7],
+                    'max_level': template[8]
+                }) if template[7] or template[8] else ''
+            })
+        else:
+            return jsonify({"error": "Template not found"}), 404
+            
+    except Exception as e:
+        logging.error(f"Error getting template: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/leveling/templates/<int:template_id>', methods=['PUT'])
+async def api_leveling_templates_update(template_id):
+    """Update template (alias for message-templates)."""
+    try:
+        data = await request.get_json()
+        guild_id = data.get('guild_id')
+        
+        if not guild_id:
+            return jsonify({"error": "guild_id required"}), 400
+            
+        conn = await get_db_connection()
+        
+        # Verify template exists and belongs to guild
+        async with conn.execute(
+            'SELECT id, template_name FROM level_up_message_templates WHERE id = ? AND guild_id = ?',
+            (template_id, guild_id)
+        ) as cursor:
+            existing_template = await cursor.fetchone()
+            
+        if not existing_template:
+            await conn.close()
+            return jsonify({"error": "Template not found or access denied"}), 404
+        
+        # Parse conditions if provided
+        conditions = data.get('conditions', '')
+        min_level = None
+        max_level = None
+        
+        if conditions:
+            try:
+                cond_data = json.loads(conditions)
+                min_level = cond_data.get('min_level')
+                max_level = cond_data.get('max_level')
+            except (json.JSONDecodeError, TypeError):
+                pass
+        
+        # Build update query - map frontend field names to database field names
+        field_mapping = {
+            'type': 'template_type',
+            'name': 'template_name',
+            'content': 'message_content',
+            'embed_enabled': 'embed_enabled',
+            'embed_config': 'embed_config',
+            'milestone_interval': 'milestone_interval',
+            'enabled': 'enabled',
+            'send_to_channel': 'send_to_channel',
+            'send_as_dm': 'send_as_dm',
+            'mention_user': 'mention_user',
+            'priority': 'priority'
+        }
+        
+        update_fields = []
+        update_values = []
+        
+        for frontend_field, db_field in field_mapping.items():
+            if frontend_field in data:
+                if frontend_field == 'embed_config':
+                    update_fields.append(f"{db_field} = ?")
+                    update_values.append(json.dumps(data[frontend_field]) if data[frontend_field] else '{}')
+                else:
+                    update_fields.append(f"{db_field} = ?")
+                    update_values.append(data[frontend_field])
+        
+        # Add conditions fields if they were parsed
+        if 'conditions' in data:
+            if min_level is not None:
+                update_fields.append("min_level = ?")
+                update_values.append(min_level)
+            if max_level is not None:
+                update_fields.append("max_level = ?")
+                update_values.append(max_level)
+        
+        if not update_fields:
+            await conn.close()
+            return jsonify({"error": "No valid fields to update"}), 400
+        
+        update_values.extend([template_id, guild_id])
+        
+        await conn.execute(f'''
+            UPDATE level_up_message_templates
+            SET {', '.join(update_fields)}
+            WHERE id = ? AND guild_id = ?
+        ''', update_values)
+        
+        await conn.commit()
+        await conn.close()
+        
+        return jsonify({
+            "success": True,
+            "message": "Template updated successfully"
+        })
+        
+    except Exception as e:
+        logging.error(f"Error updating template: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/leveling/templates/<int:template_id>', methods=['DELETE'])
+async def api_leveling_templates_delete(template_id):
+    """Delete template (alias for message-templates)."""
+    try:
+        guild_id = request.args.get('guild_id')
+        if not guild_id:
+            return jsonify({"error": "guild_id parameter required"}), 400
+            
+        conn = await get_db_connection()
+        
+        # Verify template exists and belongs to guild
+        async with conn.execute(
+            'SELECT template_name FROM level_up_message_templates WHERE id = ? AND guild_id = ?',
+            (template_id, guild_id)
+        ) as cursor:
+            existing_template = await cursor.fetchone()
+            
+        if not existing_template:
+            await conn.close()
+            return jsonify({"error": "Template not found or access denied"}), 404
+        
+        await conn.execute(
+            'DELETE FROM level_up_message_templates WHERE id = ? AND guild_id = ?',
+            (template_id, guild_id)
+        )
+        
+        await conn.commit()
+        await conn.close()
+        
+        return jsonify({
+            "success": True,
+            "message": f"Template '{existing_template[0]}' deleted successfully"
+        })
+        
+    except Exception as e:
+        logging.error(f"Error deleting template: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/leveling/templates/<int:template_id>/preview', methods=['GET'])
+async def api_leveling_templates_preview(template_id):
+    """Preview template with sample data."""
+    try:
+        guild_id = request.args.get('guild_id')
+        if not guild_id:
+            return jsonify({"error": "guild_id parameter required"}), 400
+            
+        conn = await get_db_connection()
+        
+        async with conn.execute(
+            'SELECT message_content FROM level_up_message_templates WHERE id = ? AND guild_id = ?',
+            (template_id, guild_id)
+        ) as cursor:
+            template = await cursor.fetchone()
+        
+        await conn.close()
+        
+        if not template:
+            return jsonify({"error": "Template not found"}), 404
+        
+        # Sample data for preview
+        sample_data = {
+            '{user}': '<@123456789012345678>',
+            '{username}': 'SampleUser',
+            '{user_id}': '123456789012345678',
+            '{level}': '15',
+            '{previous_level}': '14',
+            '{xp}': '2,500',
+            '{current_xp}': '120',
+            '{xp_needed}': '380',
+            '{rank}': 'Veteran',
+            '{previous_rank}': 'Member',
+            '{guild}': 'Sample Discord Server',
+            '{guild_id}': '987654321098765432',
+            '{channel}': '<#876543210987654321>',
+            '{date}': datetime.now().strftime('%Y-%m-%d'),
+            '{time}': datetime.now().strftime('%H:%M:%S'),
+            '{total_members}': '150',
+            '{leaderboard_position}': '23',
+            '{messages_sent}': '1,234',
+            '{daily_xp}': '250',
+            '{progress_bar}': '████████░░ 80%',
+            '{congratulations}': 'Well done!',
+            '{range}': 'Journeyman',
+            '{tier}': 'Journeyman'
+        }
+        
+        # Replace template variables with sample data
+        preview_content = template[0]
+        for variable, value in sample_data.items():
+            preview_content = preview_content.replace(variable, str(value))
+        
+        return jsonify({
+            "success": True,
+            "preview": preview_content
+        })
+        
+    except Exception as e:
+        logging.error(f"Error previewing template: {e}")
+        return jsonify({"error": str(e)}), 500
+
+# Level Ranges API endpoints
+@app.route('/api/leveling/ranges/guild/<guild_id>', methods=['GET'])
+async def api_get_guild_ranges(guild_id):
+    """Get all level ranges for a guild."""
+    try:
+        conn = await get_db_connection()
+        
+        async with conn.execute('''
+            SELECT id, min_level, max_level, range_name, description, created_at
+            FROM level_range_names
+            WHERE guild_id = ?
+            ORDER BY min_level
+        ''', (guild_id,)) as cursor:
+            ranges = await cursor.fetchall()
+        
+        await conn.close()
+        
+        range_list = []
+        for range_data in ranges:
+            range_list.append({
+                'id': range_data[0],
+                'min_level': range_data[1],
+                'max_level': range_data[2],
+                'range_name': range_data[3],
+                'description': range_data[4],
+                'created_at': range_data[5]
+            })
+        
+        return jsonify({'ranges': range_list})
+        
+    except Exception as e:
+        logging.error(f"Error getting guild ranges: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/leveling/ranges', methods=['POST'])
+async def api_create_level_range():
+    """Create a new level range."""
+    try:
+        data = await request.get_json()
+        guild_id = data.get('guild_id')
+        min_level = data.get('min_level')
+        max_level = data.get('max_level')
+        range_name = data.get('range_name')
+        description = data.get('description', '')
+        
+        if not all([guild_id, min_level is not None, max_level is not None, range_name]):
+            return jsonify({"error": "Missing required fields"}), 400
+        
+        try:
+            min_level = int(min_level)
+            max_level = int(max_level)
+            
+            if min_level < 1 or max_level < min_level:
+                return jsonify({"error": "Invalid level range"}), 400
+                
+        except ValueError:
+            return jsonify({"error": "Invalid level values"}), 400
+        
+        conn = await get_db_connection()
+        
+        # Check for overlapping ranges
+        async with conn.execute('''
+            SELECT COUNT(*) FROM level_range_names
+            WHERE guild_id = ? AND (
+                (? >= min_level AND ? <= max_level) OR
+                (? >= min_level AND ? <= max_level) OR
+                (min_level >= ? AND min_level <= ?) OR
+                (max_level >= ? AND max_level <= ?)
+            )
+        ''', (guild_id, min_level, min_level, max_level, max_level,
+              min_level, max_level, min_level, max_level)) as cursor:
+            overlap_count = (await cursor.fetchone())[0]
+        
+        if overlap_count > 0:
+            await conn.close()
+            return jsonify({"error": "Range overlaps with existing ranges"}), 400
+        
+        # Insert new range
+        await conn.execute('''
+            INSERT INTO level_range_names
+            (guild_id, min_level, max_level, range_name, description)
+            VALUES (?, ?, ?, ?, ?)
+        ''', (guild_id, min_level, max_level, range_name, description))
+        
+        await conn.commit()
+        await conn.close()
+        
+        return jsonify({"message": "Range added successfully"})
+        
+    except Exception as e:
+        logging.error(f"Error creating level range: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/leveling/ranges/<int:range_id>', methods=['PUT'])
+async def api_update_level_range(range_id):
+    """Update an existing level range."""
+    try:
+        data = await request.get_json()
+        min_level = data.get('min_level')
+        max_level = data.get('max_level')
+        range_name = data.get('range_name')
+        description = data.get('description', '')
+        
+        if not all([min_level is not None, max_level is not None, range_name]):
+            return jsonify({"error": "Missing required fields"}), 400
+        
+        try:
+            min_level = int(min_level)
+            max_level = int(max_level)
+            
+            if min_level < 1 or max_level < min_level:
+                return jsonify({"error": "Invalid level range"}), 400
+                
+        except ValueError:
+            return jsonify({"error": "Invalid level values"}), 400
+        
+        conn = await get_db_connection()
+        
+        # Get guild_id for this range
+        async with conn.execute(
+            'SELECT guild_id FROM level_range_names WHERE id = ?',
+            (range_id,)
+        ) as cursor:
+            result = await cursor.fetchone()
+        
+        if not result:
+            await conn.close()
+            return jsonify({"error": "Range not found"}), 404
+        
+        guild_id = result[0]
+        
+        # Check for overlapping ranges (excluding current range)
+        async with conn.execute('''
+            SELECT COUNT(*) FROM level_range_names
+            WHERE guild_id = ? AND id != ? AND (
+                (? >= min_level AND ? <= max_level) OR
+                (? >= min_level AND ? <= max_level) OR
+                (min_level >= ? AND min_level <= ?) OR
+                (max_level >= ? AND max_level <= ?)
+            )
+        ''', (guild_id, range_id, min_level, min_level, max_level, max_level,
+              min_level, max_level, min_level, max_level)) as cursor:
+            overlap_count = (await cursor.fetchone())[0]
+        
+        if overlap_count > 0:
+            await conn.close()
+            return jsonify({"error": "Range overlaps with existing ranges"}), 400
+        
+        # Update range
+        await conn.execute('''
+            UPDATE level_range_names
+            SET min_level = ?, max_level = ?, range_name = ?, description = ?
+            WHERE id = ?
+        ''', (min_level, max_level, range_name, description, range_id))
+        
+        await conn.commit()
+        await conn.close()
+        
+        return jsonify({"message": "Range updated successfully"})
+        
+    except Exception as e:
+        logging.error(f"Error updating level range: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/leveling/ranges/<int:range_id>', methods=['DELETE'])
+async def api_delete_level_range(range_id):
+    """Delete a level range."""
+    try:
+        conn = await get_db_connection()
+        
+        # Verify range exists
+        async with conn.execute(
+            'SELECT id FROM level_range_names WHERE id = ?',
+            (range_id,)
+        ) as cursor:
+            result = await cursor.fetchone()
+        
+        if not result:
+            await conn.close()
+            return jsonify({"error": "Range not found"}), 404
+        
+        await conn.execute('DELETE FROM level_range_names WHERE id = ?', (range_id,))
+        
+        await conn.commit()
+        await conn.close()
+        
+        return jsonify({"message": "Range deleted successfully"})
+        
+    except Exception as e:
+        logging.error(f"Error deleting level range: {e}")
         return jsonify({"error": str(e)}), 500
 
 async def stats_broadcast_loop():

@@ -6,6 +6,7 @@ import zipfile
 import io
 import asyncio
 import re
+import logging
 
 class EmojiDownloaderCog(commands.Cog):
     def __init__(self, bot):
@@ -27,9 +28,9 @@ class EmojiDownloaderCog(commands.Cog):
                             (f"{emoji.name}.{'gif' if emoji.animated else 'png'}", await resp.read())
                         )
                     else:
-                        print(f"Failed to download emoji: {emoji.name} with status code: {resp.status}")
+                        logging.warning(f"Failed to download emoji: {emoji.name} with status code: {resp.status}")
             except Exception as e:
-                print(f"Error downloading emoji {emoji.name}: {e}")
+                logging.error(f"Error downloading emoji {emoji.name}: {e}")
 
             if (i + 1) % 5 == 0 or (i + 1) == total_emojis:
                 progress = (i + 1) / total_emojis * 100
@@ -38,7 +39,7 @@ class EmojiDownloaderCog(commands.Cog):
                         content=f"stealin' emojis: {progress:.1f}% complete ({i + 1}/{total_emojis})"
                     )
                 except discord.errors.NotFound:
-                    print("Interaction not found during progress update. It might have expired.")
+                    logging.warning("Interaction not found during progress update. It might have expired.")
                     return None
             await asyncio.sleep(0.1)
         zip_buffer = io.BytesIO()
@@ -86,9 +87,9 @@ class EmojiDownloaderCog(commands.Cog):
                             (f"{emoji_name}_{emoji_id}.{'gif' if is_animated else 'png'}", await resp.read())
                         )
                     else:
-                        print(f"Failed to download emoji: {emoji_name} with status code: {resp.status}")
+                        logging.warning(f"Failed to download emoji: {emoji_name} with status code: {resp.status}")
             except Exception as e:
-                print(f"Error downloading emoji {emoji_name}: {e}")
+                logging.error(f"Error downloading emoji {emoji_name}: {e}")
             await asyncio.sleep(0.1)
         if not emoji_data:
             return None

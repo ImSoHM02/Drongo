@@ -1,0 +1,72 @@
+/* =========================================================================
+   COMMANDS SECTION STYLES
+   ========================================================================= */
+
+/* Command management buttons */
+#actions-container .modern-button {
+    width: 100%;
+    max-width: 200px;
+    margin: 0 auto;
+}
+
+/* Command list styling */
+#commands-list {
+    margin-top: 1rem;
+}
+
+#commands-list > div {
+    margin-bottom: 0.5rem;
+    padding: 0.5rem;
+    background: var(--bg-primary);
+    border-radius: 0.25rem;
+}
+
+#commands-list strong {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+#commands-list span {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+}
+
+/* Command status styling */
+#command-status {
+    margin-top: 1rem;
+    padding: 0.75rem;
+    border-radius: 0.25rem;
+    display: none;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+/* Action buttons container */
+#actions-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+/* Responsive design for commands */
+@media (max-width: 768px) {
+    #actions-container .modern-button {
+        max-width: none;
+        font-size: 0.875rem;
+    }
+    
+    #commands-list {
+        font-size: 0.875rem;
+    }
+}
+
+@media (max-width: 480px) {
+    #actions-container {
+        gap: 0.75rem;
+    }
+    
+    #actions-container .modern-button {
+        padding: 1rem;
+    }
+}

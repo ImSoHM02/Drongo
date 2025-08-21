@@ -17,6 +17,9 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
     <link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='commands.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='stats.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='leveling.css') }}">
 </head>
 <body>
     <div class="dashboard">
@@ -404,6 +407,61 @@
                     </div>
                 </div>
 
+                <!-- Ranks Management Section -->
+                <div class="ranks-management-section">
+                    <div class="activity-card ranks-card">
+                        <div class="activity-header">
+                            <h3 class="activity-title">Rank Management</h3>
+                            <button id="add-rank-btn" class="modern-button">
+                                <i class="fas fa-plus"></i> Add Rank
+                            </button>
+                        </div>
+                        <div class="ranks-container">
+                            <div class="ranks-table-container">
+                                <table class="ranks-table" id="ranks-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Rank</th>
+                                            <th>Level Range</th>
+                                            <th>Users</th>
+                                            <th>Color</th>
+                                            <th>Role</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="ranks-body">
+                                        <!-- Ranks will be populated here -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Message Templates Section -->
+                <div class="message-templates-section">
+                    <div class="activity-card templates-card">
+                        <div class="activity-header">
+                            <h3 class="activity-title">Level-Up Message Templates</h3>
+                            <button id="add-template-btn" class="modern-button">
+                                <i class="fas fa-plus"></i> Add Template
+                            </button>
+                        </div>
+                        <div class="templates-container">
+                            <div class="template-types-tabs">
+                                <button class="tab-btn active" data-type="default_levelup">Default Level-Up</button>
+                                <button class="tab-btn" data-type="rank_promotion">Rank Promotion</button>
+                                <button class="tab-btn" data-type="milestone_level">Milestone</button>
+                                <button class="tab-btn" data-type="first_level">First Level</button>
+                                <button class="tab-btn" data-type="major_milestone">Major Milestone</button>
+                            </div>
+                            <div class="templates-content" id="templates-content">
+                                <!-- Templates will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- User Lookup -->
                 <div class="user-lookup-section">
                     <div class="activity-card user-lookup-card">
@@ -413,7 +471,7 @@
                         <div class="user-lookup-form">
                             <div class="form-row">
                                 <div class="form-field">
-                                    <input type="text" id="lookup-user" placeholder="Enter Discord User ID">
+                                    <input type="text" id="lookup-user" placeholder="Enter Discord User ID (e.g., 123456789012345678)">
                                 </div>
                                 <div class="form-field">
                                     <button id="lookup-btn" class="modern-button">
@@ -439,7 +497,221 @@
     <!-- Status Messages -->
     <div id="status-message" class="status-message" style="display: none;"></div>
 
+    <!-- Rank Management Modal -->
+    <div id="rank-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="rank-modal-title">Add New Rank</h3>
+                <button class="modal-close" onclick="closeModal('rank-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="rank-form">
+                    <input type="hidden" id="rank-id" value="">
+                    <div class="form-group">
+                        <label for="rank-name">Rank Name *</label>
+                        <input type="text" id="rank-name" required placeholder="e.g., Novice">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="rank-level-min">Min Level *</label>
+                            <input type="number" id="rank-level-min" required min="1" placeholder="1">
+                        </div>
+                        <div class="form-group">
+                            <label for="rank-level-max">Max Level</label>
+                            <input type="number" id="rank-level-max" min="1" placeholder="10 (optional)">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="rank-color">Color</label>
+                            <input type="color" id="rank-color" value="#ffffff">
+                        </div>
+                        <div class="form-group">
+                            <label for="rank-emoji">Emoji</label>
+                            <input type="text" id="rank-emoji" placeholder="🏆">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="rank-role-id">Discord Role ID</label>
+                        <input type="text" id="rank-role-id" placeholder="123456789012345678 (optional)">
+                    </div>
+                    <div class="form-group">
+                        <label for="rank-description">Description</label>
+                        <textarea id="rank-description" rows="3" placeholder="Rank description (optional)"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('rank-modal')">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveRank()">Save Rank</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Template Management Modal -->
+    <div id="template-modal" class="modal" style="display: none;">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3 id="template-modal-title">Add Message Template</h3>
+                <button class="modal-close" onclick="closeModal('template-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="template-form">
+                    <input type="hidden" id="template-id" value="">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="template-name">Template Name *</label>
+                            <input type="text" id="template-name" required placeholder="e.g., Default Level Up">
+                        </div>
+                        <div class="form-group">
+                            <label for="template-type">Template Type *</label>
+                            <select id="template-type" required>
+                                <option value="">Select type...</option>
+                                <option value="default_levelup">Default Level-Up</option>
+                                <option value="rank_promotion">Rank Promotion</option>
+                                <option value="milestone_level">Milestone Level</option>
+                                <option value="first_level">First Level</option>
+                                <option value="major_milestone">Major Milestone</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="template-content">Message Content *</label>
+                        <div class="template-editor">
+                            <textarea id="template-content" required rows="6"
+                                placeholder="🎉 Congratulations {user}! You've reached level {level}!"></textarea>
+                            <div class="template-help">
+                                <button type="button" class="btn btn-link" onclick="showVariableReference()">
+                                    <i class="fas fa-question-circle"></i> Available Variables
+                                </button>
+                                <button type="button" class="btn btn-link" onclick="previewTemplate()">
+                                    <i class="fas fa-eye"></i> Preview
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="template-conditions">Conditions (JSON)</label>
+                            <textarea id="template-conditions" rows="3"
+                                placeholder='{"min_level": 5, "max_level": 10}'></textarea>
+                            <small class="form-text">Optional conditions for when this template should be used</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="template-priority">Priority</label>
+                            <input type="number" id="template-priority" value="0" min="0" max="100">
+                            <small class="form-text">Higher priority templates are used first (0-100)</small>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="template-enabled" checked> Enabled
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeModal('template-modal')">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveTemplate()">Save Template</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Variable Reference Modal -->
+    <div id="variable-reference-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Available Template Variables</h3>
+                <button class="modal-close" onclick="closeModal('variable-reference-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="variable-list">
+                    <div class="variable-item">
+                        <code>{user}</code>
+                        <span>User mention or display name</span>
+                    </div>
+                    <div class="variable-item">
+                        <code>{level}</code>
+                        <span>New level achieved</span>
+                    </div>
+                    <div class="variable-item">
+                        <code>{previous_level}</code>
+                        <span>Previous level</span>
+                    </div>
+                    <div class="variable-item">
+                        <code>{xp}</code>
+                        <span>Current XP amount</span>
+                    </div>
+                    <div class="variable-item">
+                        <code>{xp_needed}</code>
+                        <span>XP needed for next level</span>
+                    </div>
+                    <div class="variable-item">
+                        <code>{rank}</code>
+                        <span>Current rank name</span>
+                    </div>
+                    <div class="variable-item">
+                        <code>{previous_rank}</code>
+                        <span>Previous rank name</span>
+                    </div>
+                    <div class="variable-item">
+                        <code>{guild}</code>
+                        <span>Server/guild name</span>
+                    </div>
+                    <div class="variable-item">
+                        <code>{leaderboard_position}</code>
+                        <span>Position on leaderboard</span>
+                    </div>
+                </div>
+                <p class="variable-note">
+                    Click on any variable to copy it to your clipboard. Variables are replaced with actual values when the message is sent.
+                </p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" onclick="closeModal('variable-reference-modal')">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Template Preview Modal -->
+    <div id="preview-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Message Preview</h3>
+                <button class="modal-close" onclick="closeModal('preview-modal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="preview-container">
+                    <div class="preview-label">Preview with sample data:</div>
+                    <div id="preview-content" class="preview-message">
+                        <!-- Preview content will be populated here -->
+                    </div>
+                </div>
+                <div class="preview-sample-data">
+                    <strong>Sample data used:</strong>
+                    <ul>
+                        <li>User: @TestUser</li>
+                        <li>Level: 10</li>
+                        <li>Previous Level: 9</li>
+                        <li>XP: 2500</li>
+                        <li>XP Needed: 275</li>
+                        <li>Rank: Advanced</li>
+                        <li>Previous Rank: Intermediate</li>
+                        <li>Guild: Test Server</li>
+                        <li>Leaderboard Position: 15</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" onclick="closeModal('preview-modal')">Close</button>
+            </div>
+        </div>
+    </div>
+
     <script src="{{ url_for('static', filename='dashboard.js') }}"></script>
+    <script src="{{ url_for('static', filename='commands.js') }}"></script>
+    <script src="{{ url_for('static', filename='stats.js') }}"></script>
+    <script src="{{ url_for('static', filename='leveling.js') }}"></script>
     
 </body>
 </html>

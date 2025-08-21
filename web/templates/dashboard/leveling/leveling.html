@@ -17,6 +17,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
     <link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='leveling.css') }}">
 </head>
 <body>
     <div class="dashboard">
@@ -150,6 +151,25 @@
                                     <!-- Leaderboard entries will be populated here -->
                                 </tbody>
                             </table>
+                        </div>
+                    </div>
+                </div>
+        
+                <!-- Level Ranges Section -->
+                <div class="dashboard-card">
+                    <div class="card-header">
+                        <h3>Level Ranges</h3>
+                        <div class="button-group">
+                            <button class="button primary" onclick="showAddRangeModal()">
+                                <i class="fas fa-plus"></i>
+                                Add Range
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-content">
+                        <p class="description">Configure custom names for level ranges. These are display names shown alongside user levels.</p>
+                        <div id="levelRangesContainer" class="ranges-container">
+                            <div class="loading">Loading ranges...</div>
                         </div>
                     </div>
                 </div>
@@ -403,6 +423,50 @@
             </div>
         </div>
     </div>
+    
+    <!-- Add/Edit Level Range Modal -->
+    <div id="rangeModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="rangeModalTitle">Add Level Range</h2>
+                <button class="close-button" onclick="closeRangeModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <form id="rangeForm" onsubmit="saveRange(event)">
+                    <input type="hidden" id="rangeId" value="">
+                    
+                    <div class="form-group">
+                        <label for="rangeName">Range Name</label>
+                        <input type="text" id="rangeName" name="rangeName" required
+                               placeholder="e.g., Novice, Expert, Master">
+                    </div>
+    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="minLevel">Minimum Level</label>
+                            <input type="number" id="minLevel" name="minLevel" min="1" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="maxLevel">Maximum Level</label>
+                            <input type="number" id="maxLevel" name="maxLevel" min="1" required>
+                        </div>
+                    </div>
+    
+                    <div class="form-group">
+                        <label for="rangeDescription">Description (Optional)</label>
+                        <input type="text" id="rangeDescription" name="rangeDescription"
+                               placeholder="Brief description of this range">
+                    </div>
+    
+                    <div class="form-actions">
+                        <button type="button" class="button secondary" onclick="closeRangeModal()">Cancel</button>
+                        <button type="submit" class="button primary">Save Range</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 
     <!-- Template Management Modal -->
     <div id="template-modal" class="modal" style="display: none;">
@@ -518,6 +582,10 @@
                         <code>{leaderboard_position}</code>
                         <span>Position on leaderboard</span>
                     </div>
+                    <div class="variable-item">
+                        <code>{range}</code> or <code>{tier}</code>
+                        <span>Current level range name</span>
+                    </div>
                 </div>
                 <p class="variable-note">
                     Click on any variable to copy it to your clipboard. Variables are replaced with actual values when the message is sent.
@@ -582,6 +650,7 @@
     </div>
 
     <script src="{{ url_for('static', filename='dashboard.js') }}"></script>
+    <script src="{{ url_for('static', filename='leveling.js') }}"></script>
     <script>
         // Initialize leveling dashboard when page loads
         document.addEventListener('DOMContentLoaded', () => {

@@ -4,6 +4,7 @@ from discord.ext import commands
 from discord import app_commands
 import subprocess
 import platform
+import logging
 
 class WebLinkCog(commands.Cog):
     def __init__(self, bot):
@@ -24,7 +25,7 @@ class WebLinkCog(commands.Cog):
                 finally:
                     s.close()
         except Exception as e:
-            print(f"Error getting IP: {e}")
+            logging.error(f"Error getting IP address: {e}")
             return '127.0.0.1'
 
     @app_commands.command(name="webstats")

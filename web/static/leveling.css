@@ -1,0 +1,1002 @@
+/* =========================================================================
+   LEVELING DASHBOARD STYLES
+   ========================================================================= */
+
+/* Guild Selector */
+.guild-selector {
+    margin-bottom: 2rem;
+    padding: 1rem;
+    background: var(--bg-card);
+    border-radius: 0.5rem;
+    border: 1px solid var(--border);
+}
+
+.guild-selector label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.form-select {
+    width: 100%;
+    max-width: 300px;
+    padding: 0.5rem;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 0.25rem;
+    color: var(--text-primary);
+    font-size: 0.875rem;
+}
+
+.form-select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(255, 107, 53, 0.2);
+}
+
+/* Main Leveling Section */
+.leveling-main-section {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+/* XP Feed */
+.leveling-feed-card {
+    min-height: 400px;
+}
+
+.xp-feed {
+    max-height: 350px;
+    overflow-y: auto;
+}
+
+.xp-feed-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    border-bottom: 1px solid var(--border);
+    transition: background-color 0.2s;
+}
+
+.xp-feed-item:hover {
+    background: var(--bg-tertiary);
+}
+
+.xp-feed-item:last-child {
+    border-bottom: none;
+}
+
+.feed-avatar {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.25rem;
+    background: var(--primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: white;
+    flex-shrink: 0;
+}
+
+.feed-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.feed-text {
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+}
+
+.feed-text .xp-amount {
+    color: var(--primary);
+    font-weight: 600;
+}
+
+.feed-meta {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.toggle-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+    transition: color 0.2s, background-color 0.2s;
+}
+
+.toggle-btn:hover {
+    color: var(--primary);
+    background: var(--bg-tertiary);
+}
+
+/* Leaderboard */
+.leaderboard-card {
+    min-height: 400px;
+}
+
+.leaderboard-controls {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.leaderboard-container {
+    max-height: 350px;
+    overflow-y: auto;
+}
+
+.leaderboard-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.leaderboard-table th {
+    background: var(--bg-tertiary);
+    padding: 0.75rem 0.5rem;
+    text-align: left;
+    font-weight: 600;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+}
+
+.leaderboard-table td {
+    padding: 0.75rem 0.5rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+}
+
+.leaderboard-row:hover {
+    background: var(--bg-tertiary);
+}
+
+.rank-cell {
+    width: 60px;
+}
+
+.rank-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: 1rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-align: center;
+}
+
+.rank-badge.rank-gold {
+    background: linear-gradient(135deg, #FFD700, #FFA500);
+    color: #000;
+}
+
+.rank-badge.rank-silver {
+    background: linear-gradient(135deg, #C0C0C0, #A0A0A0);
+    color: #000;
+}
+
+.rank-badge.rank-bronze {
+    background: linear-gradient(135deg, #CD7F32, #A0522D);
+    color: #fff;
+}
+
+.rank-badge.rank-top10 {
+    background: var(--primary);
+    color: #fff;
+}
+
+.rank-badge.rank-default {
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+}
+
+.user-cell {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.user-avatar {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 0.25rem;
+    background: var(--primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: white;
+}
+
+.user-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.user-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.user-meta {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.level-badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    background: var(--primary);
+    color: white;
+    border-radius: 0.25rem;
+    font-weight: 600;
+    font-size: 0.75rem;
+}
+
+.xp-amount {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+.progress-cell {
+    width: 120px;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 6px;
+    background: var(--bg-tertiary);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 0.25rem;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary), var(--primary-light));
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.progress-text {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+/* Configuration Section */
+.config-section {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.config-form {
+    padding: 1rem 0;
+}
+
+.config-group {
+    margin-bottom: 1.5rem;
+}
+
+.config-group h4 {
+    color: var(--text-primary);
+    margin-bottom: 1rem;
+    font-size: 1rem;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 0.5rem;
+}
+
+.form-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.form-field label {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.form-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+}
+
+.form-field input[type="number"],
+.form-field input[type="text"] {
+    padding: 0.5rem;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 0.25rem;
+    color: var(--text-primary);
+    font-size: 0.875rem;
+}
+
+.form-field input[type="number"]:focus,
+.form-field input[type="text"]:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(255, 107, 53, 0.2);
+}
+
+.form-field input[type="checkbox"] {
+    width: 1rem;
+    height: 1rem;
+    accent-color: var(--primary);
+}
+
+.save-btn {
+    background: var(--primary) !important;
+    color: white !important;
+    padding: 0.75rem 1.5rem !important;
+    border-radius: 0.5rem !important;
+    border: none !important;
+    font-weight: 600 !important;
+    transition: background-color 0.2s !important;
+}
+
+.save-btn:hover {
+    background: var(--primary-light) !important;
+}
+
+/* Manual Adjustments */
+.manual-adjust-form {
+    padding: 1rem;
+}
+
+/* User Lookup */
+.user-lookup-section {
+    margin-bottom: 2rem;
+}
+
+.user-lookup-form {
+    padding: 1rem;
+}
+
+.user-stats {
+    padding: 1rem;
+    background: var(--bg-tertiary);
+    border-radius: 0.5rem;
+    margin-top: 1rem;
+}
+
+.user-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.user-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.user-stat label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.user-stat span {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.level-progress {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.level-progress .progress-bar {
+    flex: 1;
+    height: 8px;
+    margin-bottom: 0;
+}
+
+/* Status Message */
+.status-message {
+    position: fixed;
+    top: 4rem;
+    right: 1rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    padding: 1rem 1.5rem;
+    font-size: 0.875rem;
+    box-shadow: var(--shadow-lg);
+    z-index: 1000;
+    max-width: 400px;
+    animation: slideIn 0.3s ease;
+}
+
+.status-message.success {
+    border-color: var(--success);
+    color: var(--success);
+    background: rgba(16, 185, 129, 0.1);
+}
+
+.status-message.error {
+    border-color: var(--danger);
+    color: var(--danger);
+    background: rgba(239, 68, 68, 0.1);
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* Loading indicator for leveling dashboard */
+.loading-indicator {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.8);
+    padding: 30px;
+    border-radius: 8px;
+    z-index: 1000;
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #FF6B35;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 15px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.loading-indicator p {
+    color: #ffffff;
+    font-size: 14px;
+    margin: 0;
+    font-weight: 500;
+}
+
+/* User stats header */
+.user-stats-header {
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.user-stats-header h4 {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+/* =========================================================================
+   RANK MANAGEMENT STYLES
+   ========================================================================= */
+
+.ranks-management-section {
+    margin-bottom: 2rem;
+}
+
+.ranks-table-container {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.ranks-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.ranks-table th {
+    background: var(--bg-tertiary);
+    padding: 0.75rem 0.5rem;
+    text-align: left;
+    font-weight: 600;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+}
+
+.ranks-table td {
+    padding: 0.75rem 0.5rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+}
+
+.rank-row:hover {
+    background: var(--bg-tertiary);
+}
+
+.rank-display {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.rank-emoji {
+    font-size: 1rem;
+}
+
+.rank-name {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.color-preview {
+    width: 1rem;
+    height: 1rem;
+    border-radius: 0.25rem;
+    display: inline-block;
+    margin-right: 0.5rem;
+    border: 1px solid var(--border);
+}
+
+.color-cell {
+    display: flex;
+    align-items: center;
+}
+
+.role-badge {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    font-family: monospace;
+}
+
+.no-role {
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.actions-cell {
+    text-align: right;
+}
+
+.action-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0.25rem;
+    margin: 0 0.125rem;
+    border-radius: 0.25rem;
+    transition: color 0.2s, background-color 0.2s;
+}
+
+.action-btn:hover {
+    background: var(--bg-tertiary);
+}
+
+.action-btn.edit-btn:hover {
+    color: var(--primary);
+}
+
+.action-btn.delete-btn:hover {
+    color: var(--danger);
+}
+
+.action-btn.preview-btn:hover {
+    color: var(--info);
+}
+
+/* =========================================================================
+   TEMPLATE MANAGEMENT STYLES
+   ========================================================================= */
+
+.message-templates-section {
+    margin-bottom: 2rem;
+}
+
+.templates-container {
+    padding: 1rem 0;
+}
+
+.template-types-tabs {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+}
+
+.tab-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem 0.5rem 0 0;
+    transition: color 0.2s, background-color 0.2s;
+    white-space: nowrap;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.tab-btn:hover {
+    color: var(--text-primary);
+    background: var(--bg-tertiary);
+}
+
+.tab-btn.active {
+    color: var(--primary);
+    background: var(--bg-tertiary);
+    border-bottom: 2px solid var(--primary);
+}
+
+.templates-content {
+    min-height: 200px;
+}
+
+.template-card {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    transition: border-color 0.2s;
+}
+
+.template-card:hover {
+    border-color: var(--primary);
+}
+
+.template-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.75rem;
+}
+
+.template-info {
+    flex: 1;
+}
+
+.template-name {
+    margin: 0 0 0.25rem 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.template-priority {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.template-status {
+    flex-shrink: 0;
+}
+
+.status-badge {
+    padding: 0.25rem 0.5rem;
+    border-radius: 1rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.status-badge.enabled {
+    background: rgba(16, 185, 129, 0.2);
+    color: var(--success);
+}
+
+.status-badge.disabled {
+    background: rgba(239, 68, 68, 0.2);
+    color: var(--danger);
+}
+
+.template-content-preview {
+    margin-bottom: 0.75rem;
+}
+
+.template-content-preview code {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    padding: 0.5rem;
+    border-radius: 0.25rem;
+    display: block;
+    font-size: 0.8rem;
+    line-height: 1.4;
+    overflow-x: auto;
+}
+
+.template-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+}
+
+/* =========================================================================
+   LEVEL RANGE MANAGEMENT STYLES
+   ========================================================================= */
+
+.level-ranges-section {
+    margin-bottom: 2rem;
+}
+
+.ranges-container {
+    padding: 1rem 0;
+}
+
+.ranges-list {
+    display: grid;
+    gap: 1rem;
+}
+
+.range-item {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 0.5rem;
+    padding: 1rem;
+    transition: border-color 0.2s;
+}
+
+.range-item:hover {
+    border-color: var(--primary);
+}
+
+.range-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.5rem;
+}
+
+.range-info {
+    flex: 1;
+}
+
+.range-name {
+    margin: 0 0 0.25rem 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.range-levels {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.range-description {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
+.range-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex-shrink: 0;
+}
+
+/* Range badge for leaderboard */
+.range-badge {
+    display: inline-block;
+    padding: 0.125rem 0.375rem;
+    background: var(--bg-tertiary);
+    color: var(--text-secondary);
+    border-radius: 0.25rem;
+    font-size: 0.625rem;
+    font-weight: 500;
+    margin-left: 0.5rem;
+    border: 1px solid var(--border);
+}
+
+/* Level cell adjustments for range badge */
+.level-cell {
+    white-space: nowrap;
+}
+
+/* Range modal form fields */
+#range-modal .form-field {
+    margin-bottom: 1rem;
+}
+
+#range-modal textarea {
+    min-height: 80px;
+    resize: vertical;
+    padding: 0.5rem;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border);
+    border-radius: 0.25rem;
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    font-family: inherit;
+}
+
+#range-modal textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 2px rgba(255, 107, 53, 0.2);
+}
+
+/* Dark mode enhancements for leveling components */
+.xp-feed::-webkit-scrollbar,
+.leaderboard-container::-webkit-scrollbar,
+.ranks-table-container::-webkit-scrollbar {
+    width: 6px;
+}
+
+.xp-feed::-webkit-scrollbar-track,
+.leaderboard-container::-webkit-scrollbar-track,
+.ranks-table-container::-webkit-scrollbar-track {
+    background: var(--bg-tertiary);
+}
+
+.xp-feed::-webkit-scrollbar-thumb,
+.leaderboard-container::-webkit-scrollbar-thumb,
+.ranks-table-container::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 3px;
+}
+
+.xp-feed::-webkit-scrollbar-thumb:hover,
+.leaderboard-container::-webkit-scrollbar-thumb:hover,
+.ranks-table-container::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+}
+
+/* No Data State */
+.no-data {
+    text-align: center;
+    padding: 2rem;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+/* Responsive Design for Leveling Dashboard */
+@media (max-width: 1024px) {
+    .leveling-main-section {
+        grid-template-columns: 1fr;
+    }
+    
+    .config-section {
+        grid-template-columns: 1fr;
+    }
+    
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .user-stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .leaderboard-table {
+        font-size: 0.75rem;
+    }
+    
+    .leaderboard-table th,
+    .leaderboard-table td {
+        padding: 0.5rem 0.25rem;
+    }
+    
+    .progress-cell {
+        width: 80px;
+    }
+    
+    .user-cell {
+        gap: 0.5rem;
+    }
+    
+    .user-avatar {
+        width: 1.5rem;
+        height: 1.5rem;
+        font-size: 0.625rem;
+    }
+    
+    .ranks-table {
+        font-size: 0.75rem;
+    }
+    
+    .ranks-table th,
+    .ranks-table td {
+        padding: 0.5rem 0.25rem;
+    }
+}
+
+@media (max-width: 640px) {
+    .user-stats-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .level-progress {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .status-message {
+        right: 0.5rem;
+        left: 0.5rem;
+        max-width: none;
+    }
+    
+    .guild-selector {
+        padding: 0.75rem;
+    }
+    
+    .form-select {
+        max-width: none;
+    }
+    
+    .template-types-tabs {
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+    
+    .tab-btn {
+        border-radius: 0.25rem;
+        text-align: center;
+    }
+    
+    .template-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+    }
+    
+    .template-actions {
+        justify-content: flex-start;
+    }
+    
+    .ranks-table-container {
+        overflow-x: auto;
+    }
+    
+    .ranks-table {
+        min-width: 600px;
+    }
+}

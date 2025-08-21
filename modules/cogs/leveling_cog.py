@@ -125,6 +125,17 @@ class LevelingCog(commands.Cog):
                     inline=True
                 )
             
+            # Add range name if available
+            range_info = await self.leveling_system.get_user_range(
+                str(target_user.id), str(interaction.guild_id)
+            )
+            if range_info:
+                embed.add_field(
+                    name="🏅 Rank Tier",
+                    value=f"**{range_info['name']}**",
+                    inline=True
+                )
+            
             embed.set_thumbnail(url=target_user.display_avatar.url)
             
             await interaction.response.send_message(embed=embed)
@@ -133,7 +144,6 @@ class LevelingCog(commands.Cog):
             await interaction.response.send_message(
                 "An error occurred while fetching level stats.", ephemeral=True
             )
-            print(f"Error in level_stats: {e}")
 
     async def leaderboard(self, interaction: discord.Interaction, limit: int = 10):
         """View the server's XP leaderboard."""
@@ -186,9 +196,14 @@ class LevelingCog(commands.Cog):
                     emoji_prefix = f"{rank_info.get('emoji', '')} " if rank_info.get('emoji') else ""
                     rank_display = f" • {emoji_prefix}{rank_info['rank_title']}"
                 
+                # Add range name if available
+                range_display = ""
+                if entry.get('range_name'):
+                    range_display = f" • 🏅 {entry['range_name']}"
+                
                 leaderboard_text.append(
                     f"{medal} {name}\n"
-                    f"   Level {entry['current_level']} • {entry['total_xp']:,} XP{rank_display}"
+                    f"   Level {entry['current_level']} • {entry['total_xp']:,} XP{rank_display}{range_display}"
                 )
             
             embed.description = "\n\n".join(leaderboard_text)
@@ -199,7 +214,6 @@ class LevelingCog(commands.Cog):
             await interaction.response.send_message(
                 "An error occurred while fetching the leaderboard.", ephemeral=True
             )
-            print(f"Error in leaderboard: {e}")
 
     async def configure_leveling(self, interaction: discord.Interaction, setting: str, value: str):
         """Configure leveling system settings (Admin only)."""
@@ -298,7 +312,6 @@ class LevelingCog(commands.Cog):
             await interaction.response.send_message(
                 "An error occurred while updating the configuration.", ephemeral=True
             )
-            print(f"Error in configure_leveling: {e}")
 
     async def view_config(self, interaction: discord.Interaction):
         """View current leveling system configuration."""
@@ -396,7 +409,6 @@ class LevelingCog(commands.Cog):
             await interaction.response.send_message(
                 "An error occurred while fetching the configuration.", ephemeral=True
             )
-            print(f"Error in view_config: {e}")
 
 async def setup(bot):
     await bot.add_cog(LevelingCog(bot))

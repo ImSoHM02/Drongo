@@ -309,6 +309,13 @@ class LevelingSystem:
                         'reason': 'XP awarded successfully'
                     })
                     
+                    # Add range info if level changed
+                    if level_up_result['level_up']:
+                        range_info = await self.get_user_range(user_id, guild_id)
+                        if range_info:
+                            result['range_name'] = range_info['name']
+                            result['range_description'] = range_info['description']
+                    
                 except Exception as e:
                     await conn.rollback()
                     raise e
@@ -568,6 +575,14 @@ class LevelingSystem:
                     'position': result[5]
                 })
                 
+            # Add range info for each user
+            for item in leaderboard:
+                range_info = await self.get_user_range(item['user_id'], guild_id)
+                if range_info:
+                    item['range_name'] = range_info['name']
+                else:
+                    item['range_name'] = None
+            
             return leaderboard
             
         except Exception as e:
@@ -1187,6 +1202,172 @@ class LevelingSystem:
                 'success': False,
                 'reason': f'Processing error: {str(e)}'
             }
+    
+    # =========================================================================
+    # LEVEL RANGE MANAGEMENT FUNCTIONS
+    # =========================================================================
+    
+    async def get_user_range(self, user_id: str, guild_id: str) -> Optional[Dict[str, Any]]:
+        """Get the level range name for a user's current level"""
+        try:
+            pool = await get_main_pool()
+            
+            # Get user's current level
+            user_data = await self.get_user_level_data(user_id, guild_id)
+            if not user_data:
+                return None
+            
+            level = user_data['current_level']
+            
+            # Get the range for this level
+            range_result = await pool.execute_single('''
+                SELECT id, range_name, description, min_level, max_level
+                FROM level_range_names
+                WHERE guild_id = ? AND ? >= min_level AND ? <= max_level
+                ORDER BY min_level
+                LIMIT 1
+            ''', (guild_id, level, level))
+            
+            if range_result:
+                return {
+                    'id': range_result[0],
+                    'name': range_result[1],
+                    'description': range_result[2],
+                    'min_level': range_result[3],
+                    'max_level': range_result[4]
+                }
+            
+            return None
+            
+        except Exception as e:
+            self.logger.error(f"Error getting user range: {e}")
+            return None
+    
+    async def get_guild_ranges(self, guild_id: str) -> List[Dict[str, Any]]:
+        """Get all level ranges for a guild"""
+        try:
+            pool = await get_main_pool()
+            results = await pool.execute_query('''
+                SELECT id, min_level, max_level, range_name, description, created_at
+                FROM level_range_names
+                WHERE guild_id = ?
+                ORDER BY min_level
+            ''', (guild_id,))
+            
+            ranges = []
+            for row in results:
+                ranges.append({
+                    'id': row[0],
+                    'min_level': row[1],
+                    'max_level': row[2],
+                    'range_name': row[3],
+                    'description': row[4],
+                    'created_at': row[5]
+                })
+            
+            return ranges
+            
+        except Exception as e:
+            self.logger.error(f"Error getting guild ranges: {e}")
+            return []
+    
+    async def add_level_range(self, guild_id: str, min_level: int, max_level: int,
+                            range_name: str, description: str = None) -> Tuple[bool, str]:
+        """Add a new level range for a guild"""
+        try:
+            pool = await get_main_pool()
+            
+            # Check for overlapping ranges
+            overlap_check = await pool.execute_single('''
+                SELECT COUNT(*) FROM level_range_names
+                WHERE guild_id = ? AND (
+                    (? >= min_level AND ? <= max_level) OR
+                    (? >= min_level AND ? <= max_level) OR
+                    (min_level >= ? AND min_level <= ?) OR
+                    (max_level >= ? AND max_level <= ?)
+                )
+            ''', (guild_id, min_level, min_level, max_level, max_level,
+                  min_level, max_level, min_level, max_level))
+            
+            if overlap_check[0] > 0:
+                return False, "Range overlaps with existing ranges"
+            
+            # Insert new range
+            await pool.execute_write('''
+                INSERT INTO level_range_names
+                (guild_id, min_level, max_level, range_name, description)
+                VALUES (?, ?, ?, ?, ?)
+            ''', (guild_id, min_level, max_level, range_name, description))
+            
+            return True, "Range added successfully"
+            
+        except Exception as e:
+            self.logger.error(f"Error adding level range: {e}")
+            return False, str(e)
+    
+    async def update_level_range(self, range_id: int, min_level: int, max_level: int,
+                               range_name: str, description: str = None) -> Tuple[bool, str]:
+        """Update an existing level range"""
+        try:
+            pool = await get_main_pool()
+            
+            # Get guild_id for this range
+            range_info = await pool.execute_single(
+                'SELECT guild_id FROM level_range_names WHERE id = ?',
+                (range_id,)
+            )
+            if not range_info:
+                return False, "Range not found"
+            
+            guild_id = range_info[0]
+            
+            # Check for overlapping ranges (excluding current range)
+            overlap_check = await pool.execute_single('''
+                SELECT COUNT(*) FROM level_range_names
+                WHERE guild_id = ? AND id != ? AND (
+                    (? >= min_level AND ? <= max_level) OR
+                    (? >= min_level AND ? <= max_level) OR
+                    (min_level >= ? AND min_level <= ?) OR
+                    (max_level >= ? AND max_level <= ?)
+                )
+            ''', (guild_id, range_id, min_level, min_level, max_level, max_level,
+                  min_level, max_level, min_level, max_level))
+            
+            if overlap_check[0] > 0:
+                return False, "Range overlaps with existing ranges"
+            
+            # Update range
+            await pool.execute_write('''
+                UPDATE level_range_names
+                SET min_level = ?, max_level = ?, range_name = ?, description = ?
+                WHERE id = ?
+            ''', (min_level, max_level, range_name, description, range_id))
+            
+            return True, "Range updated successfully"
+            
+        except Exception as e:
+            self.logger.error(f"Error updating level range: {e}")
+            return False, str(e)
+    
+    async def delete_level_range(self, range_id: int) -> Tuple[bool, str]:
+        """Delete a level range"""
+        try:
+            pool = await get_main_pool()
+            
+            result = await pool.execute_write(
+                'DELETE FROM level_range_names WHERE id = ?',
+                (range_id,)
+            )
+            
+            # Check if any rows were deleted
+            if result:
+                return True, "Range deleted successfully"
+            else:
+                return False, "Range not found"
+            
+        except Exception as e:
+            self.logger.error(f"Error deleting level range: {e}")
+            return False, str(e)
     
     # =========================================================================
     # MESSAGE PROCESSING INTEGRATION
