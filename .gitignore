@@ -35,3 +35,5 @@ tools/migrations/migrate_database.py
 tools/migrations/migrate_level_ranges.py
 tools/migrations/migrate_leveling_database.py
 tools/migrations/README.md
+tests/test_leveling_system.py
+tests/test_leveling_system.py

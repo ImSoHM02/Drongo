@@ -17,6 +17,28 @@ from quart_cors import cors
 from collections import deque
 import discord
 
+def validate_guild_id(guild_id):
+    """Validate guild_id for dashboard operations."""
+    if guild_id is None:
+        return None
+    
+    if isinstance(guild_id, int):
+        return guild_id
+    
+    if isinstance(guild_id, str):
+        # Handle test guild IDs
+        if guild_id.startswith('test_guild_'):
+            logging.warning(f"Test guild ID detected in dashboard: {guild_id}. Rejecting request.")
+            return None
+        
+        try:
+            return int(guild_id)
+        except ValueError:
+            logging.error(f"Invalid guild_id in dashboard request: '{guild_id}'")
+            return None
+    
+    return None
+
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database import get_db_connection
@@ -49,12 +71,19 @@ async def resolve_user_name(user_id: str) -> str:
     # Try to resolve using Discord API
     try:
         if bot_instance:
+            # Validate user_id first
+            try:
+                validated_user_id = int(user_id)
+            except ValueError:
+                logging.warning(f"Invalid user_id in dashboard request: '{user_id}'")
+                return "Invalid User ID"
+            
             # First try cache, then fetch from API if needed
-            user = bot_instance.get_user(int(user_id))
+            user = bot_instance.get_user(validated_user_id)
             if not user:
                 # Try to fetch from Discord API if not in cache
                 try:
-                    user = await bot_instance.fetch_user(int(user_id))
+                    user = await bot_instance.fetch_user(validated_user_id)
                 except discord.NotFound:
                     logging.debug(f"User {user_id} not found on Discord")
                 except discord.HTTPException as e:
@@ -98,12 +127,17 @@ async def resolve_guild_name(guild_id: str) -> str:
     # Try to resolve using Discord API
     try:
         if bot_instance:
+            # Validate guild_id first
+            validated_guild_id = validate_guild_id(guild_id)
+            if validated_guild_id is None:
+                return "Invalid Guild ID"
+            
             # First try cache, then fetch from API if needed
-            guild = bot_instance.get_guild(int(guild_id))
+            guild = bot_instance.get_guild(validated_guild_id)
             if not guild:
                 # Try to fetch from Discord API if not in cache
                 try:
-                    guild = await bot_instance.fetch_guild(int(guild_id))
+                    guild = await bot_instance.fetch_guild(validated_guild_id)
                 except discord.NotFound:
                     logging.debug(f"Guild {guild_id} not found on Discord")
                 except discord.HTTPException as e:
@@ -997,9 +1031,9 @@ async def api_leveling_ranks_create():
     try:
         data = await request.get_json()
         guild_id = data.get('guild_id')
-        min_level = data.get('min_level')
-        max_level = data.get('max_level')
-        title = data.get('title')
+        min_level = data.get('level_min')
+        max_level = data.get('level_max')
+        title = data.get('name')
         
         if not all([guild_id, min_level is not None, title]):
             return jsonify({"error": "guild_id, min_level, and title are required"}), 400

@@ -273,6 +273,44 @@ def get_commands():
                     "name": "view-config",
                     "description": "View current leveling system configuration",
                     "type": 1  # SUB_COMMAND
+                },
+                {
+                    "name": "addlevel",
+                    "description": "Add a level to a user for testing purposes.",
+                    "type": 1,
+                    "options": [
+                        {
+                            "name": "user",
+                            "description": "The user to add a level to",
+                            "type": 6,
+                            "required": True
+                        },
+                        {
+                            "name": "levels",
+                            "description": "The number of levels to add",
+                            "type": 4,
+                            "required": True
+                        }
+                    ]
+                },
+                {
+                    "name": "removelevel",
+                    "description": "Remove a level from a user for testing purposes.",
+                    "type": 1,
+                    "options": [
+                        {
+                            "name": "user",
+                            "description": "The user to remove a level from",
+                            "type": 6,
+                            "required": True
+                        },
+                        {
+                            "name": "levels",
+                            "description": "The number of levels to remove",
+                            "type": 4,
+                            "required": True
+                        }
+                    ]
                 }
             ]
         }

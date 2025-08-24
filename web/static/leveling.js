@@ -315,7 +315,7 @@ class LevelingDashboard {
                 </td>
                 <td class="level-cell">
                     <span class="level-badge">${entry.current_level}</span>
-                    ${rangeBadge}
+                    ${rangeBadge}${entry.rank_title ? `<span class="rank-title"> • ${entry.rank_title}</span>` : ''}
                 </td>
                 <td class="xp-cell">
                     <span class="xp-amount">${this.formatNumber(entry.total_xp)}</span>
@@ -694,17 +694,20 @@ class LevelingDashboard {
 
     async loadRankData(rankId) {
         try {
-            const response = await fetch(`/api/leveling/ranks/${rankId}?guild_id=${this.currentGuild}`);
-            const rank = await response.json();
+            const response = await fetch(`/api/leveling/ranks?guild_id=${this.currentGuild}`);
+            const ranks = await response.json();
 
             if (response.ok) {
-                document.getElementById('rank-name').value = rank.name || '';
-                document.getElementById('rank-level-min').value = rank.level_min || '';
-                document.getElementById('rank-level-max').value = rank.level_max || '';
-                document.getElementById('rank-color').value = rank.color || '#ffffff';
-                document.getElementById('rank-emoji').value = rank.emoji || '';
-                document.getElementById('rank-role-id').value = rank.discord_role_id || '';
-                document.getElementById('rank-description').value = rank.description || '';
+                const rank = ranks.find(r => r.id === rankId);
+                if (rank) {
+                    document.getElementById('rank-name').value = rank.name || '';
+                    document.getElementById('rank-level-min').value = rank.level_min || '';
+                    document.getElementById('rank-level-max').value = rank.level_max || '';
+                    document.getElementById('rank-color').value = rank.color || '#ffffff';
+                    document.getElementById('rank-emoji').value = rank.emoji || '';
+                    document.getElementById('rank-role-id').value = rank.discord_role_id || '';
+                    document.getElementById('rank-description').value = rank.description || '';
+                }
             }
         } catch (error) {
             console.error('Error loading rank data:', error);

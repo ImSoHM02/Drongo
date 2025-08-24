@@ -21,9 +21,9 @@ class TestLevelingSystem:
         # Mock bot instance
         self.bot = Mock()
         self.leveling_system = LevelingSystem(self.bot)
-        self.test_guild_id = "test_guild_123456"
-        self.test_user_id = "test_user_789012"
-        self.test_channel_id = "test_channel_345678"
+        self.test_guild_id = "123456789012345678"  # Valid Discord guild ID format
+        self.test_user_id = "987654321098765432"   # Valid Discord user ID format
+        self.test_channel_id = "876543210987654321"  # Valid Discord channel ID format
         
     async def run_all_tests(self):
         """Run all leveling system tests."""

@@ -575,13 +575,18 @@ class LevelingSystem:
                     'position': result[5]
                 })
                 
-            # Add range info for each user
+            # Add range info and configured rank title for each user (no Discord role assignment)
             for item in leaderboard:
+                # Level range info
                 range_info = await self.get_user_range(item['user_id'], guild_id)
                 if range_info:
                     item['range_name'] = range_info['name']
                 else:
                     item['range_name'] = None
+
+                # Configured rank title (display only)
+                rank_info = await self.get_user_rank(item['user_id'], guild_id)
+                item['rank_title'] = rank_info['rank_title'] if rank_info and rank_info.get('rank_title') else None
             
             return leaderboard
             
@@ -594,9 +599,9 @@ class LevelingSystem:
         try:
             pool = await get_main_pool()
             result = await pool.execute_single("""
-                SELECT current_level, current_xp, total_xp, rank_title, 
-                       rank_description, position, rank
-                FROM view_user_ranks 
+                SELECT current_level, current_xp, total_xp, rank_title,
+                       rank_description, color_hex, emoji, rank_role_id, rank
+                FROM view_user_ranks
                 WHERE user_id = ? AND guild_id = ?
             """, (user_id, guild_id))
             
@@ -607,8 +612,10 @@ class LevelingSystem:
                     'total_xp': result[2],
                     'rank_title': result[3],
                     'rank_description': result[4],
-                    'position': result[5],
-                    'server_rank': result[6]
+                    'color_hex': result[5],
+                    'emoji': result[6],
+                    'rank_role_id': result[7],
+                    'server_rank': result[8]
                 }
                 
         except Exception as e:
@@ -1409,6 +1416,53 @@ class LevelingSystem:
         return result if result['success'] else None
 
 
+    async def get_level_up_message(self, user_id: str, guild_id: str, old_level: int, new_level: int) -> str:
+        """
+        Retrieve and render the level-up message using configured templates.
+        Falls back to the default message if no template matches.
+        """
+        try:
+            pool = await get_main_pool()
+            # Fetch highest-priority template for default level-up matching this level
+            query = """
+                SELECT message_content FROM level_up_message_templates
+                WHERE guild_id = ?
+                  AND template_type = 'default_levelup'
+                  AND enabled = 1
+                  AND (? >= COALESCE(min_level, -1))
+                  AND (? <= COALESCE(max_level, 9223372036854775807))
+                ORDER BY priority DESC
+                LIMIT 1
+            """
+            row = await pool.execute_single(query, (guild_id, new_level, new_level))
+            if row and row[0]:
+                template = row[0]
+                # Replace placeholders in template
+                message = template
+                message = message.replace('{user}', f'<@{user_id}>')
+                message = message.replace('{username}', f'<@{user_id}>')
+                message = message.replace('{user_id}', user_id)
+                message = message.replace('{old_level}', str(old_level))
+                message = message.replace('{level}', str(new_level))
+                # Replace rank and range placeholders
+                rank_info = await self.get_user_rank(user_id, guild_id)
+                rank_title = rank_info.get('rank_title') if rank_info and rank_info.get('rank_title') else ''
+                message = message.replace('{rank}', rank_title)
+                message = message.replace('{rankname}', rank_title)
+                leaderboard = await self.get_leaderboard(guild_id, limit=1000)
+                user_rank = next((item for item in leaderboard if item["user_id"] == user_id), None)
+                if user_rank:
+                    message = message.replace('{leaderboard_position}', str(user_rank['position']))
+                range_info = await self.get_user_range(user_id, guild_id)
+                range_name = range_info.get('name') if range_info and range_info.get('name') else ''
+                message = message.replace('{range}', range_name)
+                message = message.replace('{tier}', range_name)
+                return message
+        except Exception:
+            # On error, ignore and fall back to default
+            pass
+        # Fallback default
+        return f"🎉 <@{user_id}> leveled up! **Level {old_level}** → **Level {new_level}**"
 # Global instance
 leveling_system = None
 

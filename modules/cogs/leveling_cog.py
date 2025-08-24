@@ -1,4 +1,5 @@
 import discord
+import os
 from discord.ext import commands
 from discord import app_commands
 from modules.leveling_system import get_leveling_system
@@ -11,31 +12,11 @@ class LevelingCog(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         self.leveling_system = get_leveling_system(bot)
+        bot.logger.info("LevelingCog initialized - level command group should be available")
 
-    @app_commands.command(name="level")
-    async def level_command(self, interaction: discord.Interaction, 
-                           stats_user: Optional[discord.User] = None,
-                           leaderboard_limit: Optional[int] = None,
-                           config_setting: Optional[str] = None,
-                           config_value: Optional[str] = None):
-        """Handle level subcommands based on the interaction data."""
-        
-        # Extract the subcommand from the interaction
-        subcommand = interaction.data.get('options', [{}])[0].get('name', 'stats')
-        
-        if subcommand == "stats":
-            await self.level_stats(interaction, stats_user)
-        elif subcommand == "leaderboard":
-            await self.leaderboard(interaction, leaderboard_limit or 10)
-        elif subcommand == "config":
-            await self.configure_leveling(interaction, config_setting, config_value)
-        elif subcommand == "view-config":
-            await self.view_config(interaction)
-        elif subcommand == "ranks":
-            await self.manage_ranks(interaction)
-        elif subcommand == "rewards":
-            await self.manage_rewards(interaction)
+    level = app_commands.Group(name="level", description="Commands for the leveling system")
 
+    @level.command(name="stats")
     async def level_stats(self, interaction: discord.Interaction, user: Optional[discord.User] = None):
         """View your or another user's level statistics."""
         target_user = user or interaction.user
@@ -145,6 +126,7 @@ class LevelingCog(commands.Cog):
                 "An error occurred while fetching level stats.", ephemeral=True
             )
 
+    @level.command(name="leaderboard")
     async def leaderboard(self, interaction: discord.Interaction, limit: int = 10):
         """View the server's XP leaderboard."""
         limit = min(max(limit, 1), 20)  # Clamp between 1 and 20
@@ -215,6 +197,7 @@ class LevelingCog(commands.Cog):
                 "An error occurred while fetching the leaderboard.", ephemeral=True
             )
 
+    @level.command(name="config")
     async def configure_leveling(self, interaction: discord.Interaction, setting: str, value: str):
         """Configure leveling system settings (Admin only)."""
         
@@ -313,6 +296,7 @@ class LevelingCog(commands.Cog):
                 "An error occurred while updating the configuration.", ephemeral=True
             )
 
+    @level.command(name="view-config")
     async def view_config(self, interaction: discord.Interaction):
         """View current leveling system configuration."""
         
@@ -409,6 +393,79 @@ class LevelingCog(commands.Cog):
             await interaction.response.send_message(
                 "An error occurred while fetching the configuration.", ephemeral=True
             )
+    @level.command(name="addlevel")
+    @app_commands.describe(
+        user="The user to add levels to",
+        levels="The number of levels to add"
+    )
+    async def add_level(self, interaction: discord.Interaction, user: discord.User, levels: int):
+        """Add levels to a user for testing purposes."""
+        await interaction.response.defer(ephemeral=True)
+        authorized_user_id = os.getenv("AUTHORIZED_USER_ID")
+        if str(interaction.user.id) != authorized_user_id:
+            await interaction.followup.send("You are not authorized to use this command.", ephemeral=True)
+            return
 
+        user_data = await self.leveling_system.get_user_level_data(str(user.id), str(interaction.guild_id))
+        if not user_data:
+            current_level = 0
+            total_xp = 0
+        else:
+            current_level = user_data['current_level']
+            total_xp = user_data['total_xp']
+
+        new_level = current_level + levels
+        required_xp = self.leveling_system.get_xp_required_for_level(new_level)
+        xp_to_add = required_xp - total_xp
+
+        if xp_to_add > 0:
+            from database_pool import get_main_pool
+            pool = await get_main_pool()
+            await pool.execute_write(
+                "UPDATE user_levels SET total_xp = ?, current_xp = ? WHERE user_id = ? AND guild_id = ?",
+                (required_xp, required_xp - self.leveling_system.get_xp_required_for_level(new_level), str(user.id), str(interaction.guild_id))
+            )
+            level_up_result = await self.leveling_system.check_level_up(str(user.id), str(interaction.guild_id))
+            if level_up_result and level_up_result.get('level_up'):
+                # Manually trigger announcement
+                level_up_message = await self.leveling_system.get_level_up_message(
+                    str(user.id), str(interaction.guild.id), level_up_result['old_level'], level_up_result['new_level']
+                )
+                await interaction.channel.send(level_up_message)
+
+        await interaction.followup.send(f"Added {levels} levels to {user.mention}. They are now level {new_level}.", ephemeral=True)
+
+    @level.command(name="removelevel")
+    @app_commands.describe(
+        user="The user to remove levels from",
+        levels="The number of levels to remove"
+    )
+    async def remove_level(self, interaction: discord.Interaction, user: discord.User, levels: int):
+        """Remove levels from a user for testing purposes."""
+        await interaction.response.defer(ephemeral=True)
+        authorized_user_id = os.getenv("AUTHORIZED_USER_ID")
+        if str(interaction.user.id) != authorized_user_id:
+            await interaction.followup.send("You are not authorized to use this command.", ephemeral=True)
+            return
+
+        user_data = await self.leveling_system.get_user_level_data(str(user.id), str(interaction.guild_id))
+        if not user_data:
+            await interaction.followup.send(f"{user.mention} has no levels to remove.", ephemeral=True)
+            return
+
+        current_level = user_data['current_level']
+        new_level = max(0, current_level - levels)
+        required_xp = self.leveling_system.get_xp_required_for_level(new_level)
+
+        from database_pool import get_main_pool
+        pool = await get_main_pool()
+        await pool.execute_write(
+            "UPDATE user_levels SET total_xp = ?, current_xp = 0, current_level = ? WHERE user_id = ? AND guild_id = ?",
+            (required_xp, new_level, str(user.id), str(interaction.guild_id))
+        )
+
+        await interaction.followup.send(f"Removed {levels} levels from {user.mention}. They are now level {new_level}.", ephemeral=True)
 async def setup(bot):
+    bot.logger.info("Setting up LevelingCog...")
     await bot.add_cog(LevelingCog(bot))
+    bot.logger.info("LevelingCog added successfully")

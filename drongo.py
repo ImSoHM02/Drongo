@@ -54,7 +54,17 @@ guild_id_env = os.getenv("DISCORD_GUILD_ID")
 if not guild_id_env:
     raise ValueError("DISCORD_GUILD_ID is not set in the environment variables")
 
-primary_guild_id = guild_id_env.split(',')[0].strip()  # Get first guild ID for logging
+# Get first guild ID for logging with validation
+primary_guild_id_raw = guild_id_env.split(',')[0].strip()
+try:
+    # Validate that primary guild ID is a valid integer
+    int(primary_guild_id_raw)
+    primary_guild_id = primary_guild_id_raw
+except ValueError:
+    logging.error(f"Invalid PRIMARY_GUILD_ID '{primary_guild_id_raw}': must be a valid integer for Discord API calls")
+    logging.warning("Bot will continue but some features may not work correctly")
+    primary_guild_id = None
+
 authorized_user_id = os.getenv("AUTHORIZED_USER_ID")
 my_user_id = os.getenv("BLACKTHENWHITE_USER_ID")
 anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
@@ -163,11 +173,14 @@ class DrongoBot(commands.Bot):
         # Verify connection is stable before opening dashboard
         try:
             # Test connection with a simple API call
-            await self.fetch_guild(int(primary_guild_id))
+            if primary_guild_id is not None:
+                await self.fetch_guild(int(primary_guild_id))
             if not self.dashboard_opened:
                 webbrowser.open('http://localhost:5001')
                 self.dashboard_opened = True
                 self.logger.info("Dashboard opened at http://localhost:5001")
+        except ValueError as e:
+            self.logger.error(f"Invalid guild ID for connection test: {e}")
         except Exception as e:
             self.logger.warning(f"Connection may be unstable, delaying dashboard open: {e}")
             
@@ -235,12 +248,28 @@ class DrongoBot(commands.Bot):
         try:
             await initialize_database()
             
-            # Initialize leveling system database
-            from migrate_leveling_database import migrate_leveling_database
-            await migrate_leveling_database()
+            # Leveling system database initialization
+            # Note: Automatic migration removed for performance optimization
+            # Database schema is now properly configured and migration overhead is unnecessary
+            # Migration can be run manually if needed using tools/migrations/migrate_leveling_database.py
+            
+            # Verify database exists and is accessible
+            conn = await get_db_connection()
+            try:
+                # Simple query to verify database connectivity
+                async with conn.execute("SELECT 1") as cursor:
+                    result = await cursor.fetchone()
+                    if result:
+                        logging.info("Database connectivity verified")
+            except Exception as db_check_error:
+                logging.error(f"Database connectivity check failed: {db_check_error}")
+                raise
+            finally:
+                await conn.close()
             
         except Exception as e:
             logging.error(f"Failed to initialize database: {e}")
+            raise  # Re-raise to prevent bot from continuing with broken database
             
         # Initialize command stats database
         cmd_conn = await command_database.db_connect()
@@ -272,8 +301,12 @@ class DrongoBot(commands.Bot):
         self.leveling_system = get_leveling_system(self)
         self.logger.info("Leveling system initialized")
         
-        # Sync application commands
+        # Log commands before sync
+        self.logger.info(f"Commands before sync: {[cmd.name for cmd in self.tree.get_commands()]}")
+        
+        # Sync application commands (BEFORE loading leveling cog)
         await self.tree.sync()
+        self.logger.info("Initial command sync completed (before cogs)")
 
         # Load remaining Cogs
         await self.load_extension("modules.cogs.web_link_cog")
@@ -287,6 +320,13 @@ class DrongoBot(commands.Bot):
         # Load leveling cog
         await self.load_extension("modules.cogs.leveling_cog")
         
+        # Log commands after loading leveling cog
+        self.logger.info(f"Commands after loading leveling cog: {[cmd.name for cmd in self.tree.get_commands()]}")
+        
+        # Sync commands again after loading leveling cog
+        await self.tree.sync()
+        self.logger.info("Final command sync completed (after leveling cog)")
+        
         self.logger.info("Loaded all command modules.")
         
         # NOW process historical messages after commands are loaded
@@ -296,7 +336,7 @@ class DrongoBot(commands.Bot):
             self.logger.info('Processing historical chat messages...')
             for guild in self.guilds:
                 # Only process messages for the primary guild
-                if str(guild.id) == primary_guild_id:
+                if primary_guild_id is not None and str(guild.id) == primary_guild_id:
                     for channel in guild.text_channels:
                         last_message_id = await get_last_message_id(conn, channel.id)
                         if last_message_id:
@@ -376,7 +416,7 @@ class DrongoBot(commands.Bot):
                         asyncio.create_task(self._process_xp_award(message))
 
                 # Store messages and stats only for primary guild
-                if str(message.guild.id) == primary_guild_id:
+                if primary_guild_id is not None and str(message.guild.id) == primary_guild_id:
                     # Log the message in the dashboard ALWAYS for primary guild messages
                     self.dashboard_manager.log_message(message.author, message.guild.name, message.channel.name)
                     
@@ -448,9 +488,15 @@ class DrongoBot(commands.Bot):
             old_level = level_result['old_level']
             new_level = level_result['new_level']
             
-            # Create level up message
-            level_up_message = f"🎉 {message.author.mention} leveled up! **Level {old_level}** → **Level {new_level}**"
+            # Create level up message using configured template
+            level_up_message = await self.leveling_system.get_level_up_message(
+                str(message.author.id), str(message.guild.id), old_level, new_level
+            )
             
+            # Append rank title to announcement if configured
+            rank_info = await self.leveling_system.get_user_rank(str(message.author.id), str(message.guild.id))
+            if rank_info and rank_info.get('rank_title'):
+                level_up_message += f" • {rank_info['rank_title']}"
             # Send to announcement channel if configured, otherwise use current channel
             announcement_channel_id = config.get('announcement_channel_id')
             if announcement_channel_id:
