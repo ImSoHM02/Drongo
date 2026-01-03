@@ -297,10 +297,11 @@ class LevelingDashboard {
             const progress = this.calculateLevelProgress(entry.current_level, entry.total_xp);
             // Use the resolved name which includes full ID, or fallback with full ID
             const userName = entry.user_name || `User (${entry.user_id})`;
+            const rangeName = entry.range_info?.name || entry.range_info?.range_name || entry.range_name;
             
             // Create range badge HTML if range exists
-            const rangeBadge = entry.range_info ?
-                `<span class="range-badge">${entry.range_info.range_name}</span>` : '';
+            const rangeBadge = rangeName ?
+                `<span class="range-badge">${rangeName}</span>` : '';
             
             row.innerHTML = `
                 <td class="rank-cell">
@@ -526,8 +527,11 @@ class LevelingDashboard {
         const progress = this.calculateLevelProgress(stats.current_level, stats.total_xp);
         const rankPosition = stats.rank_info?.position || 'N/A';
         const rankTitle = stats.rank_info?.rank_title || 'No Rank';
-        const rangeName = stats.range_info?.range_name || 'No Range';
-        const rangeTier = stats.range_info?.tier || 'N/A';
+        const rangeInfo = stats.range_info && Object.keys(stats.range_info).length ? stats.range_info : null;
+        const rangeName = rangeInfo?.name || rangeInfo?.range_name || 'No Range';
+        const rangeTier = rangeInfo
+            ? `${rangeInfo.min_level}${rangeInfo.max_level !== null && rangeInfo.max_level !== undefined ? ` - ${rangeInfo.max_level}` : '+'}`
+            : '—';
         // Use the resolved name which includes full ID, or fallback with full ID
         const userName = stats.user_name || `User (${stats.user_id || 'Unknown'})`;
         
@@ -570,7 +574,7 @@ class LevelingDashboard {
                 </div>
                 <div class="user-stat">
                     <label>Range Tier</label>
-                    <span>#${rangeTier}</span>
+                    <span>${rangeTier}</span>
                 </div>
             </div>
             <div class="level-progress">

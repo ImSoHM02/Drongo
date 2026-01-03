@@ -41,7 +41,7 @@ def validate_guild_id(guild_id):
 
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from database import get_db_connection
+from database import get_db_connection, get_leveling_db_connection
 from database_utils import optimized_db
 from modules.leveling_system import get_leveling_system
 
@@ -53,8 +53,11 @@ CACHE_DURATION = 300  # 5 minutes
 
 def set_bot_instance(bot):
     """Set the bot instance for Discord API access."""
-    global bot_instance
+    global bot_instance, name_cache, cache_expiry
     bot_instance = bot
+    # Clear cached fallbacks so we can resolve fresh names now that the bot is ready
+    name_cache.clear()
+    cache_expiry.clear()
 
 async def resolve_user_name(user_id: str) -> str:
     """Resolve user ID to display name with caching."""
@@ -69,46 +72,44 @@ async def resolve_user_name(user_id: str) -> str:
             return name_cache[cache_key]
     
     # Try to resolve using Discord API
+    if not bot_instance:
+        logging.debug("Bot instance not available for user name resolution")
+        return f"User ({user_id})"
+    
     try:
-        if bot_instance:
-            # Validate user_id first
+        # Validate user_id first
+        try:
+            validated_user_id = int(user_id)
+        except ValueError:
+            logging.warning(f"Invalid user_id in dashboard request: '{user_id}'")
+            return "Invalid User ID"
+        
+        # First try cache, then fetch from API if needed
+        user = bot_instance.get_user(validated_user_id)
+        if not user:
+            # Try to fetch from Discord API if not in cache
             try:
-                validated_user_id = int(user_id)
-            except ValueError:
-                logging.warning(f"Invalid user_id in dashboard request: '{user_id}'")
-                return "Invalid User ID"
-            
-            # First try cache, then fetch from API if needed
-            user = bot_instance.get_user(validated_user_id)
-            if not user:
-                # Try to fetch from Discord API if not in cache
-                try:
-                    user = await bot_instance.fetch_user(validated_user_id)
-                except discord.NotFound:
-                    logging.debug(f"User {user_id} not found on Discord")
-                except discord.HTTPException as e:
-                    logging.debug(f"HTTP error fetching user {user_id}: {e}")
-            
-            if user:
-                # Changed to show full ID instead of last 4 digits
-                display_name = f"{user.display_name} ({user_id})"
-                name_cache[cache_key] = display_name
-                cache_expiry[cache_key] = current_time + CACHE_DURATION
-                logging.debug(f"Resolved user {user_id} to {display_name} via Discord API")
-                return display_name
-            else:
-                logging.debug(f"User {user_id} not found in Discord")
+                user = await bot_instance.fetch_user(validated_user_id)
+            except discord.NotFound:
+                logging.debug(f"User {user_id} not found on Discord")
+            except discord.HTTPException as e:
+                logging.debug(f"HTTP error fetching user {user_id}: {e}")
+        
+        if user:
+            display_name = user.display_name
+            name_cache[cache_key] = display_name
+            cache_expiry[cache_key] = current_time + CACHE_DURATION
+            logging.debug(f"Resolved user {user_id} to {display_name} via Discord API")
+            return display_name
         else:
-            logging.debug("Bot instance not available for user name resolution")
+            logging.debug(f"User {user_id} not found in Discord")
     except Exception as e:
         logging.error(f"Error resolving user name via Discord API: {e}")
     
-    # Database fallback removed since messages table doesn't have author_name column
-    
-    # Final fallback - show full ID
+    # Final fallback - show full ID with short cache so we retry soon
     fallback_name = f"User ({user_id})"
     name_cache[cache_key] = fallback_name
-    cache_expiry[cache_key] = current_time + CACHE_DURATION
+    cache_expiry[cache_key] = current_time + 30  # retry relatively soon
     logging.debug(f"Using fallback name for user {user_id}: {fallback_name}")
     return fallback_name
 
@@ -125,44 +126,42 @@ async def resolve_guild_name(guild_id: str) -> str:
             return name_cache[cache_key]
     
     # Try to resolve using Discord API
+    if not bot_instance:
+        logging.debug("Bot instance not available for guild name resolution")
+        return f"Guild ({guild_id})"
+    
     try:
-        if bot_instance:
-            # Validate guild_id first
-            validated_guild_id = validate_guild_id(guild_id)
-            if validated_guild_id is None:
-                return "Invalid Guild ID"
-            
-            # First try cache, then fetch from API if needed
-            guild = bot_instance.get_guild(validated_guild_id)
-            if not guild:
-                # Try to fetch from Discord API if not in cache
-                try:
-                    guild = await bot_instance.fetch_guild(validated_guild_id)
-                except discord.NotFound:
-                    logging.debug(f"Guild {guild_id} not found on Discord")
-                except discord.HTTPException as e:
-                    logging.debug(f"HTTP error fetching guild {guild_id}: {e}")
-            
-            if guild:
-                # Changed to show full ID instead of last 4 digits
-                display_name = f"{guild.name} ({guild_id})"
-                name_cache[cache_key] = display_name
-                cache_expiry[cache_key] = current_time + CACHE_DURATION
-                logging.debug(f"Resolved guild {guild_id} to {display_name} via Discord API")
-                return display_name
-            else:
-                logging.debug(f"Guild {guild_id} not found in Discord")
+        # Validate guild_id first
+        validated_guild_id = validate_guild_id(guild_id)
+        if validated_guild_id is None:
+            return "Invalid Guild ID"
+        
+        # First try cache, then fetch from API if needed
+        guild = bot_instance.get_guild(validated_guild_id)
+        if not guild:
+            # Try to fetch from Discord API if not in cache
+            try:
+                guild = await bot_instance.fetch_guild(validated_guild_id)
+            except discord.NotFound:
+                logging.debug(f"Guild {guild_id} not found on Discord")
+            except discord.HTTPException as e:
+                logging.debug(f"HTTP error fetching guild {guild_id}: {e}")
+        
+        if guild:
+            display_name = guild.name
+            name_cache[cache_key] = display_name
+            cache_expiry[cache_key] = current_time + CACHE_DURATION
+            logging.debug(f"Resolved guild {guild_id} to {display_name} via Discord API")
+            return display_name
         else:
-            logging.debug("Bot instance not available for guild name resolution")
+            logging.debug(f"Guild {guild_id} not found in Discord")
     except Exception as e:
         logging.error(f"Error resolving guild name via Discord API: {e}")
     
-    # Database fallback removed since messages table doesn't have guild_name column
-    
-    # Final fallback - show full ID
+    # Final fallback - show full ID with short cache
     fallback_name = f"Guild ({guild_id})"
     name_cache[cache_key] = fallback_name
-    cache_expiry[cache_key] = current_time + CACHE_DURATION
+    cache_expiry[cache_key] = current_time + 30
     logging.debug(f"Using fallback name for guild {guild_id}: {fallback_name}")
     return fallback_name
 
@@ -651,7 +650,7 @@ async def api_leveling_live_feed():
         guild_id = request.args.get('guild_id')
         limit = int(request.args.get('limit', 50))
         
-        conn = await get_db_connection()
+        conn = await get_leveling_db_connection()
         
         # Build query with optional guild filter
         if guild_id:
@@ -763,6 +762,7 @@ async def api_leveling_user_stats():
         leveling = get_leveling_system(MockBot())
         user_data = await leveling.get_user_level_data(user_id, guild_id)
         rank_data = await leveling.get_user_rank(user_id, guild_id)
+        range_data = await leveling.get_user_range(user_id, guild_id)
         
         if user_data:
             # Resolve names
@@ -772,7 +772,8 @@ async def api_leveling_user_stats():
                 **user_data,
                 'user_name': resolved_names.get(f"user_{user_id}", f"Unknown User ({user_id[-4:]})"),
                 'guild_name': resolved_names.get(f"guild_{guild_id}", f"Unknown Guild ({guild_id[-4:]})"),
-                'rank_info': rank_data or {}
+                'rank_info': rank_data or {},
+                'range_info': range_data or None
             }
             return jsonify(stats)
         else:
@@ -790,7 +791,7 @@ async def api_leveling_config_get():
         if not guild_id:
             return jsonify({"error": "guild_id parameter required"}), 400
             
-        conn = await get_db_connection()
+        conn = await get_leveling_db_connection()
         
         # Get configuration directly from database to ensure current values
         async with conn.execute('''
@@ -862,7 +863,7 @@ async def api_leveling_config_update():
         if not guild_id:
             return jsonify({"error": "guild_id required"}), 400
             
-        conn = await get_db_connection()
+        conn = await get_leveling_db_connection()
         
         # Update configuration
         await conn.execute('''
@@ -904,6 +905,19 @@ async def api_leveling_config_update():
         
         await conn.commit()
         await conn.close()
+
+        # Clear cached configuration so changes apply immediately
+        try:
+            leveling_instance = None
+            if bot_instance:
+                leveling_instance = get_leveling_system(bot_instance)
+            else:
+                import modules.leveling_system as leveling_module  # Local import to avoid circulars at module load
+                leveling_instance = getattr(leveling_module, "leveling_system", None)
+            if leveling_instance and hasattr(leveling_instance, 'clear_guild_config_cache'):
+                leveling_instance.clear_guild_config_cache(str(guild_id))
+        except Exception as cache_error:
+            logging.error(f"Error clearing leveling config cache for guild {guild_id}: {cache_error}")
         
         return jsonify({"success": True, "message": "Configuration updated successfully"})
         
@@ -925,7 +939,7 @@ async def api_leveling_manual_adjust():
         if not all([user_id, guild_id, adjustment_type, amount is not None]):
             return jsonify({"error": "Missing required parameters"}), 400
             
-        conn = await get_db_connection()
+        conn = await get_leveling_db_connection()
         
         if adjustment_type == 'add_xp':
             await conn.execute('''
@@ -985,7 +999,7 @@ async def api_leveling_ranks_get():
         if not guild_id:
             return jsonify({"error": "guild_id parameter required"}), 400
             
-        conn = await get_db_connection()
+        conn = await get_leveling_db_connection()
         
         # Get ranks with additional statistics
         async with conn.execute('''
@@ -1045,7 +1059,7 @@ async def api_leveling_ranks_create():
         if max_level is not None and max_level < min_level:
             return jsonify({"error": "max_level must be greater than or equal to min_level"}), 400
             
-        conn = await get_db_connection()
+        conn = await get_leveling_db_connection()
         
         # Check for overlapping ranges
         overlap_query = '''
@@ -1106,7 +1120,7 @@ async def api_leveling_ranks_update(rank_id):
         if not guild_id:
             return jsonify({"error": "guild_id required"}), 400
             
-        conn = await get_db_connection()
+        conn = await get_leveling_db_connection()
         
         # Verify rank exists and belongs to guild
         async with conn.execute(
@@ -1173,7 +1187,7 @@ async def api_leveling_ranks_delete(rank_id):
         if not guild_id:
             return jsonify({"error": "guild_id parameter required"}), 400
             
-        conn = await get_db_connection()
+        conn = await get_leveling_db_connection()
         
         # Verify rank exists and belongs to guild
         async with conn.execute(
@@ -1302,7 +1316,7 @@ async def api_leveling_rewards_delete(reward_id):
 async def api_leveling_guilds():
     """Get available guilds for leveling dashboard with resolved names."""
     try:
-        conn = await get_db_connection()
+        conn = await get_leveling_db_connection()
         
         # Get guilds that have leveling data
         async with conn.execute('''
@@ -1342,7 +1356,7 @@ async def api_leveling_stats():
     try:
         guild_id = request.args.get('guild_id')
         
-        conn = await get_db_connection()
+        conn = await get_leveling_db_connection()
         
         if guild_id:
             # Guild-specific stats
@@ -1401,7 +1415,7 @@ async def api_message_templates_get():
         if not guild_id:
             return jsonify({"error": "guild_id parameter required"}), 400
             
-        conn = await get_db_connection()
+        conn = await get_leveling_db_connection()
         
         # Get templates for the guild
         async with conn.execute('''
@@ -1461,7 +1475,7 @@ async def api_message_templates_create():
         if template_type not in valid_types:
             return jsonify({"error": f"Invalid template_type. Must be one of: {', '.join(valid_types)}"}), 400
             
-        conn = await get_db_connection()
+        conn = await get_leveling_db_connection()
         
         # Check for duplicate template name within guild and type
         async with conn.execute(
@@ -1523,7 +1537,7 @@ async def api_message_templates_update(template_id):
         if not guild_id:
             return jsonify({"error": "guild_id required"}), 400
             
-        conn = await get_db_connection()
+        conn = await get_leveling_db_connection()
         
         # Verify template exists and belongs to guild
         async with conn.execute(
@@ -1586,7 +1600,7 @@ async def api_message_templates_delete(template_id):
         if not guild_id:
             return jsonify({"error": "guild_id parameter required"}), 400
             
-        conn = await get_db_connection()
+        conn = await get_leveling_db_connection()
         
         # Verify template exists and belongs to guild
         async with conn.execute(
@@ -1620,7 +1634,7 @@ async def api_message_templates_delete(template_id):
 async def api_template_variables_get():
     """Get available template variables."""
     try:
-        conn = await get_db_connection()
+        conn = await get_leveling_db_connection()
         
         # Get all available template variables
         async with conn.execute('''
@@ -1713,7 +1727,7 @@ async def api_leveling_templates_get():
         if not guild_id:
             return jsonify({"error": "guild_id parameter required"}), 400
             
-        conn = await get_db_connection()
+        conn = await get_leveling_db_connection()
         
         # Get templates for the guild and type
         async with conn.execute('''
@@ -1777,7 +1791,7 @@ async def api_leveling_templates_create():
         if template_type not in valid_types:
             return jsonify({"error": f"Invalid template type. Must be one of: {', '.join(valid_types)}"}), 400
             
-        conn = await get_db_connection()
+        conn = await get_leveling_db_connection()
         
         # Check for duplicate template name within guild and type
         async with conn.execute(
@@ -1850,7 +1864,7 @@ async def api_leveling_templates_get_single(template_id):
         if not guild_id:
             return jsonify({"error": "guild_id parameter required"}), 400
             
-        conn = await get_db_connection()
+        conn = await get_leveling_db_connection()
         
         async with conn.execute('''
             SELECT id, template_type, template_name, message_content, embed_enabled,
@@ -1903,7 +1917,7 @@ async def api_leveling_templates_update(template_id):
         if not guild_id:
             return jsonify({"error": "guild_id required"}), 400
             
-        conn = await get_db_connection()
+        conn = await get_leveling_db_connection()
         
         # Verify template exists and belongs to guild
         async with conn.execute(
@@ -1997,7 +2011,7 @@ async def api_leveling_templates_delete(template_id):
         if not guild_id:
             return jsonify({"error": "guild_id parameter required"}), 400
             
-        conn = await get_db_connection()
+        conn = await get_leveling_db_connection()
         
         # Verify template exists and belongs to guild
         async with conn.execute(
@@ -2035,7 +2049,7 @@ async def api_leveling_templates_preview(template_id):
         if not guild_id:
             return jsonify({"error": "guild_id parameter required"}), 400
             
-        conn = await get_db_connection()
+        conn = await get_leveling_db_connection()
         
         async with conn.execute(
             'SELECT message_content FROM level_up_message_templates WHERE id = ? AND guild_id = ?',
@@ -2094,7 +2108,7 @@ async def api_leveling_templates_preview(template_id):
 async def api_get_guild_ranges(guild_id):
     """Get all level ranges for a guild."""
     try:
-        conn = await get_db_connection()
+        conn = await get_leveling_db_connection()
         
         async with conn.execute('''
             SELECT id, min_level, max_level, range_name, description, created_at
@@ -2147,7 +2161,7 @@ async def api_create_level_range():
         except ValueError:
             return jsonify({"error": "Invalid level values"}), 400
         
-        conn = await get_db_connection()
+        conn = await get_leveling_db_connection()
         
         # Check for overlapping ranges
         async with conn.execute('''
@@ -2205,7 +2219,7 @@ async def api_update_level_range(range_id):
         except ValueError:
             return jsonify({"error": "Invalid level values"}), 400
         
-        conn = await get_db_connection()
+        conn = await get_leveling_db_connection()
         
         # Get guild_id for this range
         async with conn.execute(
@@ -2257,7 +2271,7 @@ async def api_update_level_range(range_id):
 async def api_delete_level_range(range_id):
     """Delete a level range."""
     try:
-        conn = await get_db_connection()
+        conn = await get_leveling_db_connection()
         
         # Verify range exists
         async with conn.execute(

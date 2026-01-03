@@ -1,7 +1,11 @@
 import aiosqlite
 import logging
 import re
-from database_pool import get_main_pool, get_db_connection as pool_get_connection
+from database_pool import (
+    get_main_pool,
+    get_db_connection as pool_get_connection,
+    DEFAULT_LEVELING_DB_PATH,
+)
 from database_utils import optimized_db, batch_store_message
 import asyncio
 
@@ -11,6 +15,12 @@ async def db_connect(db_name='database/chat_history.db'):
     Prefer using the connection pool for better performance.
     """
     return await pool_get_connection(db_name)
+
+LEVELING_DB_PATH = DEFAULT_LEVELING_DB_PATH
+
+async def get_leveling_db_connection():
+    """Convenience helper for opening a leveling database connection."""
+    return await pool_get_connection(LEVELING_DB_PATH)
 
 async def create_table(conn):
     try:

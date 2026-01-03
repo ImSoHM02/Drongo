@@ -1,5 +1,6 @@
 import discord
 import os
+from datetime import datetime
 from discord.ext import commands
 from discord import app_commands
 from modules.leveling_system import get_leveling_system
@@ -210,8 +211,8 @@ class LevelingCog(commands.Cog):
             return
         
         try:
-            from database_pool import get_main_pool
-            pool = await get_main_pool()
+            from database_pool import get_leveling_pool
+            pool = await get_leveling_pool()
             
             # Validate and convert the value based on setting type
             if setting in ["enabled", "level_up_announcements", "dm_level_notifications"]:
@@ -276,12 +277,9 @@ class LevelingCog(commands.Cog):
             """, (str(interaction.guild_id), db_value))
             
             # Clear the cache so new config is loaded
-            if hasattr(self.leveling_system, '_config_cache'):
-                guild_id = str(interaction.guild_id)
-                if guild_id in self.leveling_system._config_cache:
-                    del self.leveling_system._config_cache[guild_id]
-                if guild_id in self.leveling_system._cache_expiry:
-                    del self.leveling_system._cache_expiry[guild_id]
+            guild_id = str(interaction.guild_id)
+            if hasattr(self.leveling_system, 'clear_guild_config_cache'):
+                self.leveling_system.clear_guild_config_cache(guild_id)
             
             embed = discord.Embed(
                 title="✅ Configuration Updated",
@@ -419,8 +417,8 @@ class LevelingCog(commands.Cog):
         xp_to_add = required_xp - total_xp
 
         if xp_to_add > 0:
-            from database_pool import get_main_pool
-            pool = await get_main_pool()
+            from database_pool import get_leveling_pool
+            pool = await get_leveling_pool()
             await pool.execute_write(
                 "UPDATE user_levels SET total_xp = ?, current_xp = ? WHERE user_id = ? AND guild_id = ?",
                 (required_xp, required_xp - self.leveling_system.get_xp_required_for_level(new_level), str(user.id), str(interaction.guild_id))
@@ -434,6 +432,94 @@ class LevelingCog(commands.Cog):
                 await interaction.channel.send(level_up_message)
 
         await interaction.followup.send(f"Added {levels} levels to {user.mention}. They are now level {new_level}.", ephemeral=True)
+
+    @level.command(name="addxp")
+    @app_commands.describe(
+        user="The user to award XP to",
+        xp="The amount of XP to add"
+    )
+    async def add_xp(self, interaction: discord.Interaction, user: discord.User, xp: int):
+        """Add raw XP to a user, triggering level ups if thresholds are crossed."""
+        await interaction.response.defer(ephemeral=True)
+        authorized_user_id = os.getenv("AUTHORIZED_USER_ID")
+        if str(interaction.user.id) != authorized_user_id:
+            await interaction.followup.send("You are not authorized to use this command.", ephemeral=True)
+            return
+
+        if xp <= 0:
+            await interaction.followup.send("XP must be a positive value.", ephemeral=True)
+            return
+
+        from database_pool import get_leveling_pool
+
+        user_id = str(user.id)
+        guild_id = str(interaction.guild_id)
+        today = datetime.utcnow().date().isoformat()
+
+        # Fetch current user data for calculations
+        user_data = await self.leveling_system.get_user_level_data(user_id, guild_id)
+
+        if user_data and user_data.get('daily_reset_date') == today:
+            new_daily = user_data.get('daily_xp_earned', 0) + xp
+        else:
+            new_daily = xp
+
+        pool = await get_leveling_pool()
+
+        if user_data:
+            await pool.execute_write(
+                """
+                UPDATE user_levels
+                SET total_xp = total_xp + ?,
+                    current_xp = current_xp + ?,
+                    daily_xp_earned = ?,
+                    daily_reset_date = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE user_id = ? AND guild_id = ?
+                """,
+                (xp, xp, new_daily, today, user_id, guild_id)
+            )
+        else:
+            await pool.execute_write(
+                """
+                INSERT INTO user_levels (user_id, guild_id, current_xp, current_level, total_xp, messages_sent, daily_xp_earned, daily_reset_date)
+                VALUES (?, ?, ?, 0, ?, 0, ?, ?)
+                """,
+                (user_id, guild_id, xp, xp, new_daily, today)
+            )
+
+        # Log manual transaction
+        await pool.execute_write(
+            """
+            INSERT INTO xp_transactions (user_id, guild_id, channel_id, xp_awarded, reason, message_length, word_count, char_count, daily_cap_applied)
+            VALUES (?, ?, 'MANUAL', ?, 'manual_add_xp', 0, 0, 0, 0)
+            """,
+            (user_id, guild_id, xp)
+        )
+
+        # Clear cached user data so fresh values are returned
+        cache_key = f"{user_id}:{guild_id}"
+        self.leveling_system._user_cache.pop(cache_key, None)
+        self.leveling_system._user_cache_expiry.pop(cache_key, None)
+
+        # Recalculate level after XP change
+        level_up_result = await self.leveling_system.check_level_up(user_id, guild_id)
+        updated_data = await self.leveling_system.get_user_level_data(user_id, guild_id)
+
+        # Notify channel if level up occurred
+        if level_up_result and level_up_result.get('level_up'):
+            level_up_message = await self.leveling_system.get_level_up_message(
+                user_id, guild_id, level_up_result['old_level'], level_up_result['new_level']
+            )
+            await interaction.channel.send(level_up_message)
+
+        total_xp = updated_data['total_xp'] if updated_data else xp
+        current_level = updated_data['current_level'] if updated_data else self.leveling_system.calculate_level_from_xp(total_xp)
+
+        await interaction.followup.send(
+            f"Added {xp} XP to {user.mention}. They now have **{total_xp:,}** XP and are level **{current_level}**.",
+            ephemeral=True
+        )
 
     @level.command(name="removelevel")
     @app_commands.describe(
@@ -457,8 +543,8 @@ class LevelingCog(commands.Cog):
         new_level = max(0, current_level - levels)
         required_xp = self.leveling_system.get_xp_required_for_level(new_level)
 
-        from database_pool import get_main_pool
-        pool = await get_main_pool()
+        from database_pool import get_leveling_pool
+        pool = await get_leveling_pool()
         await pool.execute_write(
             "UPDATE user_levels SET total_xp = ?, current_xp = 0, current_level = ? WHERE user_id = ? AND guild_id = ?",
             (required_xp, new_level, str(user.id), str(interaction.guild_id))

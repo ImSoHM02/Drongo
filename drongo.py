@@ -326,6 +326,16 @@ class DrongoBot(commands.Bot):
         # Sync commands again after loading leveling cog
         await self.tree.sync()
         self.logger.info("Final command sync completed (after leveling cog)")
+
+        # Ensure primary guild has the latest commands immediately
+        if primary_guild_id is not None:
+            try:
+                guild_object = discord.Object(id=int(primary_guild_id))
+                self.tree.copy_global_to(guild=guild_object)
+                await self.tree.sync(guild=guild_object)
+                self.logger.info(f"Guild command sync completed for {primary_guild_id}")
+            except Exception as guild_sync_error:
+                self.logger.error(f"Failed to sync commands for guild {primary_guild_id}: {guild_sync_error}")
         
         self.logger.info("Loaded all command modules.")
         

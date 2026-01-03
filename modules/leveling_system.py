@@ -7,7 +7,7 @@ from typing import Optional, Dict, Any, List, Tuple
 from math import sqrt
 
 import discord
-from database_pool import get_main_pool
+from database_pool import get_leveling_pool
 
 class LevelingSystem:
     """
@@ -33,6 +33,34 @@ class LevelingSystem:
         self._user_cache_expiry = {}
         self._user_cache_duration = 60  # 1 minute
         
+        # Compatibility flags for optional schema features
+        self._rank_view_has_server_rank = None  # None = unknown, bool once detected
+        self._rank_view_warning_logged = False
+        
+    def clear_guild_config_cache(self, guild_id: str):
+        """Invalidate cached configuration for a guild."""
+        cache_key = str(guild_id)
+        self._config_cache.pop(cache_key, None)
+        self._cache_expiry.pop(cache_key, None)
+
+    def _normalize_bool(self, value: Any, default: bool = False) -> bool:
+        """Convert a database value into a boolean with robust handling."""
+        if value is None:
+            return default
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, (int, float)):
+            return value != 0
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            truthy = {'1', 'true', 'yes', 'on', 'enable', 'enabled', 'y', 't'}
+            falsy = {'0', 'false', 'no', 'off', 'disable', 'disabled', 'n', 'f'}
+            if normalized in truthy:
+                return True
+            if normalized in falsy:
+                return False
+        return default
+
     # =========================================================================
     # XP CALCULATION FUNCTIONS
     # =========================================================================
@@ -177,7 +205,7 @@ class LevelingSystem:
                 return False, "Channel not whitelisted"
             
             # Check cooldown
-            pool = await get_main_pool()
+            pool = await get_leveling_pool()
             cooldown_result = await pool.execute_single(
                 "SELECT cooldown_ends_at FROM xp_cooldowns WHERE user_id = ? AND guild_id = ?",
                 (user_id, guild_id)
@@ -263,7 +291,7 @@ class LevelingSystem:
                 return result
             
             # Award XP in database
-            pool = await get_main_pool()
+            pool = await get_leveling_pool()
             
             # Begin transaction
             async with pool.get_connection() as conn:
@@ -379,7 +407,7 @@ class LevelingSystem:
             
             if calculated_level > current_level:
                 # Level up detected!
-                pool = await get_main_pool()
+                pool = await get_leveling_pool()
                 
                 # Update current level and current_xp (progress within level)
                 level_start_xp = self.get_xp_required_for_level(calculated_level)
@@ -432,7 +460,7 @@ class LevelingSystem:
             return self._config_cache[cache_key]
         
         try:
-            pool = await get_main_pool()
+            pool = await get_leveling_pool()
             result = await pool.execute_single(
                 "SELECT * FROM leveling_config WHERE guild_id = ?",
                 (guild_id,)
@@ -441,7 +469,7 @@ class LevelingSystem:
             if result:
                 config = {
                     'guild_id': result[0],
-                    'enabled': bool(result[1]),
+                    'enabled': self._normalize_bool(result[1], True),
                     'base_xp': result[2],
                     'max_xp': result[3],
                     'word_multiplier': result[4],
@@ -453,9 +481,9 @@ class LevelingSystem:
                     'daily_xp_cap': result[10],
                     'blacklisted_channels': result[11],
                     'whitelisted_channels': result[12],
-                    'level_up_announcements': bool(result[13]),
+                    'level_up_announcements': self._normalize_bool(result[13], True),
                     'announcement_channel_id': result[14],
-                    'dm_level_notifications': bool(result[15])
+                    'dm_level_notifications': self._normalize_bool(result[15], False)
                 }
             else:
                 # Create default config
@@ -477,7 +505,7 @@ class LevelingSystem:
         config['guild_id'] = guild_id
         
         try:
-            pool = await get_main_pool()
+            pool = await get_leveling_pool()
             await pool.execute_write("""
                 INSERT INTO leveling_config (guild_id) VALUES (?)
             """, (guild_id,))
@@ -518,7 +546,7 @@ class LevelingSystem:
             return self._user_cache[cache_key]
         
         try:
-            pool = await get_main_pool()
+            pool = await get_leveling_pool()
             result = await pool.execute_single("""
                 SELECT user_id, guild_id, current_xp, current_level, total_xp, 
                        messages_sent, daily_xp_earned, daily_reset_date,
@@ -555,7 +583,7 @@ class LevelingSystem:
     async def get_leaderboard(self, guild_id: str, limit: int = 10) -> List[Dict[str, Any]]:
         """Get guild leaderboard."""
         try:
-            pool = await get_main_pool()
+            pool = await get_leveling_pool()
             results = await pool.execute_query("""
                 SELECT user_id, current_level, total_xp, messages_sent, rank, position
                 FROM view_xp_leaderboard 
@@ -580,8 +608,10 @@ class LevelingSystem:
                 # Level range info
                 range_info = await self.get_user_range(item['user_id'], guild_id)
                 if range_info:
+                    item['range_info'] = range_info
                     item['range_name'] = range_info['name']
                 else:
+                    item['range_info'] = None
                     item['range_name'] = None
 
                 # Configured rank title (display only)
@@ -597,13 +627,38 @@ class LevelingSystem:
     async def get_user_rank(self, user_id: str, guild_id: str) -> Optional[Dict[str, Any]]:
         """Get user's rank information."""
         try:
-            pool = await get_main_pool()
-            result = await pool.execute_single("""
+            pool = await get_leveling_pool()
+            base_query = """
                 SELECT current_level, current_xp, total_xp, rank_title,
                        rank_description, color_hex, emoji, rank_role_id, rank
                 FROM view_user_ranks
                 WHERE user_id = ? AND guild_id = ?
-            """, (user_id, guild_id))
+            """
+            fallback_query = """
+                SELECT current_level, current_xp, total_xp, rank_title,
+                       rank_description, color_hex, emoji, rank_role_id
+                FROM view_user_ranks
+                WHERE user_id = ? AND guild_id = ?
+            """
+            
+            result = None
+            if self._rank_view_has_server_rank is False:
+                result = await pool.execute_single(fallback_query, (user_id, guild_id))
+            else:
+                try:
+                    result = await pool.execute_single(base_query, (user_id, guild_id))
+                    self._rank_view_has_server_rank = True
+                except Exception as e:
+                    if "no such column: rank" in str(e).lower():
+                        self._rank_view_has_server_rank = False
+                        if not self._rank_view_warning_logged:
+                            self.logger.warning(
+                                "view_user_ranks is missing 'rank' column; falling back to legacy schema without server rank column."
+                            )
+                            self._rank_view_warning_logged = True
+                        result = await pool.execute_single(fallback_query, (user_id, guild_id))
+                    else:
+                        raise
             
             if result:
                 return {
@@ -615,12 +670,43 @@ class LevelingSystem:
                     'color_hex': result[5],
                     'emoji': result[6],
                     'rank_role_id': result[7],
-                    'server_rank': result[8]
+                    'server_rank': result[8] if len(result) > 8 else None
                 }
-                
+            
         except Exception as e:
             self.logger.error(f"Error getting user rank: {e}")
             
+        return None
+
+    async def get_rank_for_level(self, guild_id: str, level: int) -> Optional[Dict[str, Any]]:
+        """Get rank metadata that corresponds to a specific level."""
+        if level is None or level < 0:
+            return None
+        try:
+            pool = await get_leveling_pool()
+            result = await pool.execute_single("""
+                SELECT id, title, description, color_hex, emoji, role_id, min_level, max_level
+                FROM rank_titles
+                WHERE guild_id = ?
+                  AND ? >= min_level
+                  AND (max_level IS NULL OR ? <= max_level)
+                ORDER BY min_level DESC
+                LIMIT 1
+            """, (guild_id, level, level))
+            
+            if result:
+                return {
+                    'id': result[0],
+                    'title': result[1],
+                    'description': result[2],
+                    'color_hex': result[3],
+                    'emoji': result[4],
+                    'role_id': result[5],
+                    'min_level': result[6],
+                    'max_level': result[7]
+                }
+        except Exception as e:
+            self.logger.error(f"Error getting rank for level {level} in guild {guild_id}: {e}")
         return None
     
     # =========================================================================
@@ -648,7 +734,7 @@ class LevelingSystem:
             Dictionary with creation result
         """
         try:
-            pool = await get_main_pool()
+            pool = await get_leveling_pool()
             
             # Check for overlapping ranks
             existing_rank = await pool.execute_single("""
@@ -696,7 +782,7 @@ class LevelingSystem:
             Dictionary with update result
         """
         try:
-            pool = await get_main_pool()
+            pool = await get_leveling_pool()
             
             # Verify rank exists and belongs to guild
             existing_rank = await pool.execute_single("""
@@ -757,7 +843,7 @@ class LevelingSystem:
             Dictionary with deletion result
         """
         try:
-            pool = await get_main_pool()
+            pool = await get_leveling_pool()
             
             # Verify rank exists and belongs to guild
             existing_rank = await pool.execute_single("""
@@ -797,7 +883,7 @@ class LevelingSystem:
             List of rank dictionaries
         """
         try:
-            pool = await get_main_pool()
+            pool = await get_leveling_pool()
             results = await pool.execute_query("""
                 SELECT id, min_level, max_level, title, description, color_hex, emoji, role_id, created_at
                 FROM rank_titles
@@ -847,7 +933,7 @@ class LevelingSystem:
             Dictionary with creation result
         """
         try:
-            pool = await get_main_pool()
+            pool = await get_leveling_pool()
             
             # Validate reward type
             valid_types = ['role', 'custom_message', 'xp_bonus', 'milestone']
@@ -903,7 +989,7 @@ class LevelingSystem:
             Dictionary with update result
         """
         try:
-            pool = await get_main_pool()
+            pool = await get_leveling_pool()
             
             # Verify reward exists and belongs to guild
             existing_reward = await pool.execute_single("""
@@ -966,7 +1052,7 @@ class LevelingSystem:
             Dictionary with deletion result
         """
         try:
-            pool = await get_main_pool()
+            pool = await get_leveling_pool()
             
             # Verify reward exists and belongs to guild
             existing_reward = await pool.execute_single("""
@@ -1006,7 +1092,7 @@ class LevelingSystem:
             List of reward dictionaries
         """
         try:
-            pool = await get_main_pool()
+            pool = await get_leveling_pool()
             results = await pool.execute_query("""
                 SELECT id, level, reward_type, reward_data, is_milestone, milestone_interval, active, created_at
                 FROM level_rewards
@@ -1050,7 +1136,7 @@ class LevelingSystem:
             List of reward dictionaries for the level
         """
         try:
-            pool = await get_main_pool()
+            pool = await get_leveling_pool()
             
             # Get direct level rewards
             direct_rewards = await pool.execute_query("""
@@ -1165,7 +1251,7 @@ class LevelingSystem:
             if reward_type == 'xp_bonus':
                 # Award bonus XP
                 bonus_xp = reward_data.get('amount', 0)
-                pool = await get_main_pool()
+                pool = await get_leveling_pool()
                 
                 await pool.execute_write("""
                     UPDATE user_levels
@@ -1217,7 +1303,7 @@ class LevelingSystem:
     async def get_user_range(self, user_id: str, guild_id: str) -> Optional[Dict[str, Any]]:
         """Get the level range name for a user's current level"""
         try:
-            pool = await get_main_pool()
+            pool = await get_leveling_pool()
             
             # Get user's current level
             user_data = await self.get_user_level_data(user_id, guild_id)
@@ -1253,7 +1339,7 @@ class LevelingSystem:
     async def get_guild_ranges(self, guild_id: str) -> List[Dict[str, Any]]:
         """Get all level ranges for a guild"""
         try:
-            pool = await get_main_pool()
+            pool = await get_leveling_pool()
             results = await pool.execute_query('''
                 SELECT id, min_level, max_level, range_name, description, created_at
                 FROM level_range_names
@@ -1282,7 +1368,7 @@ class LevelingSystem:
                             range_name: str, description: str = None) -> Tuple[bool, str]:
         """Add a new level range for a guild"""
         try:
-            pool = await get_main_pool()
+            pool = await get_leveling_pool()
             
             # Check for overlapping ranges
             overlap_check = await pool.execute_single('''
@@ -1316,7 +1402,7 @@ class LevelingSystem:
                                range_name: str, description: str = None) -> Tuple[bool, str]:
         """Update an existing level range"""
         try:
-            pool = await get_main_pool()
+            pool = await get_leveling_pool()
             
             # Get guild_id for this range
             range_info = await pool.execute_single(
@@ -1359,7 +1445,7 @@ class LevelingSystem:
     async def delete_level_range(self, range_id: int) -> Tuple[bool, str]:
         """Delete a level range"""
         try:
-            pool = await get_main_pool()
+            pool = await get_leveling_pool()
             
             result = await pool.execute_write(
                 'DELETE FROM level_range_names WHERE id = ?',
@@ -1422,41 +1508,95 @@ class LevelingSystem:
         Falls back to the default message if no template matches.
         """
         try:
-            pool = await get_main_pool()
-            # Fetch highest-priority template for default level-up matching this level
-            query = """
-                SELECT message_content FROM level_up_message_templates
-                WHERE guild_id = ?
-                  AND template_type = 'default_levelup'
-                  AND enabled = 1
-                  AND (? >= COALESCE(min_level, -1))
-                  AND (? <= COALESCE(max_level, 9223372036854775807))
-                ORDER BY priority DESC
-                LIMIT 1
-            """
-            row = await pool.execute_single(query, (guild_id, new_level, new_level))
-            if row and row[0]:
-                template = row[0]
-                # Replace placeholders in template
-                message = template
+            pool = await get_leveling_pool()
+            rank_info = await self.get_user_rank(user_id, guild_id)
+            new_rank_data = await self.get_rank_for_level(guild_id, new_level)
+            old_rank_data = await self.get_rank_for_level(guild_id, old_level)
+            rank_changed = (
+                new_rank_data is not None and
+                (old_rank_data is None or old_rank_data.get('id') != new_rank_data.get('id'))
+            )
+
+            # Try rank promotion template if rank changed
+            template_row = None
+            if rank_changed:
+                promotion_query = """
+                    SELECT message_content FROM level_up_message_templates
+                    WHERE guild_id = ?
+                      AND template_type = 'rank_promotion'
+                      AND enabled = 1
+                      AND (? >= COALESCE(min_level, -1))
+                      AND (? <= COALESCE(max_level, 9223372036854775807))
+                    ORDER BY priority DESC
+                    LIMIT 1
+                """
+                template_row = await pool.execute_single(promotion_query, (guild_id, new_level, new_level))
+
+            # Fall back to standard level-up template
+            if not template_row:
+                default_query = """
+                    SELECT message_content FROM level_up_message_templates
+                    WHERE guild_id = ?
+                      AND template_type = 'default_levelup'
+                      AND enabled = 1
+                      AND (? >= COALESCE(min_level, -1))
+                      AND (? <= COALESCE(max_level, 9223372036854775807))
+                    ORDER BY priority DESC
+                    LIMIT 1
+                """
+                template_row = await pool.execute_single(default_query, (guild_id, new_level, new_level))
+
+            if template_row and template_row[0]:
+                message = template_row[0]
                 message = message.replace('{user}', f'<@{user_id}>')
                 message = message.replace('{username}', f'<@{user_id}>')
                 message = message.replace('{user_id}', user_id)
                 message = message.replace('{old_level}', str(old_level))
                 message = message.replace('{level}', str(new_level))
-                # Replace rank and range placeholders
-                rank_info = await self.get_user_rank(user_id, guild_id)
-                rank_title = rank_info.get('rank_title') if rank_info and rank_info.get('rank_title') else ''
-                message = message.replace('{rank}', rank_title)
-                message = message.replace('{rankname}', rank_title)
-                leaderboard = await self.get_leaderboard(guild_id, limit=1000)
-                user_rank = next((item for item in leaderboard if item["user_id"] == user_id), None)
-                if user_rank:
-                    message = message.replace('{leaderboard_position}', str(user_rank['position']))
+
+                # Rank placeholders
+                new_rank_title = ''
+                if rank_info and rank_info.get('rank_title'):
+                    new_rank_title = rank_info['rank_title']
+                elif new_rank_data and new_rank_data.get('title'):
+                    new_rank_title = new_rank_data['title']
+                previous_rank_title = old_rank_data['title'] if old_rank_data else ''
+
+                message = message.replace('{rank}', new_rank_title)
+                message = message.replace('{rankname}', new_rank_title)
+                message = message.replace('{old_rank}', previous_rank_title)
+                message = message.replace('{previous_rank}', previous_rank_title)
+
+                rank_emoji = ''
+                if new_rank_data and new_rank_data.get('emoji'):
+                    rank_emoji = new_rank_data['emoji']
+                message = message.replace('{rank_emoji}', rank_emoji)
+
+                rank_color = ''
+                if new_rank_data and new_rank_data.get('color_hex'):
+                    rank_color = new_rank_data['color_hex']
+                message = message.replace('{rank_color}', rank_color)
+
+                rank_role_id = ''
+                if new_rank_data and new_rank_data.get('role_id'):
+                    rank_role_id = str(new_rank_data['role_id'])
+                message = message.replace('{rank_role_id}', rank_role_id)
+
+                # Leaderboard/server rank placeholders
+                if rank_info and rank_info.get('server_rank'):
+                    server_rank_str = str(rank_info['server_rank'])
+                    message = message.replace('{leaderboard_position}', server_rank_str)
+                    message = message.replace('{server_rank}', server_rank_str)
+                else:
+                    message = message.replace('{leaderboard_position}', '')
+                    message = message.replace('{server_rank}', '')
+
+                # Range placeholders
                 range_info = await self.get_user_range(user_id, guild_id)
                 range_name = range_info.get('name') if range_info and range_info.get('name') else ''
                 message = message.replace('{range}', range_name)
                 message = message.replace('{tier}', range_name)
+
                 return message
         except Exception:
             # On error, ignore and fall back to default

@@ -5,13 +5,16 @@ from typing import Optional, AsyncContextManager
 from contextlib import asynccontextmanager
 import os
 
+DEFAULT_MAIN_DB_PATH = os.getenv("DRONGO_MAIN_DB_PATH", "database/chat_history.db")
+DEFAULT_LEVELING_DB_PATH = os.getenv("DRONGO_LEVELING_DB_PATH", "database/leveling_system.db")
+
 class DatabasePool:
     """
     A simple database connection pool for SQLite using aiosqlite.
     Manages multiple database connections to reduce connection overhead.
     """
     
-    def __init__(self, db_path: str = 'database/chat_history.db', pool_size: int = 10):
+    def __init__(self, db_path: str = DEFAULT_MAIN_DB_PATH, pool_size: int = 10):
         self.db_path = db_path
         self.pool_size = pool_size
         self._pool: asyncio.Queue = asyncio.Queue(maxsize=pool_size)
@@ -136,12 +139,13 @@ class DatabasePool:
 # Global pool instances
 _main_pool: Optional[DatabasePool] = None
 _command_pool: Optional[DatabasePool] = None
+_leveling_pool: Optional[DatabasePool] = None
 
 async def get_main_pool() -> DatabasePool:
     """Get the main database connection pool."""
     global _main_pool
     if _main_pool is None:
-        _main_pool = DatabasePool('database/chat_history.db')
+        _main_pool = DatabasePool(DEFAULT_MAIN_DB_PATH)
         await _main_pool.initialize()
     return _main_pool
 
@@ -153,15 +157,26 @@ async def get_command_pool() -> DatabasePool:
         await _command_pool.initialize()
     return _command_pool
 
+async def get_leveling_pool() -> DatabasePool:
+    """Get the leveling system database connection pool."""
+    global _leveling_pool
+    if _leveling_pool is None:
+        _leveling_pool = DatabasePool(DEFAULT_LEVELING_DB_PATH)
+        await _leveling_pool.initialize()
+    return _leveling_pool
+
 async def close_all_pools():
     """Close all database pools."""
-    global _main_pool, _command_pool
+    global _main_pool, _command_pool, _leveling_pool
     if _main_pool:
         await _main_pool.close_all()
         _main_pool = None
     if _command_pool:
         await _command_pool.close_all()
         _command_pool = None
+    if _leveling_pool:
+        await _leveling_pool.close_all()
+        _leveling_pool = None
 
 # Backward compatibility functions
 async def get_db_connection(db_name='database/chat_history.db'):
@@ -169,8 +184,13 @@ async def get_db_connection(db_name='database/chat_history.db'):
     Backward compatibility function.
     Returns a connection from the appropriate pool.
     """
-    if 'command_stats' in db_name:
+    normalized_name = os.path.normpath(db_name)
+    base_name = os.path.basename(normalized_name)
+
+    if base_name and 'command_stats' in base_name:
         pool = await get_command_pool()
+    elif os.path.normpath(DEFAULT_LEVELING_DB_PATH) == normalized_name or 'leveling' in base_name:
+        pool = await get_leveling_pool()
     else:
         pool = await get_main_pool()
     
@@ -179,6 +199,9 @@ async def get_db_connection(db_name='database/chat_history.db'):
     async with pool.get_connection() as conn:
         # Create a new connection for backward compatibility
         # This defeats the purpose of pooling but maintains API compatibility
+        dir_name = os.path.dirname(db_name)
+        if dir_name:
+            os.makedirs(dir_name, exist_ok=True)
         new_conn = await aiosqlite.connect(db_name)
         await new_conn.execute('PRAGMA journal_mode=WAL')
         await new_conn.execute('PRAGMA busy_timeout=30000')

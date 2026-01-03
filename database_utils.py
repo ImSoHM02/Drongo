@@ -34,7 +34,7 @@ class OptimizedDatabase:
         for index_sql in indexes:
             try:
                 await pool.execute_write(index_sql)
-                logging.info(f"Created index: {index_sql.split('idx_')[1].split(' ON')[0]}")
+                logging.debug(f"Created index: {index_sql.split('idx_')[1].split(' ON')[0]}")
             except Exception as e:
                 logging.error(f"Failed to create index: {e}")
     
