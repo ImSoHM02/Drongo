@@ -1,8 +1,8 @@
 import logging
 import asyncio
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Tuple
 from datetime import datetime, timedelta
-from database_pool import get_main_pool, get_command_pool
+from database_pool import get_main_pool
 import discord
 
 class OptimizedDatabase:

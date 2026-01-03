@@ -2,16 +2,10 @@ import discord
 import os
 import logging
 import signal
-import sys
 import asyncio
 import webbrowser
 from discord.ext import commands
-from database import (create_table, store_message, get_db_connection,
-                      set_last_message_id, get_last_message_id,
-                      create_game_tracker_tables, track_voice_join,
-                      track_voice_leave, get_user_voice_stats,
-                      get_voice_leaderboard, initialize_database,
-                      store_message_optimized, flush_message_batches)
+from database import store_message, get_db_connection, set_last_message_id, get_last_message_id, track_voice_join, track_voice_leave, initialize_database, flush_message_batches
 from database_pool import close_all_pools
 import command_database
 from dotenv import load_dotenv

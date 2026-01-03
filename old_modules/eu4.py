@@ -3,7 +3,6 @@
 import discord
 import aiohttp
 from discord import app_commands
-from modules.stats_display import StatsDisplay
 
 # Moved from current_eu4.py
 current_games = {

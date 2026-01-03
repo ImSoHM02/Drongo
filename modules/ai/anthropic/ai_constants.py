@@ -1,4 +1,3 @@
-from typing import Dict, Any
 
 # Message handling constants
 MAX_MESSAGE_LENGTH = 1900  # Leave room for Discord's overhead

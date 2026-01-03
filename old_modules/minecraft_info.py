@@ -1,5 +1,4 @@
 import discord
-from discord import app_commands
 import asyncio
 import mcstatus
 import os

@@ -3,12 +3,10 @@
 import aiohttp
 import discord
 import logging
-from modules.stats_display import StatsDisplay
 from datetime import datetime, timedelta
 from discord import app_commands
 from discord.ext import tasks
-from database import (get_db_connection, add_game_tracker, remove_game_tracker, 
-                      get_user_tracked_games, get_tracked_games, update_game_price)
+from database import get_db_connection, add_game_tracker, remove_game_tracker, get_user_tracked_games, update_game_price
 
 
 async def get_game_price(app_id):

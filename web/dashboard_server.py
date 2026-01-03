@@ -10,7 +10,7 @@ import logging
 import os
 import sys
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, List, Set
 from quart import Quart, render_template, jsonify, websocket, request
 from quart_cors import cors
@@ -42,7 +42,6 @@ def validate_guild_id(guild_id):
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database import get_db_connection, get_leveling_db_connection
-from database_utils import optimized_db
 from modules.leveling_system import get_leveling_system
 
 # Bot instance for Discord API access

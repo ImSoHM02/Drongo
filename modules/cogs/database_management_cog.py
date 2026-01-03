@@ -1,8 +1,6 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-import asyncio
-import logging
 import os
 from database_utils import optimized_db
 

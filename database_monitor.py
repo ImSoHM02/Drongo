@@ -6,7 +6,7 @@ Database performance monitoring script for Drongo bot.
 import asyncio
 import time
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from database_pool import get_main_pool
 from database_utils import optimized_db
 

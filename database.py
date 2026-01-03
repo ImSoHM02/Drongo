@@ -1,4 +1,3 @@
-import aiosqlite
 import logging
 import re
 from database_pool import (
@@ -7,7 +6,6 @@ from database_pool import (
     DEFAULT_LEVELING_DB_PATH,
 )
 from database_utils import optimized_db, batch_store_message
-import asyncio
 
 async def db_connect(db_name='database/chat_history.db'):
     """
