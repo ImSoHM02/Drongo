@@ -12,30 +12,17 @@ id.env
 achievements.db
 __pycache__/
 error.log
-Documentation/API Reference - discord.ext.commands.md
-Documentation/discord.ext.tasks – asyncio.Task helpers.md
-Documentation/discord.py API Reference.md
-Documentation/Interactions API Reference.md
 database/command_stats.db
 database/leveling_system.db
-/memlog
 /logs
-/Documentation
 /database
 /.vscode
-security_review.md
-ENHANCEMENT_SUGGESTIONS.md
-ACTIONABLE_ENHANCEMENTS.md
-LEVELING_SYSTEM_IMPROVEMENTS.md
-LEVELING_SYSTEM_VERIFICATION_CHECKLIST.md
-verification_report_20250821_091333.json
-verification_report_20250821_092825.json
-QUICK_MANUAL_TEST_GUIDE.md
-final_system_verification.py
-apply_template_migration.py
 tools/migrations/migrate_database.py
 tools/migrations/migrate_level_ranges.py
 tools/migrations/migrate_leveling_database.py
 tools/migrations/README.md
 tests/test_leveling_system.py
 tests/test_leveling_system.py
+tools/final_system_verification.py
+.gitignore
+tools/migrations/apply_template_migration.py
