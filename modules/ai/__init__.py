@@ -1,6 +1,4 @@
-"""
-AI module package.
-"""
+# AI module package
 
 from .anthropic import AIHandler, setup
 

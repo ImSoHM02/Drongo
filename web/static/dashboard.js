@@ -66,80 +66,73 @@ function confirmAction() {
     console.log('Confirm action called');
 }
 
-function showMainSection() {
-    const main = document.getElementById('dashboard-view');
-    const config = document.getElementById('config-view');
-    const stats = document.getElementById('stats-view');
-    const leveling = document.getElementById('leveling-view');
-    if (!main || !config) {
-        console.warn('showMainSection(): required elements missing');
+// View configuration mapping
+const VIEW_CONFIG = {
+    'main': {
+        elementId: 'dashboard-view',
+        onShow: null
+    },
+    'commands': {
+        elementId: 'config-view',
+        onShow: () => {
+            if (window.commandsManager) {
+                window.commandsManager.loadCommands();
+            }
+        }
+    },
+    'stats': {
+        elementId: 'stats-view',
+        onShow: () => {
+            if (window.statsManager) {
+                window.statsManager.resizeCharts();
+            }
+        }
+    },
+    'logs': {
+        elementId: 'logs-view',
+        onShow: null
+    },
+    'leveling': {
+        elementId: 'leveling-view',
+        onShow: () => {
+            const leveling = document.getElementById('leveling-view');
+            if (leveling && leveling.style.display === 'block' && window.LevelingDashboard && !window.levelingDashboard) {
+                window.levelingDashboard = new LevelingDashboard();
+            }
+        }
     }
-    if (main) main.style.display = 'block';
-    if (config) config.style.display = 'none';
-    if (stats) stats.style.display = 'none';
-    if (leveling) leveling.style.display = 'none';
-    console.debug('showMainSection(): activated');
-}
+};
 
-function showConfigSection() {
-    const main = document.getElementById('dashboard-view');
-    const config = document.getElementById('config-view');
-    const stats = document.getElementById('stats-view');
-    const leveling = document.getElementById('leveling-view');
-    if (!main || !config) {
-        console.warn('showConfigSection(): required elements missing');
+// Single function to handle all view switching
+function showView(viewName) {
+    const config = VIEW_CONFIG[viewName];
+    if (!config) {
+        console.warn(`showView(): Unknown view "${viewName}"`);
+        return;
     }
-    if (main) main.style.display = 'none';
-    if (config) config.style.display = 'block';
-    if (stats) stats.style.display = 'none';
-    if (leveling) leveling.style.display = 'none';
-    
-    // Load commands when config section is shown
-    if (window.commandsManager) {
-        window.commandsManager.loadCommands();
-    }
-    console.debug('showConfigSection(): activated');
-}
 
-function showStatsSection() {
-    const main = document.getElementById('dashboard-view');
-    const config = document.getElementById('config-view');
-    const stats = document.getElementById('stats-view');
-    const leveling = document.getElementById('leveling-view');
-    if (!stats) {
-        console.warn('showStatsSection(): stats-view not found');
-    }
-    if (main) main.style.display = 'none';
-    if (config) config.style.display = 'none';
-    if (stats) stats.style.display = 'block';
-    if (leveling) leveling.style.display = 'none';
-    
-    // Resize charts after becoming visible so Chart.js recalculates layout
-    if (window.statsManager) {
-        window.statsManager.resizeCharts();
-    }
-    console.debug('showStatsSection(): activated');
-}
+    // Hide all views
+    Object.values(VIEW_CONFIG).forEach(viewConfig => {
+        const element = document.getElementById(viewConfig.elementId);
+        if (element) {
+            element.style.display = 'none';
+        }
+    });
 
-function showLevelingSection() {
-    const main = document.getElementById('dashboard-view');
-    const config = document.getElementById('config-view');
-    const stats = document.getElementById('stats-view');
-    const leveling = document.getElementById('leveling-view');
-    if (!leveling) {
-        console.warn('showLevelingSection(): leveling-view not found');
+    // Show the requested view
+    const targetElement = document.getElementById(config.elementId);
+    if (targetElement) {
+        targetElement.style.display = 'block';
+
+        // Call onShow callback if defined
+        if (config.onShow) {
+            config.onShow();
+        }
+
+        console.debug(`showView(): activated "${viewName}"`);
+    } else {
+        console.warn(`showView(): element not found for "${viewName}"`);
     }
-    if (main) main.style.display = 'none';
-    if (config) config.style.display = 'none';
-    if (stats) stats.style.display = 'none';
-    if (leveling) leveling.style.display = 'block';
-    
-    // Initialize leveling dashboard if not already done
-    if (leveling && leveling.style.display === 'block' && window.LevelingDashboard && !window.levelingDashboard) {
-        window.levelingDashboard = new LevelingDashboard();
-    }
-    
-    console.debug('showLevelingSection(): activated');
 }
 
 class DashboardManager {
@@ -371,23 +364,20 @@ class DashboardManager {
 document.addEventListener('DOMContentLoaded', () => {
     window.dashboard = new DashboardManager();
 
+    // Handle navigation link clicks
     const navLinks = document.querySelectorAll('.nav-link');
     navLinks.forEach(link => {
         link.addEventListener('click', (e) => {
             e.preventDefault();
-            
+
+            // Update active state
             navLinks.forEach(l => l.classList.remove('active'));
             link.classList.add('active');
-            
-            const href = link.getAttribute('href');
-            if (href === '#commands') {
-                showConfigSection();
-            } else if (href === '#stats') {
-                showStatsSection();
-            } else if (href === '#leveling') {
-                showLevelingSection();
-            } else {
-                showMainSection();
+
+            // Show the view specified in data-view attribute
+            const viewName = link.getAttribute('data-view');
+            if (viewName) {
+                showView(viewName);
             }
         });
     });

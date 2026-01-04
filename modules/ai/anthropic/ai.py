@@ -5,13 +5,19 @@ import random
 import re
 from typing import List, Dict, Any, Optional
 import datetime
-import logging # Import standard logging
 
 from .ai_constants import (
     DEFAULT_MODEL, DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE,
     BRIEF_MAX_TOKENS, BRIEF_TEMPERATURE, TEXT_FILE_EXTENSIONS,
-    ERROR_MESSAGES, EXTENDED_THINKING_BUDGET, # Added import
-    EXTENDED_OUTPUT_MAX_TOKENS, EXTENDED_OUTPUT_BETA_FLAG # Added imports for 128k beta
+    ERROR_MESSAGES, TRIGGER_PHRASE, TRIGGER_PATTERN,
+    ROLE_USER, ROLE_ASSISTANT, CONTENT_TYPE_TEXT, CONTENT_TYPE_IMAGE,
+    TOOL_TYPE_WEB_SEARCH, TOOL_NAME_WEB_SEARCH,
+    KEY_TYPE, KEY_ROLE, KEY_CONTENT,
+    COMMAND_AI_SETMODE, COMMAND_AI_LISTMODES,
+    COMMAND_SETMODE_DESC, COMMAND_LISTMODES_DESC,
+    LISTMODES_HEADER, LISTMODES_NAME_FORMAT,
+    LISTMODES_CHANCE_FORMAT, LISTMODES_RATIO_FORMAT,
+    LISTMODES_SEPARATOR
 )
 from .prompts import (
     SYSTEM_PROMPT, get_insult_prompt,
@@ -35,46 +41,30 @@ class AIHandler:
         self.probability_manager = ProbabilityManager()
 
     async def handle_oi_drongo(self, message: discord.Message, full_message_content: str, image_attachments: List[Dict[str, Any]]) -> None:
-        # Handle messages starting with 'oi drongo'.
-        self.bot.logger.info("Handling 'oi drongo' message")
+        # Handle messages starting with trigger phrase
+        self.bot.logger.info(f"Handling '{TRIGGER_PHRASE}' message")
         async with message.channel.typing():
-            use_beta_client = False # Initialize flag before try block
             try:
-                # Remove "oi drongo" from the beginning of the message
-                cleaned_content = re.sub(r'^oi\s+drongo\s*', '', full_message_content, flags=re.IGNORECASE).strip()
+                # Remove trigger phrase from the beginning of the message
+                cleaned_content = re.sub(TRIGGER_PATTERN, '', full_message_content, flags=re.IGNORECASE).strip()
                 self.bot.logger.info(f"Cleaned content: {cleaned_content}")
-
-                # Check for extended thinking trigger
-                thinking_params = None
-                if "{extended_think}" in cleaned_content:
-                    cleaned_content = cleaned_content.replace("{extended_think}", "").strip()
-                    thinking_params = {
-                        "type": "enabled",
-                        "budget_tokens": EXTENDED_THINKING_BUDGET
-                    }
-                    self.bot.logger.info("Extended thinking enabled for this request.")
 
                 # Construct the message content array with both text and images
                 message_content_for_api = []
                 message_content_for_api.extend(image_attachments)
-                # Always include the potentially modified full message content for the API
-                # Note: We use the *original* full_message_content here which might still contain the trigger
-                # if we want the AI to potentially see it, though it's removed from history.
-                # Alternatively, use the cleaned_content if the trigger should be hidden from the AI.
-                # For now, let's use the original full_message_content.
                 message_content_for_api.append({
-                    "type": "text",
-                    "text": full_message_content # Using original content for API context
+                    KEY_TYPE: CONTENT_TYPE_TEXT,
+                    "text": cleaned_content
                 })
                 self.bot.logger.info(f"Message content array for API: {message_content_for_api}")
 
-                # Update conversation history with user's message (using content *without* the trigger)
-                self.conversation_manager.update_history(str(message.author.id), "user", cleaned_content)
+                # Update conversation history with user's message
+                self.conversation_manager.update_history(str(message.author.id), ROLE_USER, cleaned_content)
 
                 # Get conversation history
                 conversation = self.conversation_manager.get_history(str(message.author.id))
                 messages_for_api = [
-                    {"role": entry["role"], "content": message_content_for_api if i == len(conversation) - 1 else entry["content"]}
+                    {KEY_ROLE: entry[KEY_ROLE], KEY_CONTENT: message_content_for_api if i == len(conversation) - 1 else entry[KEY_CONTENT]}
                     for i, entry in enumerate(conversation)
                 ]
 
@@ -86,74 +76,38 @@ class AIHandler:
                     "messages": messages_for_api,
                     "temperature": DEFAULT_TEMPERATURE,
                     "tools": [{
-                        "type": "web_search_20250305",
-                        "name": "web_search",
+                        KEY_TYPE: TOOL_TYPE_WEB_SEARCH,
+                        "name": TOOL_NAME_WEB_SEARCH,
                         "max_uses": 5
                     }]
                 }
 
-                # Add thinking/beta parameters if enabled, remove incompatible ones
-                if thinking_params:
-                    use_beta_client = True # Set flag if using beta features
-                    api_call_args["thinking"] = thinking_params
-                    api_call_args["max_tokens"] = EXTENDED_OUTPUT_MAX_TOKENS
-                    api_call_args["betas"] = [EXTENDED_OUTPUT_BETA_FLAG]
-                    # Remove temperature as it's incompatible with thinking
-                    if "temperature" in api_call_args:
-                        del api_call_args["temperature"]
-                    self.bot.logger.info(f"Extended thinking enabled: budget={EXTENDED_THINKING_BUDGET}, max_tokens={EXTENDED_OUTPUT_MAX_TOKENS}, betas={api_call_args['betas']}")
-                else:
-                    # Ensure default temperature is present for standard calls
-                    api_call_args["temperature"] = DEFAULT_TEMPERATURE
-                    self.bot.logger.info(f"Standard call: max_tokens={DEFAULT_MAX_TOKENS}, temperature={DEFAULT_TEMPERATURE}")
+                self.bot.logger.info(f"API call: max_tokens={DEFAULT_MAX_TOKENS}, temperature={DEFAULT_TEMPERATURE}")
 
-                # Get response from Claude, using stream for beta features if necessary
+                # Get response from Claude
                 self.bot.logger.info("Sending request to Claude")
+                response = await self.anthropic_client.messages.create(**api_call_args)
+
+                # Find the text content from the response, which may include tool use
                 claude_response_text = ""
-                if thinking_params: # Check if thinking was enabled
-                    self.bot.logger.info("Using beta stream for API call (with thinking/128k)")
-                    try:
-                        async with self.anthropic_client.beta.messages.stream(**api_call_args) as stream:
-                            async for event in stream:
-                                if event.type == "content_block_delta":
-                                    if event.delta.type == "text_delta":
-                                        claude_response_text += event.delta.text
-                                # We can add handling for thinking_delta here later if needed
-                        # Ensure stream is fully processed before continuing
-                        await stream.until_done()
-                    except AttributeError:
-                        logging.error("AttributeError: Failed to access 'beta.messages.stream'. Beta features might not be available or accessed correctly.")
-                        raise # Re-raise the exception to be caught by the outer handler
-                    except Exception: # Catch any other stream-related errors
-                        logging.error("Error during beta stream processing.")
-                        raise # Re-raise the exception
-                else:
-                    self.bot.logger.info("Using standard create for API call")
-                    response = await self.anthropic_client.messages.create(**api_call_args)
-                    
-                    # Find the text content from the response, which may include tool use
-                    claude_response_text = ""
-                    if response.content:
-                        for block in response.content:
-                            if block.type == "text":
-                                claude_response_text += block.text
-                    
-                    if not claude_response_text:
-                        logging.warning("Received empty or non-text response content from standard create call.")
+                if response.content:
+                    for block in response.content:
+                        if block.type == CONTENT_TYPE_TEXT:
+                            claude_response_text += block.text
+
+                if not claude_response_text:
+                    self.bot.logger.warning("Received empty or non-text response content from API call")
                 self.bot.logger.info("Received response from Claude")
 
                 # Update conversation history with Claude's response
-                self.conversation_manager.update_history(str(message.author.id), "assistant", claude_response_text)
+                self.conversation_manager.update_history(str(message.author.id), ROLE_ASSISTANT, claude_response_text)
 
                 # Send the split response
                 await self.message_handler.send_split_message(message.channel, claude_response_text, reply_to=message)
             except Exception as e:
-                # Determine context for error logging (use thinking_params which is defined before try)
-                error_context_title = "Error in Claude response (Extended Thinking / Beta)" if thinking_params else "Error in Claude response (Standard)"
-                
                 error_traceback = traceback.format_exc()
                 error_msg = f"""
-                                {error_context_title}:
+                                Error in Claude response:
                                 Time: {datetime.datetime.now()}
                                 Message: {message.content}
                                 Author: {message.author} ({message.author.id})
@@ -163,13 +117,11 @@ class AIHandler:
                                 Traceback:
                                 {error_traceback}
                             """
-                # Log the detailed error message using standard logging
-                logging.error(error_msg)
-                # Send a generic error reply to the user
+                self.bot.logger.error(error_msg)
                 await message.reply(ERROR_MESSAGES["general_error"])
 
-    async def generate_insult(self, message: discord.Message, full_message_content: str) -> str:
-        # Generate an insult based on the message content and any images.
+    async def _generate_brief_response(self, message: discord.Message, prompt_text: str, response_type: str) -> str:
+        # Helper method to generate brief responses (insults/compliments) with image support
         async with message.channel.typing():
             try:
                 # Process any image attachments
@@ -179,29 +131,29 @@ class AIHandler:
                         image_data = await self.attachment_handler.process_image_attachment(attachment)
                         if image_data:
                             image_attachments.append(image_data)
-                
+
                 # Construct message content array with both text and images
                 message_content = []
                 message_content.extend(image_attachments)
                 message_content.append({
-                    "type": "text",
-                    "text": get_insult_prompt(full_message_content)
+                    KEY_TYPE: CONTENT_TYPE_TEXT,
+                    "text": prompt_text
                 })
 
                 response = await self.anthropic_client.messages.create(
                     model=DEFAULT_MODEL,
                     max_tokens=BRIEF_MAX_TOKENS,
-                    messages=[{"role": "user", "content": message_content}],
+                    messages=[{KEY_ROLE: ROLE_USER, KEY_CONTENT: message_content}],
                     temperature=BRIEF_TEMPERATURE,
                 )
 
-                insult = response.content[0].text.strip()
-                await message.reply(insult)
-                return insult
+                response_text = response.content[0].text.strip()
+                await message.reply(response_text)
+                return response_text
             except Exception as e:
                 error_traceback = traceback.format_exc()
                 error_msg = f"""
-                                Error generating insult:
+                                Error generating {response_type}:
                                 Time: {datetime.datetime.now()}
                                 Message: {message.content}
                                 Author: {message.author} ({message.author.id})
@@ -211,56 +163,24 @@ class AIHandler:
                                 Traceback:
                                 {error_traceback}
                             """
-                logging.error(error_msg) # Use standard logging
-                # self.bot.logger.error(f"Error generating insult: {str(e)}") # Redundant logging removed
-                return f"Error generating insult: {str(e)}"
+                self.bot.logger.error(error_msg)
+                return f"Error generating {response_type}: {str(e)}"
+
+    async def generate_insult(self, message: discord.Message, full_message_content: str) -> str:
+        # Generate an insult based on the message content and any images
+        return await self._generate_brief_response(
+            message,
+            get_insult_prompt(full_message_content),
+            "insult"
+        )
 
     async def generate_compliment(self, message: discord.Message, full_message_content: str) -> str:
-        # Generate a compliment based on the message content and any images.
-        async with message.channel.typing():
-            try:
-                # Process any image attachments
-                image_attachments = []
-                for attachment in message.attachments:
-                    if attachment.content_type and attachment.content_type.startswith('image/'):
-                        image_data = await self.attachment_handler.process_image_attachment(attachment)
-                        if image_data:
-                            image_attachments.append(image_data)
-                
-                # Construct message content array with both text and images
-                message_content = []
-                message_content.extend(image_attachments)
-                message_content.append({
-                    "type": "text",
-                    "text": get_compliment_prompt(full_message_content)
-                })
-
-                response = await self.anthropic_client.messages.create(
-                    model=DEFAULT_MODEL,
-                    max_tokens=BRIEF_MAX_TOKENS,
-                    messages=[{"role": "user", "content": message_content}],
-                    temperature=BRIEF_TEMPERATURE,
-                )
-
-                compliment = response.content[0].text.strip()
-                await message.reply(compliment)
-                return compliment
-            except Exception as e:
-                error_traceback = traceback.format_exc()
-                error_msg = f"""
-                                Error generating compliment:
-                                Time: {datetime.datetime.now()}
-                                Message: {message.content}
-                                Author: {message.author} ({message.author.id})
-                                Channel: {message.channel} ({message.channel.id})
-                                Guild: {message.guild} ({message.guild.id})
-                                Error: {str(e)}
-                                Traceback:
-                                {error_traceback}
-                            """
-                logging.error(error_msg) # Use standard logging
-                # self.bot.logger.error(f"Error generating compliment: {str(e)}") # Redundant logging removed
-                return f"Error generating compliment: {str(e)}"
+        # Generate a compliment based on the message content and any images
+        return await self._generate_brief_response(
+            message,
+            get_compliment_prompt(full_message_content),
+            "compliment"
+        )
 
     async def process_message(self, message: discord.Message) -> str:
         # Process a message and generate appropriate responses.
@@ -285,16 +205,16 @@ class AIHandler:
             try:
                 reply_message = await message.channel.fetch_message(message.reference.message_id)
                 referenced_content = f"Message being replied to: {reply_message.content}\n\n"
-            except Exception as fetch_err: # Catch specific exception
-                logging.error(f"Failed to fetch referenced message: {fetch_err}") # Use standard logging
+            except Exception as fetch_err:
+                self.bot.logger.error(f"Failed to fetch referenced message: {fetch_err}")
 
-        # Remove "oi drongo" from the beginning of the message
-        cleaned_content = re.sub(r'^oi\s+drongo\s*', '', message.clean_content, flags=re.IGNORECASE).strip()
+        # Remove trigger phrase from the beginning of the message
+        cleaned_content = re.sub(TRIGGER_PATTERN, '', message.clean_content, flags=re.IGNORECASE).strip()
         full_message_content = f"{referenced_content}{cleaned_content}\n\n{''.join(text_contents)}".strip()
 
-        # Check for "oi drongo" trigger
-        if message.content.lower().startswith("oi drongo"):
-            self.bot.logger.info("Detected 'oi drongo' trigger")
+        # Check for trigger phrase
+        if message.content.lower().startswith(TRIGGER_PHRASE):
+            self.bot.logger.info(f"Detected '{TRIGGER_PHRASE}' trigger")
             await self.handle_oi_drongo(message, full_message_content, image_attachments)
         # Check for random response using configured probabilities
         elif random.random() < self.probability_manager.random_response_chance:
@@ -315,8 +235,8 @@ class AIHandler:
                 model=DEFAULT_MODEL,
                 max_tokens=BRIEF_MAX_TOKENS,
                 messages=[{
-                    "role": "user",
-                    "content": get_mode_change_prompt(
+                    KEY_ROLE: ROLE_USER,
+                    KEY_CONTENT: get_mode_change_prompt(
                         mode,
                         config.compliment_weight * 100,
                         config.insult_weight * 100,
@@ -339,8 +259,7 @@ class AIHandler:
                             Traceback:
                             {error_traceback}
                         """
-            logging.error(error_msg) # Use standard logging
-            # self.bot.logger.error(f"Error generating mode change response: {str(e)}") # Redundant logging removed
+            self.bot.logger.error(error_msg)
             return ERROR_MESSAGES["mode_change_error"].format(error=str(e))
 
     async def setmode_command(self, interaction: discord.Interaction, mode: str, duration: Optional[int] = None) -> None:
@@ -364,8 +283,7 @@ class AIHandler:
                             Duration: {duration}
                             Error: {str(e)}
                         """
-            logging.error(error_msg) # Use standard logging
-            # self.bot.logger.error(f"Error setting mode: {str(e)}") # Redundant logging removed
+            self.bot.logger.error(error_msg)
             await interaction.followup.send(str(e), ephemeral=True)
         except Exception as e:
             error_traceback = traceback.format_exc()
@@ -379,8 +297,7 @@ class AIHandler:
                             Traceback:
                             {error_traceback}
                         """
-            logging.error(error_msg) # Use standard logging
-            # self.bot.logger.error(f"Error setting mode: {str(e)}") # Redundant logging removed
+            self.bot.logger.error(error_msg)
             await interaction.followup.send(f"Error: {str(e)}", ephemeral=True)
 
     async def listmodes_command(self, interaction: discord.Interaction) -> None:
@@ -389,25 +306,28 @@ class AIHandler:
             await interaction.response.send_message(ERROR_MESSAGES["unauthorized"], ephemeral=True)
             return
 
-        response = "**Eshay bah! Here's all me different moods ay:**\n"
+        response = LISTMODES_HEADER
         for name, config in self.probability_manager.list_configs().items():
-            response += f"\n**{name}**"
-            response += f"\n- Chance of me poppin' off: {config.total_chance * 100:.1f}%"
-            response += f"\n- Ratio of insults to compliments: {config.insult_weight * 100:.0f}/{config.compliment_weight * 100:.0f}"
-            response += "\n- - - - - - - - - -"
+            response += LISTMODES_NAME_FORMAT.format(name=name)
+            response += LISTMODES_CHANCE_FORMAT.format(chance=config.total_chance * 100)
+            response += LISTMODES_RATIO_FORMAT.format(
+                insult=config.insult_weight * 100,
+                compliment=config.compliment_weight * 100
+            )
+            response += LISTMODES_SEPARATOR
         
         await interaction.response.send_message(response)
 
 def setup(bot: discord.Client) -> None:
     # Set up the AI handler and register commands.
-    @bot.tree.command(name="ai_setmode", description="Set the bot's response mode")
-    async def ai_setmode_command(interaction: discord.Interaction, 
-                               mode: str, 
+    @bot.tree.command(name=COMMAND_AI_SETMODE, description=COMMAND_SETMODE_DESC)
+    async def ai_setmode_command(interaction: discord.Interaction,
+                               mode: str,
                                duration: Optional[int] = None) -> None:
         # Set the bot's response mode.
         await bot.ai_handler.setmode_command(interaction, mode, duration)
 
-    @bot.tree.command(name="ai_listmodes", description="List all available response modes")
+    @bot.tree.command(name=COMMAND_AI_LISTMODES, description=COMMAND_LISTMODES_DESC)
     async def ai_listmodes_command(interaction: discord.Interaction) -> None:
         # List all available response modes.
         await bot.ai_handler.listmodes_command(interaction)

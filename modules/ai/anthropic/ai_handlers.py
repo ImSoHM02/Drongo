@@ -4,12 +4,21 @@ import aiohttp
 import io
 import base64
 import asyncio
-from .ai_constants import MAX_MESSAGE_LENGTH, MAX_HISTORY_LENGTH, DEFAULT_CONFIG, FRIENDLY_CONFIG, NOT_FRIENDLY_CONFIG, TEST_INSULTS_CONFIG, TEST_COMPLIMENTS_CONFIG, ERROR_MESSAGES
+from .ai_constants import (
+    MAX_MESSAGE_LENGTH, MAX_HISTORY_LENGTH,
+    DEFAULT_CONFIG, FRIENDLY_CONFIG, NOT_FRIENDLY_CONFIG,
+    TEST_INSULTS_CONFIG, TEST_COMPLIMENTS_CONFIG,
+    ERROR_MESSAGES, ROLE_USER, ROLE_HUMAN,
+    KEY_TYPE, KEY_ROLE, KEY_CONTENT, KEY_SOURCE, KEY_MEDIA_TYPE, KEY_DATA,
+    CONTENT_TYPE_IMAGE, IMAGE_SOURCE_TYPE, DEFAULT_IMAGE_MEDIA_TYPE,
+    CONFIG_NAME_DEFAULT, CONFIG_NAME_FRIENDLY, CONFIG_NAME_NOT_FRIENDLY,
+    CONFIG_NAME_TEST_INSULTS, CONFIG_NAME_TEST_COMPLIMENTS
+)
 
 class MessageHandler:
     @staticmethod
     async def send_split_message(channel: discord.TextChannel, content: str, reply_to: Optional[discord.Message] = None) -> None:
-        """Split and send a message that may exceed Discord's length limit."""
+        # Split and send a message that may exceed Discord's length limit
         messages: List[str] = []
         
         while content:
@@ -35,7 +44,7 @@ class MessageHandler:
 class AttachmentHandler:
     @staticmethod
     async def download_attachment(attachment: discord.Attachment) -> Optional[BinaryIO]:
-        """Download a Discord attachment."""
+        # Download a Discord attachment
         async with aiohttp.ClientSession() as session:
             async with session.get(attachment.url) as resp:
                 if resp.status != 200:
@@ -45,7 +54,7 @@ class AttachmentHandler:
 
     @staticmethod
     async def process_text_attachment(attachment: discord.Attachment) -> str:
-        """Process a text file attachment and return its contents."""
+        # Process a text file attachment and return its contents
         file_content = await AttachmentHandler.download_attachment(attachment)
         if file_content is None:
             return ERROR_MESSAGES["download_failed"]
@@ -58,20 +67,20 @@ class AttachmentHandler:
 
     @staticmethod
     async def process_image_attachment(attachment: discord.Attachment) -> Optional[Dict[str, Any]]:
-        """Process an image attachment and return it in Claude's required format."""
+        # Process an image attachment and return it in Claude's required format
         file_content = await AttachmentHandler.download_attachment(attachment)
         if file_content is None:
             return None
-        
+
         image_data = base64.b64encode(file_content.getvalue()).decode('utf-8')
-        media_type = attachment.content_type or "image/jpeg"
-        
+        media_type = attachment.content_type or DEFAULT_IMAGE_MEDIA_TYPE
+
         return {
-            "type": "image",
-            "source": {
-                "type": "base64",
-                "media_type": media_type,
-                "data": image_data
+            KEY_TYPE: CONTENT_TYPE_IMAGE,
+            KEY_SOURCE: {
+                KEY_TYPE: IMAGE_SOURCE_TYPE,
+                KEY_MEDIA_TYPE: media_type,
+                KEY_DATA: image_data
             }
         }
 
@@ -80,27 +89,27 @@ class ConversationManager:
         self.user_conversation_histories: Dict[str, List[Dict[str, str]]] = {}
 
     def update_history(self, user_id: str, role: str, content: str) -> None:
-        """Update the conversation history for a user."""
+        # Update the conversation history for a user
         if user_id not in self.user_conversation_histories:
             self.user_conversation_histories[user_id] = []
-        
+
         # Use "user" instead of "human" for the user's messages
-        if role == "human":
-            role = "user"
-        
-        self.user_conversation_histories[user_id].append({"role": role, "content": content})
+        if role == ROLE_HUMAN:
+            role = ROLE_USER
+
+        self.user_conversation_histories[user_id].append({KEY_ROLE: role, KEY_CONTENT: content})
         
         # Trim history if it exceeds the maximum length
         if len(self.user_conversation_histories[user_id]) > MAX_HISTORY_LENGTH:
             self.user_conversation_histories[user_id] = self.user_conversation_histories[user_id][-MAX_HISTORY_LENGTH:]
 
     def clear_history(self, user_id: str) -> None:
-        """Clear the conversation history for a user."""
+        # Clear the conversation history for a user
         if user_id in self.user_conversation_histories:
             del self.user_conversation_histories[user_id]
 
     def get_history(self, user_id: str) -> List[Dict[str, str]]:
-        """Get the conversation history for a user."""
+        # Get the conversation history for a user
         return self.user_conversation_histories.get(user_id, [])
 
 class ProbabilityConfig:
@@ -122,20 +131,20 @@ class ProbabilityManager:
         
         # Predefined configurations
         self.configs = {
-            "default": self.default_config,
-            "friendly": ProbabilityConfig(**FRIENDLY_CONFIG),
-            "not-friendly": ProbabilityConfig(**NOT_FRIENDLY_CONFIG),
-            "test-insults": ProbabilityConfig(**TEST_INSULTS_CONFIG),
-            "test-compliments": ProbabilityConfig(**TEST_COMPLIMENTS_CONFIG)
+            CONFIG_NAME_DEFAULT: self.default_config,
+            CONFIG_NAME_FRIENDLY: ProbabilityConfig(**FRIENDLY_CONFIG),
+            CONFIG_NAME_NOT_FRIENDLY: ProbabilityConfig(**NOT_FRIENDLY_CONFIG),
+            CONFIG_NAME_TEST_INSULTS: ProbabilityConfig(**TEST_INSULTS_CONFIG),
+            CONFIG_NAME_TEST_COMPLIMENTS: ProbabilityConfig(**TEST_COMPLIMENTS_CONFIG)
         }
         
         # Timer task
         self.active_timer: Optional[asyncio.Task] = None
 
-    def update_probabilities(self, total_chance: Optional[float] = None, 
-                           insult_weight: Optional[float] = None, 
+    def update_probabilities(self, total_chance: Optional[float] = None,
+                           insult_weight: Optional[float] = None,
                            compliment_weight: Optional[float] = None) -> None:
-        """Update the probability configuration."""
+        # Update the probability configuration
         if total_chance is not None:
             self.random_response_chance = max(0, min(1, total_chance))
         
@@ -146,7 +155,7 @@ class ProbabilityManager:
                 self.compliment_weight = compliment_weight / total_weight
 
     async def reset_to_default(self) -> None:
-        """Reset probabilities to default configuration."""
+        # Reset probabilities to default configuration
         self.update_probabilities(
             self.default_config.total_chance,
             self.default_config.insult_weight,
@@ -154,7 +163,7 @@ class ProbabilityManager:
         )
 
     async def set_config(self, config_name: str, duration: Optional[int] = None) -> None:
-        """Set a predefined configuration with optional duration."""
+        # Set a predefined configuration with optional duration
         if config_name not in self.configs:
             raise ValueError(ERROR_MESSAGES["mode_error"])
             
@@ -175,17 +184,17 @@ class ProbabilityManager:
             self.active_timer = asyncio.create_task(self._config_timer(duration))
 
     async def _config_timer(self, duration: int) -> None:
-        """Internal timer for resetting configuration after duration."""
+        # Internal timer for resetting configuration after duration
         await asyncio.sleep(duration)
         await self.reset_to_default()
         self.active_timer = None
 
     def get_config(self, config_name: str) -> ProbabilityConfig:
-        """Get a configuration by name."""
+        # Get a configuration by name
         if config_name not in self.configs:
             raise ValueError(ERROR_MESSAGES["mode_error"])
         return self.configs[config_name]
 
     def list_configs(self) -> Dict[str, ProbabilityConfig]:
-        """Get all available configurations."""
+        # Get all available configurations
         return self.configs.copy()

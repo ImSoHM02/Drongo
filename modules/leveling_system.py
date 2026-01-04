@@ -1,5 +1,4 @@
 import json
-import logging
 import random
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any, List, Tuple
@@ -12,15 +11,14 @@ class LevelingSystem:
     """
     Core leveling system implementation with XP calculation, level progression,
     anti-abuse mechanisms, and database integration.
-    
+
     Formula:
     - XP = min(BaseXP + (0.5 × words) + (0.1 × characters), XPmax)
     - Level XP requirement: XPneeded(level) = 50 × (level²) + (100 × level)
     """
-    
+
     def __init__(self, bot):
         self.bot = bot
-        self.logger = logging.getLogger(__name__)
         
         # Cache for guild configurations
         self._config_cache = {}
@@ -225,7 +223,7 @@ class LevelingSystem:
             return True, ""
             
         except Exception as e:
-            self.logger.error(f"Error checking XP eligibility: {e}")
+            self.bot.logger.error(f"Error checking XP eligibility: {e}")
             return False, "System error"
     
     # =========================================================================
@@ -348,7 +346,7 @@ class LevelingSystem:
                     raise e
                     
         except Exception as e:
-            self.logger.error(f"Error awarding XP: {e}")
+            self.bot.logger.error(f"Error awarding XP: {e}")
             result['reason'] = f"System error: {str(e)}"
             
         return result
@@ -439,7 +437,7 @@ class LevelingSystem:
                     del self._user_cache_expiry[cache_key]
                 
         except Exception as e:
-            self.logger.error(f"Error checking level up: {e}")
+            self.bot.logger.error(f"Error checking level up: {e}")
             
         return result
     
@@ -495,7 +493,7 @@ class LevelingSystem:
             return config
             
         except Exception as e:
-            self.logger.error(f"Error getting guild config: {e}")
+            self.bot.logger.error(f"Error getting guild config: {e}")
             return self._get_default_config()
     
     async def _create_default_guild_config(self, guild_id: str) -> Dict[str, Any]:
@@ -509,7 +507,7 @@ class LevelingSystem:
                 INSERT INTO leveling_config (guild_id) VALUES (?)
             """, (guild_id,))
         except Exception as e:
-            self.logger.error(f"Error creating default guild config: {e}")
+            self.bot.logger.error(f"Error creating default guild config: {e}")
             
         return config
     
@@ -575,7 +573,7 @@ class LevelingSystem:
                 return user_data
             
         except Exception as e:
-            self.logger.error(f"Error getting user level data: {e}")
+            self.bot.logger.error(f"Error getting user level data: {e}")
             
         return None
     
@@ -620,7 +618,7 @@ class LevelingSystem:
             return leaderboard
             
         except Exception as e:
-            self.logger.error(f"Error getting leaderboard: {e}")
+            self.bot.logger.error(f"Error getting leaderboard: {e}")
             return []
     
     async def get_user_rank(self, user_id: str, guild_id: str) -> Optional[Dict[str, Any]]:
@@ -651,7 +649,7 @@ class LevelingSystem:
                     if "no such column: rank" in str(e).lower():
                         self._rank_view_has_server_rank = False
                         if not self._rank_view_warning_logged:
-                            self.logger.warning(
+                            self.bot.logger.warning(
                                 "view_user_ranks is missing 'rank' column; falling back to legacy schema without server rank column."
                             )
                             self._rank_view_warning_logged = True
@@ -673,7 +671,7 @@ class LevelingSystem:
                 }
             
         except Exception as e:
-            self.logger.error(f"Error getting user rank: {e}")
+            self.bot.logger.error(f"Error getting user rank: {e}")
             
         return None
 
@@ -705,7 +703,7 @@ class LevelingSystem:
                     'max_level': result[7]
                 }
         except Exception as e:
-            self.logger.error(f"Error getting rank for level {level} in guild {guild_id}: {e}")
+            self.bot.logger.error(f"Error getting rank for level {level} in guild {guild_id}: {e}")
         return None
     
     # =========================================================================
@@ -762,7 +760,7 @@ class LevelingSystem:
             }
             
         except Exception as e:
-            self.logger.error(f"Error creating rank title: {e}")
+            self.bot.logger.error(f"Error creating rank title: {e}")
             return {
                 'success': False,
                 'reason': f"Database error: {str(e)}"
@@ -824,7 +822,7 @@ class LevelingSystem:
             }
             
         except Exception as e:
-            self.logger.error(f"Error updating rank title: {e}")
+            self.bot.logger.error(f"Error updating rank title: {e}")
             return {
                 'success': False,
                 'reason': f"Database error: {str(e)}"
@@ -865,7 +863,7 @@ class LevelingSystem:
             }
             
         except Exception as e:
-            self.logger.error(f"Error deleting rank title: {e}")
+            self.bot.logger.error(f"Error deleting rank title: {e}")
             return {
                 'success': False,
                 'reason': f"Database error: {str(e)}"
@@ -907,7 +905,7 @@ class LevelingSystem:
             return ranks
             
         except Exception as e:
-            self.logger.error(f"Error getting guild ranks: {e}")
+            self.bot.logger.error(f"Error getting guild ranks: {e}")
             return []
     
     # =========================================================================
@@ -969,7 +967,7 @@ class LevelingSystem:
             }
             
         except Exception as e:
-            self.logger.error(f"Error creating level reward: {e}")
+            self.bot.logger.error(f"Error creating level reward: {e}")
             return {
                 'success': False,
                 'reason': f"Database error: {str(e)}"
@@ -1033,7 +1031,7 @@ class LevelingSystem:
             }
             
         except Exception as e:
-            self.logger.error(f"Error updating level reward: {e}")
+            self.bot.logger.error(f"Error updating level reward: {e}")
             return {
                 'success': False,
                 'reason': f"Database error: {str(e)}"
@@ -1074,7 +1072,7 @@ class LevelingSystem:
             }
             
         except Exception as e:
-            self.logger.error(f"Error deleting level reward: {e}")
+            self.bot.logger.error(f"Error deleting level reward: {e}")
             return {
                 'success': False,
                 'reason': f"Database error: {str(e)}"
@@ -1120,7 +1118,7 @@ class LevelingSystem:
             return rewards
             
         except Exception as e:
-            self.logger.error(f"Error getting guild rewards: {e}")
+            self.bot.logger.error(f"Error getting guild rewards: {e}")
             return []
     
     async def get_level_rewards(self, guild_id: str, level: int) -> List[Dict[str, Any]]:
@@ -1190,7 +1188,7 @@ class LevelingSystem:
             return rewards
             
         except Exception as e:
-            self.logger.error(f"Error getting level rewards: {e}")
+            self.bot.logger.error(f"Error getting level rewards: {e}")
             return []
     
     async def distribute_level_rewards(self, user_id: str, guild_id: str, old_level: int, new_level: int) -> List[Dict[str, Any]]:
@@ -1226,7 +1224,7 @@ class LevelingSystem:
                         })
             
         except Exception as e:
-            self.logger.error(f"Error distributing level rewards: {e}")
+            self.bot.logger.error(f"Error distributing level rewards: {e}")
         
         return distributed_rewards
     
@@ -1289,7 +1287,7 @@ class LevelingSystem:
                 }
                 
         except Exception as e:
-            self.logger.error(f"Error processing reward: {e}")
+            self.bot.logger.error(f"Error processing reward: {e}")
             return {
                 'success': False,
                 'reason': f'Processing error: {str(e)}'
@@ -1332,7 +1330,7 @@ class LevelingSystem:
             return None
             
         except Exception as e:
-            self.logger.error(f"Error getting user range: {e}")
+            self.bot.logger.error(f"Error getting user range: {e}")
             return None
     
     async def get_guild_ranges(self, guild_id: str) -> List[Dict[str, Any]]:
@@ -1360,7 +1358,7 @@ class LevelingSystem:
             return ranges
             
         except Exception as e:
-            self.logger.error(f"Error getting guild ranges: {e}")
+            self.bot.logger.error(f"Error getting guild ranges: {e}")
             return []
     
     async def add_level_range(self, guild_id: str, min_level: int, max_level: int,
@@ -1394,7 +1392,7 @@ class LevelingSystem:
             return True, "Range added successfully"
             
         except Exception as e:
-            self.logger.error(f"Error adding level range: {e}")
+            self.bot.logger.error(f"Error adding level range: {e}")
             return False, str(e)
     
     async def update_level_range(self, range_id: int, min_level: int, max_level: int,
@@ -1438,7 +1436,7 @@ class LevelingSystem:
             return True, "Range updated successfully"
             
         except Exception as e:
-            self.logger.error(f"Error updating level range: {e}")
+            self.bot.logger.error(f"Error updating level range: {e}")
             return False, str(e)
     
     async def delete_level_range(self, range_id: int) -> Tuple[bool, str]:
@@ -1458,7 +1456,7 @@ class LevelingSystem:
                 return False, "Range not found"
             
         except Exception as e:
-            self.logger.error(f"Error deleting level range: {e}")
+            self.bot.logger.error(f"Error deleting level range: {e}")
             return False, str(e)
     
     # =========================================================================

@@ -3,7 +3,6 @@ from discord.ext import commands
 from discord import app_commands
 from database import get_db_connection
 import re
-import logging
 
 class WordRankCog(commands.Cog):
     def __init__(self, bot):
@@ -42,7 +41,7 @@ class WordRankCog(commands.Cog):
                 username = f"Former Member ({user_id})"
             except Exception as e:
                 username = f"Unknown User ({user_id})"
-                logging.error(f"Error fetching user {user_id}: {str(e)}")
+                self.bot.logger.error(f"Error fetching user {user_id}: {str(e)}")
             response += f"{i}. {username}: {count} times\n"
         return response
 

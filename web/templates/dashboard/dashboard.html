@@ -31,23 +31,28 @@
             <nav>
                 <ul class="nav-menu">
                     <li class="nav-item">
-                        <a href="#" class="nav-link active" onclick="showMainSection()">
+                        <a href="#" class="nav-link active" data-view="main">
                             Main
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="#logs" class="nav-link" data-view="logs">
+                            Logs
                         </a>
                     </li>
                     <li class="nav-header">Config</li>
                     <li class="nav-item">
-                        <a href="#commands" class="nav-link" onclick="showConfigSection()">
+                        <a href="#commands" class="nav-link" data-view="commands">
                             Commands
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a href="#stats" class="nav-link" onclick="showStatsSection()">
+                        <a href="#stats" class="nav-link" data-view="stats">
                             Stats
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a href="#leveling" class="nav-link" onclick="showLevelingSection()">
+                        <a href="#leveling" class="nav-link" data-view="leveling">
                             Leveling
                         </a>
                     </li>
@@ -63,23 +68,6 @@
                 <h2 style="margin-bottom: 2rem; color: var(--text-primary);">Main</h2>
                 <!-- Activity Feed -->
                 <div class="activity-section">
-                    <div class="activity-card">
-                        <div class="activity-header">
-                            <h3 class="activity-title">Recent Messages</h3>
-                        </div>
-                        <div class="activity-list" id="recent-messages">
-                            <!-- Messages will be populated by JavaScript -->
-                        </div>
-                    </div>
-
-                    <div class="activity-card">
-                        <div class="activity-header">
-                            <h3 class="activity-title">Recent Events</h3>
-                        </div>
-                        <div class="activity-list" id="recent-events">
-                            <!-- Events will be populated by JavaScript -->
-                        </div>
-                    </div>
                     <div class="activity-card">
                         <div class="activity-header">
                             <h3 class="activity-title">Actions</h3>
@@ -192,6 +180,31 @@
                                     <span id="db-indexes" style="font-size: 0.875rem;">0</span>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Logs View -->
+            <div id="logs-view" style="display: none;">
+                <h2 style="margin-bottom: 2rem; color: var(--text-primary);">Logs</h2>
+                <!-- Activity Feed -->
+                <div class="activity-section">
+                    <div class="activity-card">
+                        <div class="activity-header">
+                            <h3 class="activity-title">Recent Messages</h3>
+                        </div>
+                        <div class="activity-list" id="recent-messages">
+                            <!-- Messages will be populated by JavaScript -->
+                        </div>
+                    </div>
+
+                    <div class="activity-card">
+                        <div class="activity-header">
+                            <h3 class="activity-title">Recent Events</h3>
+                        </div>
+                        <div class="activity-list" id="recent-events">
+                            <!-- Events will be populated by JavaScript -->
                         </div>
                     </div>
                 </div>
