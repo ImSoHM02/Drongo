@@ -18,7 +18,6 @@
     margin-bottom: 0.5rem;
     padding: 0.5rem;
     background: var(--bg-primary);
-    border-radius: 0.25rem;
 }
 
 #commands-list strong {
@@ -35,7 +34,6 @@
 #command-status {
     margin-top: 1rem;
     padding: 0.75rem;
-    border-radius: 0.25rem;
     display: none;
     font-size: 0.875rem;
     font-weight: 500;

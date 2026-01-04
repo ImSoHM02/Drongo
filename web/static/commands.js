@@ -115,7 +115,7 @@ class CommandsManager {
                     commandsList.innerHTML = '<div style="color: var(--text-muted); font-style: italic;">No commands registered</div>';
                 } else {
                     commandsList.innerHTML = commands.map(cmd =>
-                        `<div style="margin-bottom: 0.5rem; padding: 0.5rem; background: var(--bg-primary); border-radius: 0.25rem;">
+                        `<div style="margin-bottom: 0.5rem; padding: 0.5rem; background: var(--bg-primary);">
                             <strong>/${cmd.name}</strong><br>
                             <span style="color: var(--text-muted); font-size: 0.8rem;">${cmd.description}</span>
                         </div>`

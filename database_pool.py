@@ -178,6 +178,144 @@ async def close_all_pools():
         await _leveling_pool.close_all()
         _leveling_pool = None
 
+# Multi-guild database pool management
+from time import time
+from database_schema import get_guild_config_db_path, get_guild_db_path
+
+class MultiGuildDatabasePool:
+    """
+    Manages database pools for multiple guilds with LRU eviction.
+    """
+
+    def __init__(self, max_pools: int = 20, pool_timeout: int = 1800):
+        self.max_pools = max_pools
+        self.pool_timeout = pool_timeout  # 30 minutes default
+        self.guild_pools = {}  # guild_id -> DatabasePool
+        self.last_accessed = {}  # guild_id -> timestamp
+        self.config_pool: Optional[DatabasePool] = None
+        self._lock = asyncio.Lock()
+
+    async def initialize_config_pool(self):
+        """Initialize the global configuration database pool."""
+        if self.config_pool is None:
+            config_db_path = get_guild_config_db_path()
+            self.config_pool = DatabasePool(config_db_path, pool_size=5)
+            await self.config_pool.initialize()
+            logging.info("Initialized guild configuration database pool")
+
+    @asynccontextmanager
+    async def get_config_connection(self) -> AsyncContextManager[aiosqlite.Connection]:
+        """Get a connection to the global configuration database."""
+        if self.config_pool is None:
+            await self.initialize_config_pool()
+
+        async with self.config_pool.get_connection() as conn:
+            yield conn
+
+    async def get_guild_pool(self, guild_id: str) -> DatabasePool:
+        """
+        Get or create a database pool for a specific guild.
+        Implements LRU eviction when max_pools is reached.
+        """
+        async with self._lock:
+            # Update last accessed time
+            self.last_accessed[guild_id] = time()
+
+            # Return existing pool if available
+            if guild_id in self.guild_pools:
+                return self.guild_pools[guild_id]
+
+            # Check if we need to evict a pool
+            if len(self.guild_pools) >= self.max_pools:
+                await self._evict_least_recently_used_pool()
+
+            # Create new pool
+            guild_db_path = get_guild_db_path(guild_id)
+            pool = DatabasePool(guild_db_path, pool_size=5)
+            await pool.initialize()
+
+            self.guild_pools[guild_id] = pool
+            logging.info(f"Created database pool for guild {guild_id}")
+
+            return pool
+
+    @asynccontextmanager
+    async def get_guild_connection(self, guild_id: str) -> AsyncContextManager[aiosqlite.Connection]:
+        """Get a connection to a guild-specific database."""
+        pool = await self.get_guild_pool(guild_id)
+        async with pool.get_connection() as conn:
+            yield conn
+
+    async def _evict_least_recently_used_pool(self):
+        """Evict the least recently used guild pool."""
+        if not self.guild_pools:
+            return
+
+        # Find LRU guild
+        lru_guild_id = min(self.last_accessed, key=self.last_accessed.get)
+
+        # Close and remove pool
+        pool = self.guild_pools.pop(lru_guild_id)
+        await pool.close_all()
+        self.last_accessed.pop(lru_guild_id)
+
+        logging.info(f"Evicted database pool for guild {lru_guild_id} (LRU)")
+
+    async def cleanup_inactive_pools(self):
+        """Clean up pools that haven't been accessed in a while."""
+        current_time = time()
+
+        async with self._lock:
+            inactive_guilds = [
+                guild_id for guild_id, last_time in self.last_accessed.items()
+                if current_time - last_time > self.pool_timeout
+            ]
+
+            for guild_id in inactive_guilds:
+                if guild_id in self.guild_pools:
+                    pool = self.guild_pools.pop(guild_id)
+                    await pool.close_all()
+                    self.last_accessed.pop(guild_id)
+                    logging.info(f"Closed inactive database pool for guild {guild_id}")
+
+    async def close_all(self):
+        """Close all guild pools and the config pool."""
+        async with self._lock:
+            for pool in self.guild_pools.values():
+                await pool.close_all()
+
+            self.guild_pools.clear()
+            self.last_accessed.clear()
+
+            if self.config_pool:
+                await self.config_pool.close_all()
+                self.config_pool = None
+
+        logging.info("Closed all guild database pools")
+
+# Global multi-guild pool instance
+_multi_guild_pool: Optional[MultiGuildDatabasePool] = None
+
+async def get_multi_guild_pool() -> MultiGuildDatabasePool:
+    """Get the global multi-guild database pool."""
+    global _multi_guild_pool
+    if _multi_guild_pool is None:
+        max_pools = int(os.getenv("CHAT_HISTORY_MAX_POOLS", "20"))
+        pool_timeout = int(os.getenv("CHAT_HISTORY_POOL_TIMEOUT", "1800"))
+        _multi_guild_pool = MultiGuildDatabasePool(max_pools=max_pools, pool_timeout=pool_timeout)
+        await _multi_guild_pool.initialize_config_pool()
+    return _multi_guild_pool
+
+async def get_guild_db_connection(guild_id: str) -> AsyncContextManager[aiosqlite.Connection]:
+    """Get a connection to a guild-specific database."""
+    pool = await get_multi_guild_pool()
+    return pool.get_guild_connection(guild_id)
+
+async def get_config_db_connection() -> AsyncContextManager[aiosqlite.Connection]:
+    """Get a connection to the guild configuration database."""
+    pool = await get_multi_guild_pool()
+    return pool.get_config_connection()
+
 # Backward compatibility functions
 async def get_db_connection(db_name='database/chat_history.db'):
     """
@@ -193,7 +331,7 @@ async def get_db_connection(db_name='database/chat_history.db'):
         pool = await get_leveling_pool()
     else:
         pool = await get_main_pool()
-    
+
     # For backward compatibility, return a connection that will be managed by the caller
     # This is not ideal but maintains compatibility
     async with pool.get_connection() as conn:

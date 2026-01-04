@@ -20,6 +20,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='commands.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='stats.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='leveling.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='chat_history.css') }}">
 </head>
 <body>
     <div class="dashboard">
@@ -56,6 +57,11 @@
                             Leveling
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a href="#chat-history" class="nav-link" data-view="chat-history">
+                            Chat History
+                        </a>
+                    </li>
                 </ul>
             </nav>
         </aside>
@@ -87,7 +93,7 @@
                             </button>
                         </div>
                         <!-- Status Messages -->
-                        <div id="command-status" style="margin-top: 1rem; padding: 0.75rem; border-radius: 0.25rem; display: none;">
+                        <div id="command-status" style="margin-top: 1rem; padding: 0.75rem; display: none;">
                         </div>
                     </div>
                 </div>
@@ -162,8 +168,8 @@
                                     <span style="font-size: 0.875rem; color: var(--text-secondary);">Database Size</span>
                                     <span id="db-size" style="font-size: 0.875rem;">0 MB</span>
                                 </div>
-                                <div style="background: var(--bg-tertiary); height: 8px; border-radius: 4px;">
-                                    <div id="db-size-bar" style="background: var(--primary); height: 100%; width: 0%; border-radius: 4px; transition: width 0.3s;"></div>
+                                <div style="background: var(--bg-tertiary); height: 8px;">
+                                    <div id="db-size-bar" style="background: var(--primary); height: 100%; width: 0%; transition: width 0.3s;"></div>
                                 </div>
                             </div>
                             
@@ -499,6 +505,80 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Chat History View -->
+            <div id="chat-history-view" style="display: none;">
+                <h2 style="margin-bottom: 2rem; color: var(--text-primary);">Chat History</h2>
+
+                <div class="chat-layout">
+                    <!-- Guild List -->
+                    <div class="guild-list-container">
+                        <div class="guild-list-header">
+                            <h3>Servers</h3>
+                            <button id="refresh-guilds" class="modern-button">
+                                <i class="fas fa-sync"></i>
+                            </button>
+                        </div>
+                        <div id="guild-list">
+                            <!-- Populated by JavaScript -->
+                        </div>
+                    </div>
+
+                    <!-- Channel List -->
+                    <div class="channel-list-container">
+                        <div class="channel-list-header">
+                            <h3 id="selected-guild-name">Select a server</h3>
+                            <div class="logging-toggle">
+                                <input type="checkbox" id="logging-toggle" />
+                                <label for="logging-toggle">Logging Enabled</label>
+                            </div>
+                        </div>
+                        <div id="channel-list">
+                            <!-- Populated by JavaScript -->
+                        </div>
+                    </div>
+
+                    <!-- Message Display -->
+                    <div class="message-display-container">
+                        <div class="message-display-header">
+                            <h3 id="selected-channel-name">Select a channel</h3>
+                            <div class="message-controls">
+                                <button id="load-more-messages" style="display: none;">
+                                    <i class="fas fa-arrow-down"></i> Load More
+                                </button>
+                            </div>
+                        </div>
+                        <div id="message-list">
+                            <!-- Messages populated here -->
+                        </div>
+
+                        <!-- Recent Messages Section -->
+                        <div class="recent-messages-section">
+                            <h4>Recent Messages (50)</h4>
+                            <div id="recent-messages-list">
+                                <!-- Recent messages -->
+                            </div>
+                        </div>
+
+                        <!-- Fetch Progress Bar -->
+                        <div class="fetch-progress-bar">
+                            <div class="progress-info">
+                                <span>Historical fetch progress: <span id="fetch-percentage">0%</span></span>
+                                <span id="fetch-status" class="status-active">Idle</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="fetch-progress-fill" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Loading Indicator -->
+                <div id="chat-loading" style="display: none;">
+                    <i class="fas fa-spinner fa-spin"></i> Loading...
+                </div>
+            </div>
+
         </main>
     </div>
 
@@ -725,6 +805,7 @@
     <script src="{{ url_for('static', filename='commands.js') }}"></script>
     <script src="{{ url_for('static', filename='stats.js') }}"></script>
     <script src="{{ url_for('static', filename='leveling.js') }}"></script>
-    
+    <script src="{{ url_for('static', filename='chat_history.js') }}"></script>
+
 </body>
 </html>

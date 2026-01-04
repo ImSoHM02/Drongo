@@ -12,7 +12,6 @@
 
 .chart-card {
     background: var(--bg-card);
-    border-radius: 0.75rem;
     padding: 1.5rem;
     border: 1px solid var(--border);
     box-shadow: var(--shadow);
@@ -38,7 +37,6 @@
     background: var(--primary);
     height: 100%;
     width: 0%;
-    border-radius: 4px;
     transition: width 0.3s;
 }
 
@@ -67,7 +65,6 @@
 .db-progress-bar {
     background: var(--bg-tertiary);
     height: 8px;
-    border-radius: 4px;
     overflow: hidden;
 }
 
@@ -81,7 +78,6 @@
 
 .stat-card {
     background: var(--bg-card);
-    border-radius: 0;
     padding: 1.5rem;
     border: 1px solid var(--border);
     box-shadow: var(--shadow);
@@ -103,7 +99,6 @@
 .stat-icon {
     width: 2.5rem;
     height: 2.5rem;
-    border-radius: 0.5rem;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -138,7 +133,6 @@
 
 .activity-card {
     background: var(--bg-card);
-    border-radius: 0.75rem;
     padding: 1.5rem;
     border: 1px solid var(--border);
     box-shadow: var(--shadow);
@@ -174,7 +168,6 @@
 .activity-avatar {
     width: 2rem;
     height: 2rem;
-    border-radius: 0.25rem;
     background: var(--primary);
     display: flex;
     align-items: center;

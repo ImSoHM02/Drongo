@@ -100,6 +100,15 @@ const VIEW_CONFIG = {
                 window.levelingDashboard = new LevelingDashboard();
             }
         }
+    },
+    'chat-history': {
+        elementId: 'chat-history-view',
+        onShow: () => {
+            if (window.initChatHistory && !window.chatHistoryInitialized) {
+                window.initChatHistory();
+                window.chatHistoryInitialized = true;
+            }
+        }
     }
 };
 

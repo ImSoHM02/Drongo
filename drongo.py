@@ -116,6 +116,7 @@ class DrongoBot(commands.Bot):
         self.anthropic_api_key = anthropic_api_key
         self.ai_handler = None  # Initialize ai_handler as None
         self.leveling_system = None  # Initialize leveling_system as None
+        self.historical_fetcher = None  # Initialize historical_fetcher as None
         self.start_time = None  # Will be set when bot is ready
         self.dashboard_opened = False
         self.add_listener(self.track_command_usage, 'on_interaction')
@@ -147,7 +148,15 @@ class DrongoBot(commands.Bot):
                     
                 if self._maintenance_counter >= 12:  # Every hour (12 * 5 minutes)
                     self._maintenance_counter = 0
-                    # Could add more maintenance tasks here
+
+                    # Cleanup inactive guild database pools
+                    try:
+                        from database_pool import get_multi_guild_pool
+                        multi_pool = await get_multi_guild_pool()
+                        await multi_pool.cleanup_inactive_pools()
+                    except Exception as e:
+                        logging.error(f"Error cleaning up inactive pools: {e}")
+
                     self.logger.info("Performed periodic database maintenance")
                     
             except asyncio.CancelledError:
@@ -271,7 +280,10 @@ class DrongoBot(commands.Bot):
             await command_database.create_tables(cmd_conn)
         finally:
             await cmd_conn.close()
-            
+
+        # Initialize guild databases for multi-guild chat history
+        await self.initialize_existing_guilds()
+
         # PRIORITY: Load commands FIRST before processing messages
         self.logger.info("Loading command modules...")
         
@@ -294,6 +306,12 @@ class DrongoBot(commands.Bot):
         # Initialize leveling system
         self.leveling_system = get_leveling_system(self)
         self.logger.info("Leveling system initialized")
+
+        # Initialize historical message fetcher
+        from modules.historical_fetcher import HistoricalMessageFetcher
+        self.historical_fetcher = HistoricalMessageFetcher(self)
+        await self.historical_fetcher.start()
+        self.logger.info("Historical message fetcher started")
         
         # Log commands before sync
         self.logger.info(f"Commands before sync: {[cmd.name for cmd in self.tree.get_commands()]}")
@@ -419,21 +437,36 @@ class DrongoBot(commands.Bot):
                     if self.leveling_system and message.guild:
                         asyncio.create_task(self._process_xp_award(message))
 
-                # Store messages and stats only for primary guild
-                if primary_guild_id is not None and str(message.guild.id) == primary_guild_id:
-                    # Log the message in the dashboard ALWAYS for primary guild messages
-                    self.dashboard_manager.log_message(message.author, message.guild.name, message.channel.name)
-                    
-                    conn = await get_db_connection()
-                    try:
-                        if full_message_content:
-                            # Use immediate storage for real-time dashboard updates
-                            await store_message(conn, message, full_message_content)
-                            await set_last_message_id(conn, message.channel.id, message.id)
-                    except Exception as e:
-                        logging.error(f"Error storing message: {str(e)}") # Use standard logging
-                    finally:
-                        await conn.close()
+                # Store messages for all guilds (multi-guild support)
+                if message.guild:
+                    from database_utils import get_guild_settings, ensure_guild_database_exists
+                    from database_pool import get_multi_guild_pool
+
+                    # Check if logging is enabled for this guild
+                    guild_settings = await get_guild_settings(str(message.guild.id))
+
+                    # If guild not in config yet, initialize it
+                    if not guild_settings:
+                        from database_utils import add_guild_to_config
+                        await ensure_guild_database_exists(str(message.guild.id))
+                        await add_guild_to_config(str(message.guild.id), message.guild.name, logging_enabled=True)
+                        guild_settings = {'logging_enabled': 1}
+
+                    # Only store if logging is enabled
+                    if guild_settings and guild_settings.get('logging_enabled'):
+                        # Log the message in the dashboard (for all guilds now)
+                        self.dashboard_manager.log_message(message.author, message.guild.name, message.channel.name)
+
+                        # Use guild-specific database connection
+                        pool = await get_multi_guild_pool()
+                        async with pool.get_guild_connection(str(message.guild.id)) as conn:
+                            try:
+                                if full_message_content:
+                                    # Use immediate storage for real-time dashboard updates
+                                    await store_message(conn, message, full_message_content)
+                                    await set_last_message_id(conn, message.channel.id, message.id)
+                            except Exception as e:
+                                logging.error(f"Error storing message for guild {message.guild.id}: {str(e)}") # Use standard logging
 
                 # Track command usage in separate database
                 if message.content.startswith(('/', '!')):  # Track both slash and ! commands
@@ -578,6 +611,102 @@ class DrongoBot(commands.Bot):
         finally:
             await conn.close()
 
+    async def on_guild_join(self, guild: discord.Guild):
+        """Called when the bot joins a new guild."""
+        from database_utils import (
+            ensure_guild_database_exists,
+            add_guild_to_config,
+            queue_channel_for_historical_fetch
+        )
+
+        try:
+            self.logger.info(f"Joined new guild: {guild.name} (ID: {guild.id})")
+
+            # Ensure database structure exists
+            was_created = await ensure_guild_database_exists(str(guild.id))
+
+            # Add to guild configuration
+            await add_guild_to_config(str(guild.id), guild.name, logging_enabled=True)
+
+            # Queue all text channels for historical fetching
+            for channel in guild.text_channels:
+                if channel.permissions_for(guild.me).read_message_history:
+                    await queue_channel_for_historical_fetch(
+                        str(guild.id),
+                        str(channel.id),
+                        channel.name,
+                        priority=1 if was_created else 0
+                    )
+
+            self.logger.info(f"Initialized guild {guild.name} for chat history logging")
+
+        except Exception as e:
+            logging.error(f"Error handling guild join: {e}")
+
+    async def on_guild_remove(self, guild: discord.Guild):
+        """Called when the bot leaves a guild."""
+        from database_utils import update_guild_logging
+        from database_pool import get_multi_guild_pool
+
+        try:
+            self.logger.info(f"Left guild: {guild.name} (ID: {guild.id})")
+
+            # Disable logging for this guild (don't delete data)
+            await update_guild_logging(str(guild.id), False)
+
+            # Close database pool for this guild to free resources
+            pool = await get_multi_guild_pool()
+            if str(guild.id) in pool.guild_pools:
+                guild_pool = pool.guild_pools.pop(str(guild.id))
+                await guild_pool.close_all()
+                pool.last_accessed.pop(str(guild.id), None)
+
+            self.logger.info(f"Disabled logging for guild {guild.name}")
+
+        except Exception as e:
+            logging.error(f"Error handling guild remove: {e}")
+
+    async def initialize_existing_guilds(self):
+        """Initialize databases for all guilds the bot is currently in."""
+        from database_utils import (
+            ensure_guild_database_exists,
+            add_guild_to_config,
+            queue_channel_for_historical_fetch,
+            initialize_guild_config_db
+        )
+
+        try:
+            # Initialize the global config database first
+            await initialize_guild_config_db()
+
+            for guild in self.guilds:
+                try:
+                    # Ensure database exists
+                    was_created = await ensure_guild_database_exists(str(guild.id))
+
+                    # Add to guild configuration
+                    await add_guild_to_config(str(guild.id), guild.name, logging_enabled=True)
+
+                    # If database was just created, queue channels for historical fetch
+                    if was_created:
+                        for channel in guild.text_channels:
+                            if channel.permissions_for(guild.me).read_message_history:
+                                await queue_channel_for_historical_fetch(
+                                    str(guild.id),
+                                    str(channel.id),
+                                    channel.name,
+                                    priority=0
+                                )
+                        self.logger.info(f"Initialized new database for existing guild: {guild.name}")
+                    else:
+                        self.logger.info(f"Database already exists for guild: {guild.name}")
+
+                except Exception as e:
+                    logging.error(f"Error initializing guild {guild.name}: {e}")
+
+        except Exception as e:
+            logging.error(f"Error initializing existing guilds: {e}")
+
     async def run_dashboard(self):
         """Run the Quart dashboard server using Hypercorn."""
         from hypercorn.asyncio import serve
@@ -614,8 +743,18 @@ def signal_handler(sig, frame):
             logging.error(f"Error shutting down dashboard server: {e}")
         finally:
             try:
+                # Stop historical fetcher
+                if hasattr(bot, 'historical_fetcher') and bot.historical_fetcher:
+                    await bot.historical_fetcher.stop()
+
                 await flush_message_batches()
                 await close_all_pools()
+
+                # Close multi-guild pools
+                from database_pool import get_multi_guild_pool
+                multi_pool = await get_multi_guild_pool()
+                await multi_pool.close_all()
+
             except Exception as e:
                 logging.error(f"Error during cleanup: {e}")
             finally:

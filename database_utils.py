@@ -289,3 +289,240 @@ async def batch_store_message(message: discord.Message, content: str):
 async def flush_pending_messages():
     """Flush any pending message batches."""
     await optimized_db.flush_message_batch()
+
+# Guild configuration and multi-guild database functions
+import os
+import aiosqlite
+from database_schema import (
+    GUILD_CONFIG_SCHEMA,
+    PER_GUILD_SCHEMA,
+    get_guild_config_db_path,
+    get_guild_db_path,
+    get_guild_db_dir
+)
+
+async def initialize_guild_config_db():
+    """Initialize the global guild configuration database."""
+    config_db_path = get_guild_config_db_path()
+
+    # Ensure database directory exists
+    os.makedirs(os.path.dirname(config_db_path), exist_ok=True)
+
+    async with aiosqlite.connect(config_db_path) as conn:
+        # Enable WAL mode for better concurrency
+        await conn.execute("PRAGMA journal_mode=WAL")
+        await conn.execute("PRAGMA synchronous=NORMAL")
+
+        # Create schema
+        await conn.executescript(GUILD_CONFIG_SCHEMA)
+        await conn.commit()
+
+    logging.info(f"Initialized guild configuration database at {config_db_path}")
+
+async def ensure_guild_database_exists(guild_id: str):
+    """
+    Ensure that a guild's database directory and database file exist.
+    Creates them if they don't exist.
+
+    Args:
+        guild_id: Discord guild ID
+
+    Returns:
+        bool: True if database was created, False if it already existed
+    """
+    guild_dir = get_guild_db_dir(guild_id)
+    guild_db_path = get_guild_db_path(guild_id)
+
+    # Check if database already exists
+    db_existed = os.path.exists(guild_db_path)
+
+    # Create directory if it doesn't exist
+    os.makedirs(guild_dir, exist_ok=True)
+
+    # Create and initialize database if it doesn't exist
+    if not db_existed:
+        await initialize_guild_database(guild_id)
+        logging.info(f"Created new database for guild {guild_id}")
+        return True
+
+    return False
+
+async def initialize_guild_database(guild_id: str):
+    """
+    Initialize a guild-specific database with schema and optimizations.
+
+    Args:
+        guild_id: Discord guild ID
+    """
+    guild_db_path = get_guild_db_path(guild_id)
+
+    async with aiosqlite.connect(guild_db_path) as conn:
+        # Enable WAL mode for better concurrency
+        await conn.execute("PRAGMA journal_mode=WAL")
+        await conn.execute("PRAGMA synchronous=NORMAL")
+        await conn.execute("PRAGMA cache_size=-64000")  # 64MB cache
+
+        # Create schema
+        await conn.executescript(PER_GUILD_SCHEMA)
+        await conn.commit()
+
+    logging.info(f"Initialized database for guild {guild_id}")
+
+async def add_guild_to_config(guild_id: str, guild_name: str, logging_enabled: bool = True):
+    """
+    Add or update a guild in the configuration database.
+
+    Args:
+        guild_id: Discord guild ID
+        guild_name: Name of the guild
+        logging_enabled: Whether logging is enabled for this guild
+    """
+    config_db_path = get_guild_config_db_path()
+
+    async with aiosqlite.connect(config_db_path) as conn:
+        now = datetime.now().isoformat()
+
+        await conn.execute("""
+            INSERT INTO guild_settings (guild_id, guild_name, logging_enabled, date_joined, last_updated)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(guild_id) DO UPDATE SET
+                guild_name=excluded.guild_name,
+                last_updated=excluded.last_updated
+        """, (guild_id, guild_name, 1 if logging_enabled else 0, now, now))
+
+        await conn.commit()
+
+    logging.info(f"Added/updated guild {guild_name} ({guild_id}) in config")
+
+async def get_guild_settings(guild_id: str) -> dict:
+    """
+    Get settings for a specific guild.
+
+    Args:
+        guild_id: Discord guild ID
+
+    Returns:
+        dict: Guild settings or None if not found
+    """
+    config_db_path = get_guild_config_db_path()
+
+    async with aiosqlite.connect(config_db_path) as conn:
+        conn.row_factory = aiosqlite.Row
+        async with conn.execute("""
+            SELECT * FROM guild_settings WHERE guild_id = ?
+        """, (guild_id,)) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                return dict(row)
+            return None
+
+async def update_guild_logging(guild_id: str, enabled: bool):
+    """
+    Toggle logging on/off for a guild.
+
+    Args:
+        guild_id: Discord guild ID
+        enabled: Whether logging should be enabled
+    """
+    config_db_path = get_guild_config_db_path()
+
+    async with aiosqlite.connect(config_db_path) as conn:
+        await conn.execute("""
+            UPDATE guild_settings
+            SET logging_enabled = ?, last_updated = ?
+            WHERE guild_id = ?
+        """, (1 if enabled else 0, datetime.now().isoformat(), guild_id))
+
+        await conn.commit()
+
+    logging.info(f"Updated logging for guild {guild_id}: {'enabled' if enabled else 'disabled'}")
+
+async def get_all_guild_settings() -> list:
+    """
+    Get settings for all guilds.
+
+    Returns:
+        list: List of guild settings dictionaries
+    """
+    config_db_path = get_guild_config_db_path()
+
+    async with aiosqlite.connect(config_db_path) as conn:
+        conn.row_factory = aiosqlite.Row
+        async with conn.execute("SELECT * FROM guild_settings") as cursor:
+            rows = await cursor.fetchall()
+            return [dict(row) for row in rows]
+
+async def queue_channel_for_historical_fetch(guild_id: str, channel_id: str, channel_name: str = "", priority: int = 0):
+    """
+    Add a channel to the historical fetch queue.
+
+    Args:
+        guild_id: Discord guild ID
+        channel_id: Discord channel ID
+        channel_name: Name of the channel
+        priority: Priority (higher = sooner)
+    """
+    config_db_path = get_guild_config_db_path()
+
+    async with aiosqlite.connect(config_db_path) as conn:
+        # Check if already queued
+        async with conn.execute("""
+            SELECT id FROM fetch_queue
+            WHERE guild_id = ? AND channel_id = ? AND status != 'completed'
+        """, (guild_id, channel_id)) as cursor:
+            existing = await cursor.fetchone()
+
+        if not existing:
+            await conn.execute("""
+                INSERT INTO fetch_queue (guild_id, channel_id, channel_name, priority, status, created_at)
+                VALUES (?, ?, ?, ?, 'pending', ?)
+            """, (guild_id, channel_id, channel_name, priority, datetime.now().isoformat()))
+
+            # Initialize progress tracking
+            await conn.execute("""
+                INSERT OR IGNORE INTO historical_fetch_progress (guild_id, channel_id, is_scanning)
+                VALUES (?, ?, 1)
+            """, (guild_id, channel_id))
+
+            await conn.commit()
+            logging.info(f"Queued channel {channel_name} ({channel_id}) for historical fetch")
+
+async def get_guild_message_count(guild_id: str) -> int:
+    """
+    Get total message count for a guild.
+
+    Args:
+        guild_id: Discord guild ID
+
+    Returns:
+        int: Total message count
+    """
+    guild_db_path = get_guild_db_path(guild_id)
+
+    if not os.path.exists(guild_db_path):
+        return 0
+
+    async with aiosqlite.connect(guild_db_path) as conn:
+        async with conn.execute("SELECT COUNT(*) FROM messages") as cursor:
+            result = await cursor.fetchone()
+            return result[0] if result else 0
+
+async def is_guild_scanning(guild_id: str) -> bool:
+    """
+    Check if a guild is currently being scanned for historical messages.
+
+    Args:
+        guild_id: Discord guild ID
+
+    Returns:
+        bool: True if scanning, False otherwise
+    """
+    config_db_path = get_guild_config_db_path()
+
+    async with aiosqlite.connect(config_db_path) as conn:
+        async with conn.execute("""
+            SELECT COUNT(*) FROM historical_fetch_progress
+            WHERE guild_id = ? AND is_scanning = 1 AND fetch_completed = 0
+        """, (guild_id,)) as cursor:
+            result = await cursor.fetchone()
+            return result[0] > 0 if result else False

@@ -115,7 +115,6 @@ body {
     align-items: center;
     gap: 0.5rem;
     padding: 0.5rem 1rem;
-    border-radius: 9999px;
     font-size: 0.875rem;
     font-weight: 500;
 }
@@ -135,7 +134,6 @@ body {
 .status-dot {
     width: 8px;
     height: 8px;
-    border-radius: 50%;
     background: currentColor;
     animation: pulse 2s infinite;
 }
@@ -161,7 +159,6 @@ body {
 
 .stat-card {
     background: var(--bg-card);
-    border-radius: 0;
     padding: 1.5rem;
     border: 1px solid var(--border);
     box-shadow: var(--shadow);
@@ -183,7 +180,6 @@ body {
 .stat-icon {
     width: 2.5rem;
     height: 2.5rem;
-    border-radius: 0.5rem;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -222,7 +218,6 @@ body {
     right: 1rem;
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: 0.5rem;
     padding: 0.5rem 1rem;
     font-size: 0.875rem;
     box-shadow: var(--shadow);
@@ -313,7 +308,6 @@ body {
     align-items: center;
     gap: 0.75rem;
     padding: 0.75rem 1rem;
-    border-radius: 0.5rem;
     transition-timing-function: cubic-bezier(0.25, 0.8, 0.25, 1);
     transition-duration: 400ms;
     transition-property: color;
@@ -362,7 +356,6 @@ body {
 
 .activity-card {
     background: var(--bg-card);
-    border-radius: 0.75rem;
     padding: 1.5rem;
     border: 1px solid var(--border);
     box-shadow: var(--shadow);
@@ -398,7 +391,6 @@ body {
 .activity-avatar {
     width: 2rem;
     height: 2rem;
-    border-radius: 0.25rem;
     background: var(--primary);
     display: flex;
     align-items: center;
@@ -446,7 +438,6 @@ body {
 
 .modal-content {
     background: var(--bg-card);
-    border-radius: 0.5rem;
     max-width: 500px;
     width: 90%;
     max-height: 90vh;
@@ -527,7 +518,6 @@ body {
     padding: 0.75rem;
     background: var(--bg-tertiary);
     border: 1px solid var(--border);
-    border-radius: 0.25rem;
     color: var(--text-primary);
     font-size: 0.875rem;
 }
@@ -567,7 +557,6 @@ body {
 .btn {
     padding: 0.5rem 1rem;
     border: none;
-    border-radius: 0.25rem;
     cursor: pointer;
     font-size: 0.875rem;
     font-weight: 500;
@@ -643,7 +632,6 @@ body {
     background: var(--bg-tertiary);
     color: var(--primary);
     padding: 0.25rem 0.5rem;
-    border-radius: 0.25rem;
     font-size: 0.8rem;
     font-weight: 600;
     cursor: pointer;
@@ -665,7 +653,6 @@ body {
     margin-top: 1rem;
     padding: 1rem;
     background: var(--bg-tertiary);
-    border-radius: 0.25rem;
     font-size: 0.875rem;
     color: var(--text-secondary);
     border-left: 3px solid var(--primary);
@@ -685,7 +672,6 @@ body {
 .preview-message {
     background: var(--bg-tertiary);
     border: 1px solid var(--border);
-    border-radius: 0.5rem;
     padding: 1rem;
     font-size: 0.9rem;
     line-height: 1.5;
@@ -696,7 +682,6 @@ body {
 .preview-sample-data {
     padding: 1rem;
     background: var(--bg-primary);
-    border-radius: 0.25rem;
     border: 1px solid var(--border);
 }
 
@@ -775,7 +760,6 @@ body {
     }
     
     .tab-btn {
-        border-radius: 0.25rem;
         text-align: center;
     }
     
