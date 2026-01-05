@@ -27,7 +27,8 @@ class JellyfinCog(commands.Cog):
             await interaction.followup.send(message)
         else:
             await interaction.followup.send("Sorry mate, couldn't get the IP address. Something's cooked.")
-        self.bot.stats_display.update_stats("Commands Executed", self.bot.stats_display.stats["Commands Executed"] + 1)
+        if hasattr(self.bot, "dashboard_manager"):
+            self.bot.dashboard_manager.increment_command_count()
 
 async def setup(bot):
     await bot.add_cog(JellyfinCog(bot))

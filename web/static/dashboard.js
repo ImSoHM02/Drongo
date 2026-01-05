@@ -265,10 +265,6 @@ class DashboardManager {
     }
     
     updateRecentActivity(activity) {
-        if (activity.recent_messages) {
-            this.updateActivityList('recent-messages', activity.recent_messages, 'message');
-        }
-        
         if (activity.recent_events) {
             this.updateActivityList('recent-events', activity.recent_events, 'event');
         }

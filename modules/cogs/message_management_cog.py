@@ -1,7 +1,9 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from database import get_db_connection
+import aiosqlite
+import os
+from database_schema import get_guild_db_path
 
 class MessageManagementCog(commands.Cog):
     def __init__(self, bot):
@@ -28,19 +30,24 @@ class MessageManagementCog(commands.Cog):
                     break
         
         await interaction.response.send_message(f"Deleted {deleted_count} messages.", ephemeral=True)
-        self.bot.stats_display.update_stats("Commands Executed", self.bot.stats_display.stats["Commands Executed"] + 1)
+        if hasattr(self.bot, "dashboard_manager"):
+            self.bot.dashboard_manager.increment_command_count()
 
     @app_commands.command(name="total_messages")
     async def total_messages(self, interaction: discord.Interaction):
         """Shows the total number of messages stored in the database."""
-        conn = await get_db_connection()
-        try:
-            async with conn.execute("SELECT COUNT(*) FROM messages") as cursor:
-                total_count = await cursor.fetchone()
-                await interaction.response.send_message(f"The total number of messages stored in the database is {total_count[0]}.")
-        finally:
-            await conn.close()
-        self.bot.stats_display.update_stats("Commands Executed", self.bot.stats_display.stats["Commands Executed"] + 1)
+        total_count = 0
+        for guild in self.bot.guilds:
+            db_path = get_guild_db_path(str(guild.id))
+            if os.path.isfile(db_path):
+                async with aiosqlite.connect(db_path) as conn:
+                    async with conn.execute("SELECT COUNT(*) FROM messages") as cursor:
+                        row = await cursor.fetchone()
+                        total_count += row[0] if row else 0
+
+        await interaction.response.send_message(f"The total number of messages stored across all guilds is {total_count}.")
+        if hasattr(self.bot, "dashboard_manager"):
+            self.bot.dashboard_manager.increment_command_count()
 
 async def setup(bot):
     await bot.add_cog(MessageManagementCog(bot))

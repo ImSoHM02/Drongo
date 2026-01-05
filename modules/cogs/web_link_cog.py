@@ -35,7 +35,8 @@ class WebLinkCog(commands.Cog):
         await interaction.followup.send(
             f"Web Statistics Interface: http://{ip}:5000"
         )
-        self.bot.stats_display.update_stats("Commands Executed", self.bot.stats_display.stats["Commands Executed"] + 1)
+        if hasattr(self.bot, "dashboard_manager"):
+            self.bot.dashboard_manager.increment_command_count()
 
 async def setup(bot):
     await bot.add_cog(WebLinkCog(bot))

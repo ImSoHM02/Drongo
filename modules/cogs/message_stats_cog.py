@@ -1,7 +1,9 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from database import get_db_connection, count_attachments, count_links
+import aiosqlite
+import os
+from database_schema import get_guild_db_path
 
 class MessageStatsCog(commands.Cog):
     def __init__(self, bot):
@@ -13,25 +15,45 @@ class MessageStatsCog(commands.Cog):
     @app_commands.describe(user="The user whose attachment count to retrieve")
     async def count_attachments_command(self, interaction: discord.Interaction, user: discord.User):
         """Counts the number of attachments a user has posted."""
-        conn = await get_db_connection()
-        try:
-            attachment_count = await count_attachments(conn, str(user.id), str(interaction.guild_id))
-            await interaction.response.send_message(f"{user.name} has posted {attachment_count} attachments in this server.")
-        finally:
-            await conn.close()
-        self.bot.stats_display.update_stats("Commands Executed", self.bot.stats_display.stats["Commands Executed"] + 1)
+        db_path = get_guild_db_path(str(interaction.guild_id))
+        if not os.path.isfile(db_path):
+            await interaction.response.send_message("No chat history found for this server.")
+            return
+
+        async with aiosqlite.connect(db_path) as conn:
+            async with conn.execute("SELECT message_content FROM messages WHERE user_id=?", (str(user.id),)) as cursor:
+                messages = await cursor.fetchall()
+                attachment_count = 0
+                for (content,) in messages:
+                    attachment_count += content.count("https://cdn.discordapp.com/attachments/")
+
+        await interaction.response.send_message(f"{user.name} has posted {attachment_count} attachments in this server.")
+        if hasattr(self.bot, "dashboard_manager"):
+            self.bot.dashboard_manager.increment_command_count()
 
     @stats.command(name="links")
     @app_commands.describe(user="The user whose link count to retrieve")
     async def count_links_command(self, interaction: discord.Interaction, user: discord.User):
         """Counts the number of links a user has posted."""
-        conn = await get_db_connection()
-        try:
-            link_count = await count_links(conn, str(user.id), str(interaction.guild_id))
-            await interaction.response.send_message(f"{user.name} has posted {link_count} links in this server.")
-        finally:
-            await conn.close()
-        self.bot.stats_display.update_stats("Commands Executed", self.bot.stats_display.stats["Commands Executed"] + 1)
+        db_path = get_guild_db_path(str(interaction.guild_id))
+        if not os.path.isfile(db_path):
+            await interaction.response.send_message("No chat history found for this server.")
+            return
+
+        async with aiosqlite.connect(db_path) as conn:
+            async with conn.execute("SELECT message_content FROM messages WHERE user_id=?", (str(user.id),)) as cursor:
+                messages = await cursor.fetchall()
+                link_count = 0
+                for (content,) in messages:
+                    # Count all links minus Discord attachment links
+                    links = [part for part in content.split() if part.startswith("http")]
+                    for url in links:
+                        if not url.startswith("https://cdn.discordapp.com/attachments/"):
+                            link_count += 1
+
+        await interaction.response.send_message(f"{user.name} has posted {link_count} links in this server.")
+        if hasattr(self.bot, "dashboard_manager"):
+            self.bot.dashboard_manager.increment_command_count()
 
 async def setup(bot):
     await bot.add_cog(MessageStatsCog(bot))

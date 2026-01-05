@@ -1,9 +1,11 @@
 import discord
 import io
 import re
+import aiosqlite
+import os
 from discord.ext import commands
 from discord import app_commands
-from database import get_db_connection
+from database_schema import get_guild_db_path
 
 class WordCountCog(commands.Cog):
     def __init__(self, bot):
@@ -11,21 +13,23 @@ class WordCountCog(commands.Cog):
 
     async def count_word_occurrences(self, interaction: discord.Interaction, user: discord.User, word: str) -> tuple[int, list[str]]:
         """Counts the occurrences of a word in a user's messages and returns the count and matching messages."""
-        conn = await get_db_connection()
-        try:
-            query = "SELECT message_content FROM messages WHERE user_id = ? AND guild_id = ?"
-            word_pattern = re.compile(r'(?i)(?:^|[^\w])(' + re.escape(word) + r')(?=[^\w]|$)')
-            count = 0
-            matching_messages = []
-            async with conn.execute(query, (str(user.id), str(interaction.guild_id))) as cursor:
+        db_path = get_guild_db_path(str(interaction.guild_id))
+        if not os.path.isfile(db_path):
+            return 0, []
+
+        query = "SELECT message_content FROM messages WHERE user_id = ?"
+        word_pattern = re.compile(r'(?i)(?:^|[^\\w])(' + re.escape(word) + r')(?=[^\\w]|$)')
+        count = 0
+        matching_messages = []
+
+        async with aiosqlite.connect(db_path) as conn:
+            async with conn.execute(query, (str(user.id),)) as cursor:
                 async for (message_content,) in cursor:
                     matches = word_pattern.findall(message_content)
                     count += len(matches)
                     if matches:
                         matching_messages.append(message_content)
-            return count, matching_messages
-        finally:
-            await conn.close()
+        return count, matching_messages
 
     async def send_word_count_response(self, interaction: discord.Interaction, user: discord.User, word: str, count: int, matching_messages: list[str]):
         """Sends the response with the word count and instances."""
@@ -46,7 +50,8 @@ class WordCountCog(commands.Cog):
         await interaction.response.defer()
         count, matching_messages = await self.count_word_occurrences(interaction, user, word)
         await self.send_word_count_response(interaction, user, word, count, matching_messages)
-        self.bot.stats_display.update_stats("Commands Executed", self.bot.stats_display.stats["Commands Executed"] + 1)
+        if hasattr(self.bot, "dashboard_manager"):
+            self.bot.dashboard_manager.increment_command_count()
 
 async def setup(bot):
     await bot.add_cog(WordCountCog(bot))

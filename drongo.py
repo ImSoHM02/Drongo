@@ -44,21 +44,6 @@ client_id = os.getenv("DISCORD_CLIENT_ID")
 if not client_id:
     raise ValueError("DISCORD_CLIENT_ID is not set in the environment variables")
 
-guild_id_env = os.getenv("DISCORD_GUILD_ID")
-if not guild_id_env:
-    raise ValueError("DISCORD_GUILD_ID is not set in the environment variables")
-
-# Get first guild ID for logging with validation
-primary_guild_id_raw = guild_id_env.split(',')[0].strip()
-try:
-    # Validate that primary guild ID is a valid integer
-    int(primary_guild_id_raw)
-    primary_guild_id = primary_guild_id_raw
-except ValueError:
-    logging.error(f"Invalid PRIMARY_GUILD_ID '{primary_guild_id_raw}': must be a valid integer for Discord API calls")
-    logging.warning("Bot will continue but some features may not work correctly")
-    primary_guild_id = None
-
 authorized_user_id = os.getenv("AUTHORIZED_USER_ID")
 my_user_id = os.getenv("BLACKTHENWHITE_USER_ID")
 anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
@@ -175,15 +160,13 @@ class DrongoBot(commands.Bot):
         
         # Verify connection is stable before opening dashboard
         try:
-            # Test connection with a simple API call
-            if primary_guild_id is not None:
-                await self.fetch_guild(int(primary_guild_id))
+            # Touch a simple API call if guilds are available to ensure connectivity
+            if self.guilds:
+                await self.fetch_guild(self.guilds[0].id)
             if not self.dashboard_opened:
                 webbrowser.open('http://localhost:5001')
                 self.dashboard_opened = True
                 self.logger.info("Dashboard opened at http://localhost:5001")
-        except ValueError as e:
-            self.logger.error(f"Invalid guild ID for connection test: {e}")
         except Exception as e:
             self.logger.warning(f"Connection may be unstable, delaying dashboard open: {e}")
             
@@ -340,52 +323,34 @@ class DrongoBot(commands.Bot):
         self.logger.info("Final command sync completed (after leveling cog)")
 
         # Ensure primary guild has the latest commands immediately
-        if primary_guild_id is not None:
-            try:
-                guild_object = discord.Object(id=int(primary_guild_id))
-                self.tree.copy_global_to(guild=guild_object)
-                await self.tree.sync(guild=guild_object)
-                self.logger.info(f"Guild command sync completed for {primary_guild_id}")
-            except Exception as guild_sync_error:
-                self.logger.error(f"Failed to sync commands for guild {primary_guild_id}: {guild_sync_error}")
-        
         self.logger.info("Loaded all command modules.")
         
-        # NOW process historical messages after commands are loaded
-        conn = None
-        try:
-            conn = await get_db_connection()
-            self.logger.info('Processing historical chat messages...')
-            for guild in self.guilds:
-                # Only process messages for the primary guild
-                if primary_guild_id is not None and str(guild.id) == primary_guild_id:
-                    for channel in guild.text_channels:
-                        last_message_id = await get_last_message_id(conn, channel.id)
-                        if last_message_id:
-                            messages = [message async for message in channel.history(limit=200, after=discord.Object(id=last_message_id))]
-                        else:
-                            messages = [message async for message in channel.history(limit=200)]
+        # NOW process recent historical messages for all guilds after commands are loaded
+        from database_pool import get_multi_guild_pool
+        multi_pool = await get_multi_guild_pool()
+        self.logger.info('Processing recent historical chat messages for all guilds...')
+        for guild in self.guilds:
+            async with multi_pool.get_guild_connection(str(guild.id)) as conn:
+                for channel in guild.text_channels:
+                    last_message_id = await get_last_message_id(conn, channel.id)
+                    if last_message_id:
+                        messages = [message async for message in channel.history(limit=200, after=discord.Object(id=last_message_id))]
+                    else:
+                        messages = [message async for message in channel.history(limit=200)]
 
-                        for message in reversed(messages):
-                            if message.author != self.user:  # Allow bot messages during setup
-                                # Store message in database but don't process for achievements
-                                # This prevents achievements from triggering on historical messages during setup
-                                # Combine message content, attachments, and embed fields
-                                attachment_urls = ' '.join([attachment.url for attachment in message.attachments])
-                                embed_content = []
-                                for embed in message.embeds:
-                                    for field in embed.fields:
-                                        embed_content.append(f"{field.name}: {field.value}")
-                                full_message_content = f"{message.clean_content} {attachment_urls} {' '.join(embed_content)}".strip()
-                                await store_message(conn, message, full_message_content)
-                        if messages:
-                            await set_last_message_id(conn, channel.id, messages[-1].id)
+                    for message in reversed(messages):
+                        if message.author != self.user:  # Allow bot messages during setup
+                            attachment_urls = ' '.join([attachment.url for attachment in message.attachments])
+                            embed_content = []
+                            for embed in message.embeds:
+                                for field in embed.fields:
+                                    embed_content.append(f"{field.name}: {field.value}")
+                            full_message_content = f"{message.clean_content} {attachment_urls} {' '.join(embed_content)}".strip()
+                            await store_message(conn, message, full_message_content)
+                    if messages:
+                        await set_last_message_id(conn, channel.id, messages[-1].id)
 
-            self.logger.info("Finished processing historical messages.")
-
-        finally:
-            if conn:
-                await conn.close()
+        self.logger.info("Finished processing recent historical messages.")
 
 
     async def on_message(self, message):

@@ -1,8 +1,10 @@
 import discord
 from discord.ext import commands
 from discord import app_commands
-from database import get_db_connection
 import re
+import aiosqlite
+import os
+from database_schema import get_guild_db_path
 
 class WordRankCog(commands.Cog):
     def __init__(self, bot):
@@ -12,17 +14,18 @@ class WordRankCog(commands.Cog):
         """
         Retrieves the counts of a specific word for each user in a guild.
         """
-        conn = await get_db_connection()
         user_counts = {}
-        try:
-            query = "SELECT user_id, message_content FROM messages WHERE guild_id = ?"
-            word_pattern = re.compile(r'\b' + re.escape(word.lower()) + r'\b')
-            async with conn.execute(query, (str(guild_id),)) as cursor:
+        db_path = get_guild_db_path(str(guild_id))
+        if not os.path.isfile(db_path):
+            return user_counts
+
+        query = "SELECT user_id, message_content FROM messages"
+        word_pattern = re.compile(r'\b' + re.escape(word.lower()) + r'\b')
+        async with aiosqlite.connect(db_path) as conn:
+            async with conn.execute(query) as cursor:
                 async for user_id, message_content in cursor:
                     if word_pattern.search(message_content.lower()):
                         user_counts[user_id] = user_counts.get(user_id, 0) + 1
-        finally:
-            await conn.close()
         return user_counts
 
     async def format_wordrank_response(self, guild: discord.Guild, word: str, user_counts: dict) -> str:
@@ -58,7 +61,8 @@ class WordRankCog(commands.Cog):
             await interaction.followup.send(response)
         except Exception as e:
             await interaction.followup.send(f"An error occurred: {str(e)}")
-        self.bot.stats_display.update_stats("Commands Executed", self.bot.stats_display.stats["Commands Executed"] + 1)
+        if hasattr(self.bot, "dashboard_manager"):
+            self.bot.dashboard_manager.increment_command_count()
 
 async def setup(bot):
     await bot.add_cog(WordRankCog(bot))

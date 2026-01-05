@@ -12,6 +12,7 @@ import sys
 import time
 from datetime import datetime
 from typing import Dict, List, Set
+import aiosqlite
 from quart import Quart, render_template, jsonify, websocket, request
 from quart_cors import cors
 from collections import deque
@@ -41,7 +42,7 @@ def validate_guild_id(guild_id):
 
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from database import get_db_connection, get_leveling_db_connection
+from database import get_leveling_db_connection
 from modules.leveling_system import get_leveling_system
 
 # Bot instance for Discord API access
@@ -318,35 +319,31 @@ _needs_immediate_broadcast = False
 async def get_enhanced_stats():
     """Get comprehensive stats for the dashboard."""
     try:
-        # Get database stats
-        conn = await get_db_connection()
+        guild_db_paths = _list_guild_db_paths()
+        total_messages = 0
+        unique_users = 0
+        recent_activity = 0
+
+        # Aggregate stats across all guild databases
+        for db_file in guild_db_paths:
+            try:
+                async with aiosqlite.connect(db_file) as conn:
+                    async with conn.execute('SELECT COUNT(*) FROM messages') as cursor:
+                        total_messages += (await cursor.fetchone())[0]
+
+                    async with conn.execute('SELECT COUNT(DISTINCT user_id) FROM messages') as cursor:
+                        unique_users += (await cursor.fetchone())[0]
+
+                    async with conn.execute('''
+                        SELECT COUNT(*) FROM messages
+                        WHERE datetime(timestamp) > datetime('now', '-1 hour')
+                    ''') as cursor:
+                        recent_activity += (await cursor.fetchone())[0]
+            except Exception as db_err:
+                logging.error(f"Error aggregating stats from {db_file}: {db_err}")
         
-        # Basic message stats
-        async with conn.execute('SELECT COUNT(*) FROM messages') as cursor:
-            total_messages = (await cursor.fetchone())[0]
-        
-        async with conn.execute('SELECT COUNT(DISTINCT user_id) FROM messages') as cursor:
-            unique_users = (await cursor.fetchone())[0]
-        
-        # Recent activity (last hour)
-        async with conn.execute('''
-            SELECT COUNT(*) FROM messages
-            WHERE datetime(timestamp) > datetime('now', '-1 hour')
-        ''') as cursor:
-            recent_activity = (await cursor.fetchone())[0]
-        
-        # Get database health info manually since optimized_db might not be available
-        try:
-            health_info = await get_database_health(conn)
-        except Exception as e:
-            logging.error(f"Error getting database health: {e}")
-            health_info = {
-                "database_size_mb": 0,
-                "table_count": 0,
-                "index_count": 0
-            }
-        
-        await conn.close()
+        # Get aggregated database health info
+        health_info = await get_database_health()
         
         # Update real-time stats
         real_time_stats.update_stat("messages_processed", total_messages)
@@ -376,30 +373,36 @@ async def get_enhanced_stats():
             "last_updated": datetime.now().isoformat()
         }
 
-async def get_database_health(conn):
-    """Get database health information."""
+def _list_guild_db_paths() -> List[str]:
+    """List all guild chat history database paths."""
+    base_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "database")
+    paths = []
+    if not os.path.isdir(base_dir):
+        return paths
+
+    for entry in os.listdir(base_dir):
+        candidate = os.path.join(base_dir, entry, "chat_history.db")
+        if entry.isdigit() and os.path.isfile(candidate):
+            paths.append(candidate)
+    return paths
+
+async def get_database_health():
+    """Get aggregated database health information across guild databases."""
     try:
-        # Get database file size
-        import os
-        db_file = "database/chat_history.db"  # Fixed database path
-        try:
-            db_size_bytes = os.path.getsize(db_file)
-            db_size_mb = db_size_bytes / (1024 * 1024)
-        except FileNotFoundError:
-            db_size_mb = 0
-        
-        # Count tables
-        async with conn.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='table'") as cursor:
-            table_count = (await cursor.fetchone())[0]
-        
-        # Count indexes
-        async with conn.execute("SELECT COUNT(*) FROM sqlite_master WHERE type='index'") as cursor:
-            index_count = (await cursor.fetchone())[0]
-        
+        db_paths = _list_guild_db_paths()
+        total_size_bytes = 0
+
+        for db_file in db_paths:
+            try:
+                total_size_bytes += os.path.getsize(db_file)
+            except FileNotFoundError:
+                continue
+
         return {
-            "database_size_mb": round(db_size_mb, 2),
-            "table_count": table_count,
-            "index_count": index_count
+            "database_size_mb": round(total_size_bytes / (1024 * 1024), 2) if total_size_bytes else 0,
+            "table_count": len(db_paths) * 3,  # messages/last_message/embed_fields per guild
+            "index_count": 0,  # not aggregated here
+            "database_files": len(db_paths)
         }
         
     except Exception as e:
@@ -407,7 +410,8 @@ async def get_database_health(conn):
         return {
             "database_size_mb": 0,
             "table_count": 0,
-            "index_count": 0
+            "index_count": 0,
+            "database_files": 0
         }
 
 async def broadcast_stats():
@@ -544,12 +548,7 @@ async def api_commands_list():
 async def api_commands_register():
     """Register Discord commands."""
     try:
-        from utilities.register_commands import register_commands
-        
-        # Run the async function
-        await register_commands()
-        
-        return jsonify({"success": True, "message": "Commands registered successfully"})
+        return jsonify({"error": "Guild-specific registration is disabled; commands are synced by the bot"}), 400
     except Exception as e:
         logging.error(f"Error registering commands: {e}")
         return jsonify({"error": str(e)}), 500
@@ -558,12 +557,7 @@ async def api_commands_register():
 async def api_commands_delete():
     """Delete all Discord commands."""
     try:
-        from utilities.delete_commands import delete_all_commands
-        
-        # Run the async function
-        await delete_all_commands()
-        
-        return jsonify({"success": True, "message": "Commands deleted successfully"})
+        return jsonify({"error": "Command deletion via dashboard is disabled"}), 400
     except Exception as e:
         logging.error(f"Error deleting commands: {e}")
         return jsonify({"error": str(e)}), 500

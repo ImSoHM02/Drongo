@@ -7,7 +7,7 @@ from database_pool import (
 )
 from database_utils import optimized_db, batch_store_message
 
-async def db_connect(db_name='database/chat_history.db'):
+async def db_connect(db_name='database/system.db'):
     """
     Legacy function for backward compatibility.
     Prefer using the connection pool for better performance.
@@ -243,7 +243,7 @@ async def get_users_tracking_game(conn, app_id):
     ''', (app_id,)) as cursor:
         return [row[0] for row in await cursor.fetchall()]
 
-async def get_db_connection(db_name='database/chat_history.db'):
+async def get_db_connection(db_name='database/system.db'):
     """
     Get database connection with improved connection management.
     Uses connection pooling when available.

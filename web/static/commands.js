@@ -10,8 +10,6 @@ class CommandsManager {
         document.addEventListener('click', (e) => {
             if (e.target.id === 'register-commands-btn') {
                 this.registerCommands();
-            } else if (e.target.id === 'delete-commands-btn') {
-                this.deleteCommands();
             } else if (e.target.id === 'restart-bot-btn') {
                 this.restartBot();
             } else if (e.target.id === 'shutdown-bot-btn') {
@@ -40,37 +38,6 @@ class CommandsManager {
                 this.loadCommands();
             } else {
                 this.showCommandStatus(`Error: ${result.error || 'Failed to register'}`, 'error');
-            }
-        } catch (error) {
-            this.showCommandStatus('Network error occurred', 'error');
-        } finally {
-            setTimeout(() => {
-                button.disabled = false;
-                button.innerHTML = originalText;
-            }, 2000);
-        }
-    }
-    
-    async deleteCommands() {
-        if (!confirm('Are you sure you want to delete ALL commands?')) {
-            return;
-        }
-
-        const button = document.getElementById('delete-commands-btn');
-        const originalText = button.innerHTML;
-        button.disabled = true;
-        button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
-
-        try {
-            const response = await fetch('/api/commands/delete', {
-                method: 'POST'
-            });
-            const result = await response.json();
-            if (response.ok) {
-                this.showCommandStatus('Commands deleted successfully!', 'success');
-                this.loadCommands();
-            } else {
-                this.showCommandStatus(`Error: ${result.error || 'Failed to delete'}`, 'error');
             }
         } catch (error) {
             this.showCommandStatus('Network error occurred', 'error');

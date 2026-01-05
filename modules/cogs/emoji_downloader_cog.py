@@ -139,7 +139,8 @@ class EmojiDownloaderCog(commands.Cog):
                 "Here are all the emojis from this server:",
                 file=discord.File(zip_buffer, filename="server_emojis.zip"),
             )
-            self.bot.stats_display.update_stats("Commands Executed", self.bot.stats_display.stats["Commands Executed"] + 1)
+            if hasattr(self.bot, "dashboard_manager"):
+                self.bot.dashboard_manager.increment_command_count()
         except Exception as e:
             await interaction.followup.send(f"An error occurred: {e}")
 
@@ -169,7 +170,8 @@ class EmojiDownloaderCog(commands.Cog):
                         f"Emoji pack part {i}/{len(zip_buffers)}:",
                         file=discord.File(buffer, filename=f"channel_emojis_part{i}.zip"),
                     )
-            self.bot.stats_display.update_stats("Commands Executed", self.bot.stats_display.stats["Commands Executed"] + 1)
+            if hasattr(self.bot, "dashboard_manager"):
+                self.bot.dashboard_manager.increment_command_count()
         except Exception as e:
             await interaction.followup.send(f"An error occurred: {str(e)}")
 

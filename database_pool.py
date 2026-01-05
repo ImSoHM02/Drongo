@@ -5,7 +5,7 @@ from typing import Optional, AsyncContextManager
 from contextlib import asynccontextmanager
 import os
 
-DEFAULT_MAIN_DB_PATH = os.getenv("DRONGO_MAIN_DB_PATH", "database/chat_history.db")
+DEFAULT_MAIN_DB_PATH = os.getenv("DRONGO_MAIN_DB_PATH", "database/system.db")
 DEFAULT_LEVELING_DB_PATH = os.getenv("DRONGO_LEVELING_DB_PATH", "database/leveling_system.db")
 
 class DatabasePool:
@@ -317,7 +317,7 @@ async def get_config_db_connection() -> AsyncContextManager[aiosqlite.Connection
     return pool.get_config_connection()
 
 # Backward compatibility functions
-async def get_db_connection(db_name='database/chat_history.db'):
+async def get_db_connection(db_name='database/system.db'):
     """
     Backward compatibility function.
     Returns a connection from the appropriate pool.
