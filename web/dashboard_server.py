@@ -13,7 +13,8 @@ import time
 from datetime import datetime
 from typing import Dict, List, Set
 import aiosqlite
-from quart import Quart, render_template, jsonify, websocket, request
+from quart import Quart, jsonify, websocket, request, send_from_directory
+from werkzeug.exceptions import NotFound
 from quart_cors import cors
 from collections import deque
 import discord
@@ -44,6 +45,9 @@ def validate_guild_id(guild_id):
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from database import get_leveling_db_connection
 from modules.leveling_system import get_leveling_system
+
+# Path to React build directory
+REACT_BUILD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'frontend', 'dist')
 
 # Bot instance for Discord API access
 bot_instance = None
@@ -487,16 +491,6 @@ async def websocket_endpoint():
         logging.debug(f"WebSocket error: {e}")
     finally:
         connected_clients.discard(ws)
-
-@app.route('/')
-async def dashboard():
-    """Main dashboard route."""
-    return await render_template('dashboard/dashboard.html')
-
-@app.route('/dashboard/leveling')
-async def leveling_dashboard():
-    """Leveling dashboard route."""
-    return await render_template('dashboard/leveling/leveling.html')
 
 @app.route('/api/stats')
 async def api_stats():
@@ -2782,6 +2776,29 @@ class DashboardAPI:
 
 # Export for bot integration
 dashboard_api = DashboardAPI()
+
+# ============================================================================
+# React SPA Routes (must be defined LAST to not intercept API routes)
+# ============================================================================
+
+@app.route('/')
+async def serve_react_app():
+    """Serve React app."""
+    return await send_from_directory(REACT_BUILD_DIR, 'index.html')
+
+@app.route('/<path:path>')
+async def serve_react_static(path):
+    """Serve React static files and handle client-side routing."""
+    # Don't intercept API or WebSocket routes
+    if path.startswith('api/') or path.startswith('ws'):
+        return jsonify({"error": "Not found"}), 404
+
+    # Try to serve from React build
+    try:
+        return await send_from_directory(REACT_BUILD_DIR, path)
+    except NotFound:
+        # Fallback to index.html for client-side routing
+        return await send_from_directory(REACT_BUILD_DIR, 'index.html')
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.INFO)
