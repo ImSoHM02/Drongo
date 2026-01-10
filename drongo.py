@@ -5,7 +5,7 @@ import signal
 import asyncio
 import webbrowser
 from discord.ext import commands
-from database import store_message, get_db_connection, set_last_message_id, get_last_message_id, track_voice_join, track_voice_leave, initialize_database, flush_message_batches
+from database import store_message, store_message_components, get_db_connection, set_last_message_id, get_last_message_id, initialize_database, flush_message_batches
 from database_pool import close_all_pools
 import command_database
 from dotenv import load_dotenv
@@ -340,13 +340,16 @@ class DrongoBot(commands.Bot):
 
                     for message in reversed(messages):
                         if message.author != self.user:  # Allow bot messages during setup
-                            attachment_urls = ' '.join([attachment.url for attachment in message.attachments])
-                            embed_content = []
-                            for embed in message.embeds:
-                                for field in embed.fields:
-                                    embed_content.append(f"{field.name}: {field.value}")
-                            full_message_content = f"{message.clean_content} {attachment_urls} {' '.join(embed_content)}".strip()
-                            await store_message(conn, message, full_message_content)
+                            # Extract clean text only
+                            clean_text = message.clean_content.strip() if message.clean_content else ""
+
+                            # Store clean text
+                            message_id = await store_message(conn, message, clean_text)
+
+                            # Store components separately
+                            if message_id:
+                                await store_message_components(message, message_id)
+
                     if messages:
                         await set_last_message_id(conn, channel.id, messages[-1].id)
 
@@ -370,31 +373,12 @@ class DrongoBot(commands.Bot):
                     logging.error(f"Error processing AI message: {str(e)}") # Use standard logging
 
             try:
-                # Store message content and any attachments/embeds
-                message_parts = []
-                
-                # Add main message content
-                if message.clean_content.strip():
-                    message_parts.append(message.clean_content.strip())
-                
-                # Add attachment URLs if any
-                if message.attachments:
-                    message_parts.append(' '.join(attachment.url for attachment in message.attachments))
-                
-                # Add embed fields if any
-                if message.embeds:
-                    embed_fields = []
-                    for embed in message.embeds:
-                        if embed.fields:
-                            for field in embed.fields:
-                                embed_fields.append(f"{field.name}: {field.value}")
-                    if embed_fields:
-                        message_parts.append(' '.join(embed_fields))
-                
-                # Join all parts with a single space
-                full_message_content = ' '.join(message_parts)
+                # Extract clean text only (no URLs, no attachments, no embed text)
+                clean_text = message.clean_content.strip() if message.clean_content else ""
+
+                # Append AI response to clean text if present
                 if ai_response:
-                    full_message_content = f"{full_message_content} {ai_response}".strip()
+                    clean_text = f"{clean_text} {ai_response}".strip()
 
                 # Only process messages that occur after bot start
                 if message.created_at >= self.start_time:
@@ -426,10 +410,15 @@ class DrongoBot(commands.Bot):
                         pool = await get_multi_guild_pool()
                         async with pool.get_guild_connection(str(message.guild.id)) as conn:
                             try:
-                                if full_message_content:
-                                    # Use immediate storage for real-time dashboard updates
-                                    await store_message(conn, message, full_message_content)
-                                    await set_last_message_id(conn, message.channel.id, message.id)
+                                # Store clean text only in messages table
+                                message_id = await store_message(conn, message, clean_text)
+
+                                # Store components (attachments, embeds, URLs) in separate databases
+                                if message_id:
+                                    await store_message_components(message, message_id)
+
+                                # Update last message tracking
+                                await set_last_message_id(conn, message.channel.id, message.id)
                             except Exception as e:
                                 logging.error(f"Error storing message for guild {message.guild.id}: {str(e)}") # Use standard logging
 
@@ -547,35 +536,6 @@ class DrongoBot(commands.Bot):
         reaction = CustomReaction(payload.emoji, payload.member)
         # Removed achievement check for reactions
 
-    async def on_voice_state_update(self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState):
-        """Handle voice state updates and tracking."""
-        if member.bot:
-            return
-
-        # Only process voice updates that occur after bot start
-        if discord.utils.utcnow() < self.start_time:
-            return
-
-        conn = await get_db_connection()
-        try:
-            # Handle voice channel changes
-            if after.channel is not None and (before.channel is None or before.channel != after.channel):
-                # User joined a channel
-                await track_voice_join(conn, str(member.id), str(after.channel.id))
-                # Removed achievement check for voice join
-            elif after.channel is None and before.channel is not None:
-                # User left a channel
-                await track_voice_leave(conn, str(member.id))
-                # Removed achievement check for voice leave
-            elif before.channel != after.channel:
-                # User switched channels
-                await track_voice_leave(conn, str(member.id))
-                await track_voice_join(conn, str(member.id), str(after.channel.id))
-        except Exception as e:
-            logging.error(f"Error tracking voice state: {str(e)}") # Use standard logging
-        finally:
-            await conn.close()
-
     async def on_guild_join(self, guild: discord.Guild):
         """Called when the bot joins a new guild."""
         from database_utils import (
@@ -600,7 +560,9 @@ class DrongoBot(commands.Bot):
                         str(guild.id),
                         str(channel.id),
                         channel.name,
-                        priority=1 if was_created else 0
+                        priority=1 if was_created else 0,
+                        force=True,
+                        reset_progress=was_created
                     )
 
             self.logger.info(f"Initialized guild {guild.name} for chat history logging")
@@ -660,7 +622,9 @@ class DrongoBot(commands.Bot):
                                     str(guild.id),
                                     str(channel.id),
                                     channel.name,
-                                    priority=0
+                                    priority=0,
+                                    force=True,
+                                    reset_progress=True
                                 )
                         self.logger.info(f"Initialized new database for existing guild: {guild.name}")
                     else:

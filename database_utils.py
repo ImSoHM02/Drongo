@@ -24,11 +24,7 @@ class OptimizedDatabase:
             "CREATE INDEX IF NOT EXISTS idx_messages_user_guild ON messages (user_id, guild_id)",
             "CREATE INDEX IF NOT EXISTS idx_messages_channel ON messages (channel_id)",
             "CREATE INDEX IF NOT EXISTS idx_messages_content_search ON messages (message_content)",
-            "CREATE INDEX IF NOT EXISTS idx_voice_stats_user ON voice_chat_stats (user_id)",
-            "CREATE INDEX IF NOT EXISTS idx_voice_stats_channel ON voice_chat_stats (channel_id)",
-            "CREATE INDEX IF NOT EXISTS idx_voice_sessions_user ON voice_chat_sessions (user_id)",
-            "CREATE INDEX IF NOT EXISTS idx_game_trackers_user ON game_trackers (user_id)",
-            "CREATE INDEX IF NOT EXISTS idx_game_trackers_app ON game_trackers (app_id)",
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_discord_id ON messages (discord_message_id)",
         ]
         
         for index_sql in indexes:
@@ -43,7 +39,7 @@ class OptimizedDatabase:
         Store multiple messages in a single transaction for better performance.
         
         Args:
-            messages: List of tuples (user_id, guild_id, channel_id, content, timestamp)
+            messages: List of tuples (discord_message_id, user_id, guild_id, channel_id, content, timestamp)
         
         Returns:
             Number of messages successfully stored
@@ -56,8 +52,15 @@ class OptimizedDatabase:
         try:
             # Use executemany for batch insert
             query = '''
-                INSERT OR IGNORE INTO messages (user_id, guild_id, channel_id, message_content, timestamp)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT OR IGNORE INTO messages (
+                    discord_message_id,
+                    user_id,
+                    guild_id,
+                    channel_id,
+                    message_content,
+                    timestamp
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
             '''
             
             await pool.execute_many(query, messages)
@@ -72,6 +75,7 @@ class OptimizedDatabase:
         """Queue a message for batch processing."""
         async with self.batch_lock:
             self.message_batch.append((
+                str(message.id),
                 str(message.author.id),
                 str(message.guild.id),
                 str(message.channel.id),
@@ -198,21 +202,14 @@ class OptimizedDatabase:
             "DELETE FROM messages WHERE timestamp < ?",
             (cutoff_date,)
         )
-        
-        # Clean up old voice stats
-        _, deleted_voice = await pool.execute_write(
-            "DELETE FROM voice_chat_stats WHERE join_timestamp < ?",
-            (cutoff_date,)
-        )
-        
+
         # Vacuum to reclaim space
         await pool.execute_write("VACUUM")
-        
-        logging.info(f"Cleaned up {deleted_messages} old messages and {deleted_voice} voice records")
-        
+
+        logging.info(f"Cleaned up {deleted_messages} old messages")
+
         return {
-            'deleted_messages': deleted_messages,
-            'deleted_voice_records': deleted_voice
+            'deleted_messages': deleted_messages
         }
     
     async def get_word_usage_optimized(self, guild_id: str, word: str, limit: int = 10) -> List[Tuple[str, int]]:
@@ -296,9 +293,14 @@ import aiosqlite
 from database_schema import (
     GUILD_CONFIG_SCHEMA,
     PER_GUILD_SCHEMA,
+    ATTACHMENTS_SCHEMA,
+    EMBEDS_SCHEMA,
     get_guild_config_db_path,
     get_guild_db_path,
-    get_guild_db_dir
+    get_guild_db_dir,
+    get_attachments_db_path,
+    get_embeds_db_path,
+    get_urls_db_path
 )
 
 async def initialize_guild_config_db():
@@ -350,23 +352,37 @@ async def ensure_guild_database_exists(guild_id: str):
 async def initialize_guild_database(guild_id: str):
     """
     Initialize a guild-specific database with schema and optimizations.
+    Creates all four database files for the guild.
 
     Args:
         guild_id: Discord guild ID
     """
     guild_db_path = get_guild_db_path(guild_id)
-
+    attachments_db_path = get_attachments_db_path(guild_id)
+    embeds_db_path = get_embeds_db_path(guild_id)
+    # Initialize chat_history.db
     async with aiosqlite.connect(guild_db_path) as conn:
-        # Enable WAL mode for better concurrency
         await conn.execute("PRAGMA journal_mode=WAL")
         await conn.execute("PRAGMA synchronous=NORMAL")
-        await conn.execute("PRAGMA cache_size=-64000")  # 64MB cache
-
-        # Create schema
+        await conn.execute("PRAGMA cache_size=-64000")
         await conn.executescript(PER_GUILD_SCHEMA)
         await conn.commit()
 
-    logging.info(f"Initialized database for guild {guild_id}")
+    # Initialize attachments.db
+    async with aiosqlite.connect(attachments_db_path) as conn:
+        await conn.execute("PRAGMA journal_mode=WAL")
+        await conn.execute("PRAGMA synchronous=NORMAL")
+        await conn.executescript(ATTACHMENTS_SCHEMA)
+        await conn.commit()
+
+    # Initialize embeds.db
+    async with aiosqlite.connect(embeds_db_path) as conn:
+        await conn.execute("PRAGMA journal_mode=WAL")
+        await conn.execute("PRAGMA synchronous=NORMAL")
+        await conn.executescript(EMBEDS_SCHEMA)
+        await conn.commit()
+
+    logging.info(f"Initialized all databases for guild {guild_id}")
 
 async def add_guild_to_config(guild_id: str, guild_name: str, logging_enabled: bool = True):
     """
@@ -452,7 +468,14 @@ async def get_all_guild_settings() -> list:
             rows = await cursor.fetchall()
             return [dict(row) for row in rows]
 
-async def queue_channel_for_historical_fetch(guild_id: str, channel_id: str, channel_name: str = "", priority: int = 0):
+async def queue_channel_for_historical_fetch(
+    guild_id: str,
+    channel_id: str,
+    channel_name: str = "",
+    priority: int = 0,
+    force: bool = False,
+    reset_progress: bool = False
+):
     """
     Add a channel to the historical fetch queue.
 
@@ -461,31 +484,75 @@ async def queue_channel_for_historical_fetch(guild_id: str, channel_id: str, cha
         channel_id: Discord channel ID
         channel_name: Name of the channel
         priority: Priority (higher = sooner)
+        force: If True, reset any existing pending/in-progress job
+        reset_progress: If True, restart progress tracking for this channel
     """
     config_db_path = get_guild_config_db_path()
+
+    # Reset jobs when we explicitly want to restart progress
+    if reset_progress:
+        force = True
 
     async with aiosqlite.connect(config_db_path) as conn:
         # Check if already queued
         async with conn.execute("""
-            SELECT id FROM fetch_queue
+            SELECT id, status FROM fetch_queue
             WHERE guild_id = ? AND channel_id = ? AND status != 'completed'
         """, (guild_id, channel_id)) as cursor:
             existing = await cursor.fetchone()
+
+        now = datetime.now().isoformat()
+        job_created = False
+        job_reset = False
+
+        if existing and force:
+            # Reset the existing job so it can be picked up again
+            await conn.execute("""
+                UPDATE fetch_queue
+                SET status = 'pending',
+                    priority = ?,
+                    started_at = NULL,
+                    completed_at = NULL,
+                    created_at = ?
+                WHERE id = ?
+            """, (priority, now, existing[0]))
+            job_reset = True
 
         if not existing:
             await conn.execute("""
                 INSERT INTO fetch_queue (guild_id, channel_id, channel_name, priority, status, created_at)
                 VALUES (?, ?, ?, ?, 'pending', ?)
-            """, (guild_id, channel_id, channel_name, priority, datetime.now().isoformat()))
+            """, (guild_id, channel_id, channel_name, priority, now))
+            job_created = True
 
-            # Initialize progress tracking
+        # Initialize or reset progress tracking
+        if reset_progress or force:
+            await conn.execute("""
+                INSERT INTO historical_fetch_progress (
+                    guild_id, channel_id, last_fetched_message_id, oldest_message_id,
+                    total_fetched, fetch_completed, is_scanning, last_fetch_timestamp
+                )
+                VALUES (?, ?, NULL, NULL, 0, 0, 1, NULL)
+                ON CONFLICT(guild_id, channel_id) DO UPDATE SET
+                    last_fetched_message_id = NULL,
+                    oldest_message_id = NULL,
+                    total_fetched = 0,
+                    fetch_completed = 0,
+                    is_scanning = 1,
+                    last_fetch_timestamp = NULL
+            """, (guild_id, channel_id))
+        else:
             await conn.execute("""
                 INSERT OR IGNORE INTO historical_fetch_progress (guild_id, channel_id, is_scanning)
                 VALUES (?, ?, 1)
             """, (guild_id, channel_id))
 
-            await conn.commit()
+        await conn.commit()
+
+        if job_created:
             logging.info(f"Queued channel {channel_name} ({channel_id}) for historical fetch")
+        elif job_reset:
+            logging.info(f"Reset historical fetch job for channel {channel_name} ({channel_id})")
 
 async def get_guild_message_count(guild_id: str) -> int:
     """

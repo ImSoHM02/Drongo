@@ -14,6 +14,7 @@ export interface DashboardStats {
   recent_messages: RecentMessage[]
   recent_events: RecentEvent[]
   database_health: DatabaseHealth
+  guild_breakdown: GuildStats[]
   last_updated: string
 }
 
@@ -35,6 +36,26 @@ export interface DatabaseHealth {
   database_size_mb: number
   table_count: number
   index_count: number
+  database_files: number
+  system_databases: SystemDatabase[]
+}
+
+export interface SystemDatabase {
+  name: string
+  file: string
+  size_mb: number
+}
+
+export interface GuildStats {
+  guild_id: string
+  guild_name: string
+  total_messages: number
+  unique_users: number
+  active_channels: number
+  recent_activity: number
+  database_size_mb: number
+  last_message: string | null
+  is_scanning: boolean
 }
 
 export interface MessageActivity {

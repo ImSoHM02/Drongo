@@ -197,7 +197,7 @@ class HistoricalMessageFetcher:
     async def _store_historical_messages(self, guild_id: str, messages: list) -> int:
         """Store fetched messages in the guild database."""
         from database_pool import get_multi_guild_pool
-        from database import store_message
+        from database import store_message, store_message_components
 
         stored_count = 0
 
@@ -205,28 +205,15 @@ class HistoricalMessageFetcher:
         async with pool.get_guild_connection(guild_id) as conn:
             for message in reversed(messages):  # Store in chronological order
                 try:
-                    # Build full message content
-                    message_parts = []
+                    # Extract clean text only
+                    clean_text = message.clean_content.strip() if message.clean_content else ""
 
-                    if message.clean_content.strip():
-                        message_parts.append(message.clean_content.strip())
+                    # Store clean text in messages table
+                    message_id = await store_message(conn, message, clean_text)
 
-                    if message.attachments:
-                        message_parts.append(' '.join(attachment.url for attachment in message.attachments))
-
-                    if message.embeds:
-                        embed_fields = []
-                        for embed in message.embeds:
-                            if embed.fields:
-                                for field in embed.fields:
-                                    embed_fields.append(f"{field.name}: {field.value}")
-                        if embed_fields:
-                            message_parts.append(' '.join(embed_fields))
-
-                    full_message_content = ' '.join(message_parts)
-
-                    if full_message_content:
-                        await store_message(conn, message, full_message_content)
+                    # Store components (attachments, embeds, URLs) in separate databases
+                    if message_id:
+                        await store_message_components(message, message_id)
                         stored_count += 1
 
                 except Exception as e:

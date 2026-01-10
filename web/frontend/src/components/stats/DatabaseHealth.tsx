@@ -1,4 +1,4 @@
-import { Card, CardBody, Heading, VStack, Box, Text, Progress } from '@chakra-ui/react'
+import { Card, CardBody, Heading, VStack, Box, Text, Progress, HStack, Badge } from '@chakra-ui/react'
 import { DatabaseHealth as DatabaseHealthType } from '@/types/stats'
 
 interface DatabaseHealthProps {
@@ -14,9 +14,14 @@ const DatabaseHealth = ({ health }: DatabaseHealthProps) => {
         </Heading>
         <VStack spacing={4} align="stretch">
           <Box>
-            <Text fontSize="sm" color="gray.400" mb={2}>
-              Database Size
-            </Text>
+            <HStack justify="space-between" mb={2}>
+              <Text fontSize="sm" color="gray.400">
+                Total Database Size
+              </Text>
+              <Badge colorScheme="brand" fontSize="xs">
+                {health.database_files} Guild{health.database_files !== 1 ? 's' : ''}
+              </Badge>
+            </HStack>
             <Text fontSize="lg" fontWeight="bold">
               {health.database_size_mb.toFixed(2)} MB
             </Text>
@@ -32,19 +37,25 @@ const DatabaseHealth = ({ health }: DatabaseHealthProps) => {
 
           <Box>
             <Text fontSize="sm" color="gray.400" mb={2}>
-              Tables
+              Guild Databases
             </Text>
             <Text fontSize="lg" fontWeight="bold">
-              {health.table_count}
+              {health.database_files}
+            </Text>
+            <Text fontSize="xs" color="gray.500" mt={1}>
+              Separate database per guild
             </Text>
           </Box>
 
           <Box>
             <Text fontSize="sm" color="gray.400" mb={2}>
-              Indexes
+              Total Tables
             </Text>
             <Text fontSize="lg" fontWeight="bold">
-              {health.index_count}
+              {health.table_count}
+            </Text>
+            <Text fontSize="xs" color="gray.500" mt={1}>
+              {health.database_files > 0 ? `~${Math.round(health.table_count / health.database_files)} per guild` : '0 per guild'}
             </Text>
           </Box>
         </VStack>

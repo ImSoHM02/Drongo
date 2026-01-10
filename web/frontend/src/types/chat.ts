@@ -19,8 +19,6 @@ export interface ChatMessage {
   timestamp: string
   channel_id: string
   guild_id: string
-  attachments: string[]
-  embeds: number
 }
 
 export interface FetchProgress {

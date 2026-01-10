@@ -12,14 +12,12 @@ const StatsGrid = ({ stats }: StatsGridProps) => {
     { label: 'Commands Executed', value: formatNumber(stats.commands_executed), helpText: `${stats.command_rate}/min` },
     { label: 'Active Users', value: formatNumber(stats.active_users) },
     { label: 'Bot Guilds', value: formatNumber(stats.bot_guilds) },
-    { label: 'Memory Usage', value: formatBytes(stats.memory_usage) },
-    { label: 'CPU Usage', value: `${stats.cpu_usage.toFixed(1)}%` },
-    { label: 'Database Size', value: formatBytes(stats.database_size) },
+    { label: 'Database Size', value: `${stats.database_size.toFixed(2)} MB` },
     { label: 'Uptime', value: stats.uptime },
   ]
 
   return (
-    <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={4}>
+    <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
       {statItems.map((item) => (
         <Card key={item.label} bg="#1E1E1E">
           <CardBody>

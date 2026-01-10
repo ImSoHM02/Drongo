@@ -84,12 +84,41 @@ export const useRecentMessages = (
         timestamp: msg.timestamp,
         channel_id: msg.channel_id,
         guild_id: guildId,
-        attachments: [],
-        embeds: 0,
       })) as ChatMessage[]
     },
     enabled: !!guildId && !!channelId,
     refetchInterval: 5000, // Refresh every 5 seconds
+  })
+}
+
+export const useTriggerFullFetch = () => {
+  const toast = useToast()
+
+  return useMutation({
+    mutationFn: async (guildId: string) => {
+      const { data } = await api.post(`/chat/guild/${guildId}/fetch-all`)
+      return data
+    },
+    onSuccess: (data) => {
+      toast({
+        title: 'Full Fetch Started',
+        description: data.message || 'Historical message fetch has been queued',
+        status: 'success',
+        duration: 5000,
+        isClosable: true,
+        position: 'top-right',
+      })
+    },
+    onError: (error: any) => {
+      toast({
+        title: 'Error',
+        description: error.response?.data?.error || 'Failed to start full fetch',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+        position: 'top-right',
+      })
+    },
   })
 }
 

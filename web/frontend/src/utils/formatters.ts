@@ -16,6 +16,11 @@ export const formatBytes = (bytes: number): string => {
 
 export const formatDate = (dateString: string): string => {
   try {
+    // Handle null, undefined, or empty strings
+    if (!dateString || dateString.trim() === '') {
+      return 'N/A'
+    }
+
     const date = new Date(dateString)
     if (isNaN(date.getTime())) {
       return 'Invalid date'
@@ -28,6 +33,11 @@ export const formatDate = (dateString: string): string => {
 
 export const formatRelativeTime = (dateString: string): string => {
   try {
+    // Handle null, undefined, or empty strings
+    if (!dateString || dateString.trim() === '') {
+      return 'N/A'
+    }
+
     const date = new Date(dateString)
     if (isNaN(date.getTime())) {
       return 'Invalid date'

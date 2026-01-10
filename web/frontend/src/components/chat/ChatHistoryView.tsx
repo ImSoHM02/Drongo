@@ -15,7 +15,7 @@ import {
   FormLabel,
   Badge,
 } from '@chakra-ui/react'
-import { useChatGuilds, useChannels, useRecentMessages, useToggleLogging } from '@/hooks/useChatHistory'
+import { useChatGuilds, useChannels, useRecentMessages, useToggleLogging, useTriggerFullFetch } from '@/hooks/useChatHistory'
 import { useChatStore } from '@/stores/chatStore'
 import { formatDate } from '@/utils/formatters'
 
@@ -28,9 +28,14 @@ const ChatHistoryView = () => {
     selectedChannel
   )
   const toggleLogging = useToggleLogging()
+  const triggerFullFetch = useTriggerFullFetch()
 
   const handleToggleLogging = (guildId: string, enabled: boolean) => {
     toggleLogging.mutate({ guildId, enabled })
+  }
+
+  const handleFullFetch = (guildId: string) => {
+    triggerFullFetch.mutate(guildId)
   }
 
   return (
@@ -73,17 +78,29 @@ const ChatHistoryView = () => {
                         </Badge>
                       </HStack>
                       {selectedGuild === guild.id && (
-                        <FormControl display="flex" alignItems="center" mt={2}>
-                          <FormLabel mb={0} fontSize="xs">
-                            Logging
-                          </FormLabel>
-                          <Switch
-                            size="sm"
-                            isChecked={guild.logging_enabled}
-                            onChange={(e) => handleToggleLogging(guild.id, e.target.checked)}
+                        <>
+                          <FormControl display="flex" alignItems="center" mt={2}>
+                            <FormLabel mb={0} fontSize="xs">
+                              Logging
+                            </FormLabel>
+                            <Switch
+                              size="sm"
+                              isChecked={guild.logging_enabled}
+                              onChange={(e) => handleToggleLogging(guild.id, e.target.checked)}
+                              colorScheme="brand"
+                            />
+                          </FormControl>
+                          <Button
+                            size="xs"
+                            mt={2}
+                            w="100%"
                             colorScheme="brand"
-                          />
-                        </FormControl>
+                            onClick={() => handleFullFetch(guild.id)}
+                            isLoading={triggerFullFetch.isPending}
+                          >
+                            Full Fetch History
+                          </Button>
+                        </>
                       )}
                     </Box>
                   ))}
@@ -171,11 +188,7 @@ const ChatHistoryView = () => {
                         </Text>
                       </HStack>
                       <Text fontSize="sm">{message.content}</Text>
-                      {message.attachments && message.attachments.length > 0 && (
-                        <Badge colorScheme="blue" mt={2} fontSize="xs">
-                          {message.attachments.length} attachment(s)
-                        </Badge>
-                      )}
+
                     </Box>
                   ))}
                 </VStack>

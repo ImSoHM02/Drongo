@@ -3,6 +3,8 @@ import { useStats } from '@/hooks/useStats'
 import StatsGrid from './StatsGrid'
 import ActivityChart from './ActivityChart'
 import DatabaseHealth from './DatabaseHealth'
+import GuildBreakdown from './GuildBreakdown'
+import SystemDatabases from './SystemDatabases'
 
 const StatsView = () => {
   const { stats } = useStats()
@@ -39,6 +41,16 @@ const StatsView = () => {
           )}
           <DatabaseHealth health={stats.database_health} />
         </SimpleGrid>
+
+        {/* System Databases */}
+        {stats.database_health?.system_databases && stats.database_health.system_databases.length > 0 && (
+          <SystemDatabases databases={stats.database_health.system_databases} />
+        )}
+
+        {/* Guild Breakdown Table */}
+        {stats.guild_breakdown && stats.guild_breakdown.length > 0 && (
+          <GuildBreakdown guilds={stats.guild_breakdown} />
+        )}
       </VStack>
     </Box>
   )

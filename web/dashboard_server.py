@@ -320,42 +320,105 @@ real_time_stats = RealTimeStats()
 # Flag to trigger immediate broadcast
 _needs_immediate_broadcast = False
 
+async def get_message_components(guild_id: str, message_id: int) -> dict:
+    """
+    Attachments/embeds/URLs are no longer tracked separately; return empty components.
+    """
+    return {'attachments': [], 'embeds': [], 'urls': []}
+
 async def get_enhanced_stats():
     """Get comprehensive stats for the dashboard."""
     try:
+        from database_utils import get_all_guild_settings, is_guild_scanning
+        from database_schema import get_guild_config_db_path
+
         guild_db_paths = _list_guild_db_paths()
         total_messages = 0
         unique_users = 0
         recent_activity = 0
+        guild_breakdown = []
+
+        # Get guild settings for name resolution
+        guild_settings = await get_all_guild_settings()
+        guild_names = {s['guild_id']: s['guild_name'] for s in guild_settings}
 
         # Aggregate stats across all guild databases
         for db_file in guild_db_paths:
             try:
+                # Extract guild_id from path (database/{guild_id}/chat_history.db)
+                guild_id = os.path.basename(os.path.dirname(db_file))
+
                 async with aiosqlite.connect(db_file) as conn:
+                    # Total messages for this guild
                     async with conn.execute('SELECT COUNT(*) FROM messages') as cursor:
-                        total_messages += (await cursor.fetchone())[0]
+                        guild_messages = (await cursor.fetchone())[0]
+                        total_messages += guild_messages
 
+                    # Unique users for this guild
                     async with conn.execute('SELECT COUNT(DISTINCT user_id) FROM messages') as cursor:
-                        unique_users += (await cursor.fetchone())[0]
+                        guild_users = (await cursor.fetchone())[0]
+                        unique_users += guild_users
 
+                    # Recent activity for this guild
                     async with conn.execute('''
                         SELECT COUNT(*) FROM messages
                         WHERE datetime(timestamp) > datetime('now', '-1 hour')
                     ''') as cursor:
-                        recent_activity += (await cursor.fetchone())[0]
+                        guild_recent = (await cursor.fetchone())[0]
+                        recent_activity += guild_recent
+
+                    # Active channels for this guild
+                    async with conn.execute('SELECT COUNT(DISTINCT channel_id) FROM messages') as cursor:
+                        guild_channels = (await cursor.fetchone())[0]
+
+                    # Latest message timestamp
+                    async with conn.execute('SELECT timestamp FROM messages ORDER BY timestamp DESC LIMIT 1') as cursor:
+                        last_message_row = await cursor.fetchone()
+                        last_message = last_message_row[0] if last_message_row else None
+
+                # Get database size
+                db_size_mb = round(os.path.getsize(db_file) / (1024 * 1024), 2)
+
+                # Check if scanning
+                is_scanning = await is_guild_scanning(guild_id)
+
+                # Get guild name (resolve from Discord or use from settings)
+                guild_name = guild_names.get(guild_id)
+                if not guild_name:
+                    guild_name = await resolve_guild_name(guild_id)
+
+                guild_breakdown.append({
+                    'guild_id': guild_id,
+                    'guild_name': guild_name,
+                    'total_messages': guild_messages,
+                    'unique_users': guild_users,
+                    'active_channels': guild_channels,
+                    'recent_activity': guild_recent,
+                    'database_size_mb': db_size_mb,
+                    'last_message': last_message,
+                    'is_scanning': is_scanning
+                })
+
             except Exception as db_err:
                 logging.error(f"Error aggregating stats from {db_file}: {db_err}")
-        
+
+        # Sort guild breakdown by message count (descending)
+        guild_breakdown.sort(key=lambda x: x['total_messages'], reverse=True)
+
         # Get aggregated database health info
         health_info = await get_database_health()
-        
+
+        # Count bot guilds from database folders
+        bot_guilds_count = len(guild_breakdown)
+
         # Update real-time stats
         real_time_stats.update_stat("messages_processed", total_messages)
         real_time_stats.update_stat("active_users", unique_users)
         real_time_stats.update_stat("database_size", health_info["database_size_mb"])
+        real_time_stats.update_stat("bot_guilds", bot_guilds_count)
         real_time_stats.update_uptime()
         real_time_stats.update_rates()
-        
+
         # Compile comprehensive stats
         stats = {
             **real_time_stats.stats,
@@ -365,11 +428,12 @@ async def get_enhanced_stats():
             "recent_messages": list(real_time_stats.recent_messages),
             "recent_events": list(real_time_stats.recent_events),
             "database_health": health_info,
+            "guild_breakdown": guild_breakdown,
             "last_updated": datetime.now().isoformat()
         }
-        
+
         return stats
-        
+
     except Exception as e:
         logging.error(f"Error getting enhanced stats: {e}")
         return {
@@ -402,20 +466,44 @@ async def get_database_health():
             except FileNotFoundError:
                 continue
 
+        # Get system database information
+        base_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "database")
+        system_databases = []
+
+        system_db_files = {
+            'leveling_system.db': 'Leveling System',
+            'command_stats.db': 'Command Stats',
+            'system.db': 'System',
+            'guild_config.db': 'Guild Config',
+            'chat_history.db': 'Legacy Chat History'
+        }
+
+        for db_file, db_name in system_db_files.items():
+            db_path = os.path.join(base_dir, db_file)
+            if os.path.exists(db_path):
+                size_mb = round(os.path.getsize(db_path) / (1024 * 1024), 2)
+                system_databases.append({
+                    'name': db_name,
+                    'file': db_file,
+                    'size_mb': size_mb
+                })
+
         return {
             "database_size_mb": round(total_size_bytes / (1024 * 1024), 2) if total_size_bytes else 0,
             "table_count": len(db_paths) * 3,  # messages/last_message/embed_fields per guild
             "index_count": 0,  # not aggregated here
-            "database_files": len(db_paths)
+            "database_files": len(db_paths),
+            "system_databases": system_databases
         }
-        
+
     except Exception as e:
         logging.error(f"Error getting database health: {e}")
         return {
             "database_size_mb": 0,
             "table_count": 0,
             "index_count": 0,
-            "database_files": 0
+            "database_files": 0,
+            "system_databases": []
         }
 
 async def broadcast_stats():
@@ -2735,6 +2823,57 @@ async def get_fetch_progress():
 
     except Exception as e:
         logging.error(f"Error fetching progress: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/chat/guild/<guild_id>/fetch-all', methods=['POST'])
+async def trigger_full_fetch(guild_id):
+    """Trigger a full historical fetch for all channels in a guild."""
+    try:
+        from database_utils import queue_channel_for_historical_fetch
+
+        if not bot_instance:
+            return jsonify({'error': 'Bot instance not available'}), 503
+
+        # Ensure the historical fetcher is running so queued jobs get processed
+        if not getattr(bot_instance, 'historical_fetcher', None):
+            return jsonify({'error': 'Historical fetcher not initialized'}), 503
+        if not bot_instance.historical_fetcher.running:
+            await bot_instance.historical_fetcher.start()
+
+        # Get the guild
+        guild = bot_instance.get_guild(int(guild_id))
+        if not guild:
+            return jsonify({'error': 'Guild not found'}), 404
+
+        # Queue all text channels for historical fetch
+        queued_channels = []
+        for channel in guild.text_channels:
+            try:
+                # Check if bot has access to the channel
+                if channel.permissions_for(guild.me).read_message_history:
+                    await queue_channel_for_historical_fetch(
+                        guild_id=str(guild.id),
+                        channel_id=str(channel.id),
+                        channel_name=channel.name,
+                        priority=0,
+                        force=True,
+                        reset_progress=True
+                    )
+                    queued_channels.append({
+                        'id': str(channel.id),
+                        'name': channel.name
+                    })
+            except Exception as e:
+                logging.error(f"Error queueing channel {channel.name}: {e}")
+
+        return jsonify({
+            'success': True,
+            'message': f'Queued {len(queued_channels)} channels for historical fetch',
+            'channels': queued_channels
+        })
+
+    except Exception as e:
+        logging.error(f"Error triggering full fetch: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.before_serving
