@@ -180,7 +180,7 @@ async def close_all_pools():
 
 # Multi-guild database pool management
 from time import time
-from database_schema import get_guild_config_db_path, get_guild_db_path
+from .database_schema import get_guild_config_db_path, get_guild_db_path
 
 class MultiGuildDatabasePool:
     """

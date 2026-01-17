@@ -74,7 +74,7 @@ class HistoricalMessageFetcher:
 
     async def _get_next_job(self) -> Optional[dict]:
         """Get the next channel to fetch from the queue."""
-        from database_schema import get_guild_config_db_path
+        from database_modules.database_schema import get_guild_config_db_path
 
         config_db_path = get_guild_config_db_path()
 
@@ -196,8 +196,8 @@ class HistoricalMessageFetcher:
 
     async def _store_historical_messages(self, guild_id: str, messages: list) -> int:
         """Store fetched messages in the guild database."""
-        from database_pool import get_multi_guild_pool
-        from database import store_message, store_message_components
+        from database_modules.database_pool import get_multi_guild_pool
+        from database_modules.database import store_message, store_message_components
 
         stored_count = 0
 
@@ -223,7 +223,7 @@ class HistoricalMessageFetcher:
 
     async def _get_fetch_progress(self, guild_id: str, channel_id: str) -> dict:
         """Get fetch progress for a channel."""
-        from database_schema import get_guild_config_db_path
+        from database_modules.database_schema import get_guild_config_db_path
 
         config_db_path = get_guild_config_db_path()
 
@@ -240,7 +240,7 @@ class HistoricalMessageFetcher:
 
     async def _update_fetch_progress(self, guild_id: str, channel_id: str, last_message_id: str, total_fetched: int):
         """Update fetch progress for a channel."""
-        from database_schema import get_guild_config_db_path
+        from database_modules.database_schema import get_guild_config_db_path
 
         config_db_path = get_guild_config_db_path()
 
@@ -259,7 +259,7 @@ class HistoricalMessageFetcher:
 
     async def _mark_channel_fetch_completed(self, guild_id: str, channel_id: str):
         """Mark a channel as completely fetched."""
-        from database_schema import get_guild_config_db_path
+        from database_modules.database_schema import get_guild_config_db_path
 
         config_db_path = get_guild_config_db_path()
 
@@ -276,7 +276,7 @@ class HistoricalMessageFetcher:
 
     async def _mark_job_completed(self, job_id: int, success: bool = True, error: str = None):
         """Mark a fetch job as completed."""
-        from database_schema import get_guild_config_db_path
+        from database_modules.database_schema import get_guild_config_db_path
 
         config_db_path = get_guild_config_db_path()
 
@@ -292,7 +292,7 @@ class HistoricalMessageFetcher:
 
     async def _requeue_job(self, job_id: int):
         """Re-queue a job for the next batch."""
-        from database_schema import get_guild_config_db_path
+        from database_modules.database_schema import get_guild_config_db_path
 
         config_db_path = get_guild_config_db_path()
 
@@ -312,7 +312,7 @@ class HistoricalMessageFetcher:
 
     async def _reset_stuck_jobs(self):
         """Reset any jobs left in 'in_progress' after an unexpected shutdown."""
-        from database_schema import get_guild_config_db_path
+        from database_modules.database_schema import get_guild_config_db_path
 
         config_db_path = get_guild_config_db_path()
 

@@ -5,7 +5,7 @@ import aiosqlite
 import os
 from discord.ext import commands
 from discord import app_commands
-from database_schema import get_guild_db_path
+from database_modules.database_schema import get_guild_db_path
 
 class WordCountCog(commands.Cog):
     def __init__(self, bot):

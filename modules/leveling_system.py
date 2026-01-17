@@ -5,7 +5,7 @@ from typing import Optional, Dict, Any, List, Tuple
 from math import sqrt
 
 import discord
-from database_pool import get_leveling_pool
+from database_modules.database_pool import get_leveling_pool
 
 class LevelingSystem:
     """

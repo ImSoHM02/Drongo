@@ -211,7 +211,7 @@ class LevelingCog(commands.Cog):
             return
         
         try:
-            from database_pool import get_leveling_pool
+            from database_modules.database_pool import get_leveling_pool
             pool = await get_leveling_pool()
             
             # Validate and convert the value based on setting type
@@ -417,7 +417,7 @@ class LevelingCog(commands.Cog):
         xp_to_add = required_xp - total_xp
 
         if xp_to_add > 0:
-            from database_pool import get_leveling_pool
+            from database_modules.database_pool import get_leveling_pool
             pool = await get_leveling_pool()
             await pool.execute_write(
                 "UPDATE user_levels SET total_xp = ?, current_xp = ? WHERE user_id = ? AND guild_id = ?",
@@ -450,7 +450,7 @@ class LevelingCog(commands.Cog):
             await interaction.followup.send("XP must be a positive value.", ephemeral=True)
             return
 
-        from database_pool import get_leveling_pool
+        from database_modules.database_pool import get_leveling_pool
 
         user_id = str(user.id)
         guild_id = str(interaction.guild_id)
@@ -543,7 +543,7 @@ class LevelingCog(commands.Cog):
         new_level = max(0, current_level - levels)
         required_xp = self.leveling_system.get_xp_required_for_level(new_level)
 
-        from database_pool import get_leveling_pool
+        from database_modules.database_pool import get_leveling_pool
         pool = await get_leveling_pool()
         await pool.execute_write(
             "UPDATE user_levels SET total_xp = ?, current_xp = 0, current_level = ? WHERE user_id = ? AND guild_id = ?",

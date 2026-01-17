@@ -2,7 +2,7 @@ import logging
 import asyncio
 from typing import List, Dict, Any, Tuple
 from datetime import datetime, timedelta
-from database_pool import get_main_pool
+from .database_pool import get_main_pool
 import discord
 
 class OptimizedDatabase:
@@ -290,7 +290,7 @@ async def flush_pending_messages():
 # Guild configuration and multi-guild database functions
 import os
 import aiosqlite
-from database_schema import (
+from .database_schema import (
     GUILD_CONFIG_SCHEMA,
     PER_GUILD_SCHEMA,
     ATTACHMENTS_SCHEMA,

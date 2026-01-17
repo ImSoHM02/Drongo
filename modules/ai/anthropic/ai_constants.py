@@ -56,7 +56,7 @@ LISTMODES_SEPARATOR = "\n- - - - - - - - - -"
 TEXT_FILE_EXTENSIONS = ('.txt', '.py', '.js', '.html', '.css', '.json', '.xml', '.md')
 
 # Model constants
-DEFAULT_MODEL = "claude-3-7-sonnet-20250219"
+DEFAULT_MODEL = "claude-haiku-4-5-20251001"
 DEFAULT_MAX_TOKENS = 8192
 DEFAULT_TEMPERATURE = 0.8
 BRIEF_MAX_TOKENS = 150

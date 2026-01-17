@@ -4,7 +4,7 @@ from discord import app_commands
 import re
 import aiosqlite
 import os
-from database_schema import get_guild_db_path
+from database_modules.database_schema import get_guild_db_path
 
 class WordRankCog(commands.Cog):
     def __init__(self, bot):

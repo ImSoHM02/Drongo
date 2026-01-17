@@ -43,7 +43,7 @@ def validate_guild_id(guild_id):
 
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from database import get_leveling_db_connection
+from database_modules.database import get_leveling_db_connection
 from modules.leveling_system import get_leveling_system
 
 # Path to React build directory
@@ -329,8 +329,8 @@ async def get_message_components(guild_id: str, message_id: int) -> dict:
 async def get_enhanced_stats():
     """Get comprehensive stats for the dashboard."""
     try:
-        from database_utils import get_all_guild_settings, is_guild_scanning
-        from database_schema import get_guild_config_db_path
+        from database_modules.database_utils import get_all_guild_settings, is_guild_scanning
+        from database_modules.database_schema import get_guild_config_db_path
 
         guild_db_paths = _list_guild_db_paths()
         total_messages = 0
@@ -2393,8 +2393,8 @@ async def stats_broadcast_loop():
 async def get_chat_guilds():
     """Get all guilds with chat logging info."""
     try:
-        from database_utils import get_all_guild_settings, get_guild_message_count, is_guild_scanning
-        from database_schema import get_guild_config_db_path
+        from database_modules.database_utils import get_all_guild_settings, get_guild_message_count, is_guild_scanning
+        from database_modules.database_schema import get_guild_config_db_path
         import aiosqlite
 
         guild_settings = await get_all_guild_settings()
@@ -2424,7 +2424,7 @@ async def get_chat_guilds():
                     completed_channels = row[1] if row and row[1] else 0
 
                 # Get last message time
-                from database_schema import get_guild_db_path
+                from database_modules.database_schema import get_guild_db_path
                 import os
                 guild_db_path = get_guild_db_path(guild_id)
                 last_message_time = None
@@ -2471,7 +2471,7 @@ async def get_chat_guilds():
 async def guild_chat_settings(guild_id):
     """Get or update guild chat settings."""
     try:
-        from database_utils import get_guild_settings, update_guild_logging
+        from database_modules.database_utils import get_guild_settings, update_guild_logging
 
         if request.method == 'GET':
             settings = await get_guild_settings(guild_id)
@@ -2493,7 +2493,7 @@ async def guild_chat_settings(guild_id):
 async def get_guild_channels(guild_id):
     """Get all channels for a guild with message counts."""
     try:
-        from database_schema import get_guild_db_path
+        from database_modules.database_schema import get_guild_db_path
         import os
         import aiosqlite
 
@@ -2543,7 +2543,7 @@ async def get_guild_channels(guild_id):
 async def get_guild_messages(guild_id):
     """Get messages for a guild/channel."""
     try:
-        from database_schema import get_guild_db_path
+        from database_modules.database_schema import get_guild_db_path
         import os
         import aiosqlite
 
@@ -2633,7 +2633,7 @@ async def get_guild_messages(guild_id):
 async def get_recent_messages(guild_id):
     """Get recent 50 messages for a guild."""
     try:
-        from database_schema import get_guild_db_path
+        from database_modules.database_schema import get_guild_db_path
         import os
         import aiosqlite
 
@@ -2701,8 +2701,8 @@ async def get_recent_messages(guild_id):
 async def get_guild_chat_stats(guild_id):
     """Get statistics for a guild."""
     try:
-        from database_utils import get_guild_message_count, is_guild_scanning
-        from database_schema import get_guild_config_db_path, get_guild_db_path
+        from database_modules.database_utils import get_guild_message_count, is_guild_scanning
+        from database_modules.database_schema import get_guild_config_db_path, get_guild_db_path
         import os
         import aiosqlite
 
@@ -2780,7 +2780,7 @@ async def get_guild_chat_stats(guild_id):
 async def get_fetch_progress():
     """Get historical fetch progress for all guilds."""
     try:
-        from database_schema import get_guild_config_db_path
+        from database_modules.database_schema import get_guild_config_db_path
         import aiosqlite
 
         config_db_path = get_guild_config_db_path()
@@ -2829,7 +2829,7 @@ async def get_fetch_progress():
 async def trigger_full_fetch(guild_id):
     """Trigger a full historical fetch for all channels in a guild."""
     try:
-        from database_utils import queue_channel_for_historical_fetch
+        from database_modules.database_utils import queue_channel_for_historical_fetch
 
         if not bot_instance:
             return jsonify({'error': 'Bot instance not available'}), 503

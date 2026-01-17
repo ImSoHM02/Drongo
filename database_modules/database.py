@@ -1,11 +1,11 @@
 import logging
 import re
-from database_pool import (
+from .database_pool import (
     get_main_pool,
     get_db_connection as pool_get_connection,
     DEFAULT_LEVELING_DB_PATH,
 )
-from database_utils import optimized_db, batch_store_message
+from .database_utils import optimized_db, batch_store_message
 
 # Basic URL matcher for stripping links from stored message content
 URL_PATTERN = re.compile(r'https?://\S+|www\.\S+')
@@ -158,7 +158,7 @@ async def store_message_components(message, message_id):
 
 async def store_attachments(guild_id, message_id, user_id, channel_id, timestamp, attachments):
     """Store message attachments in attachments.db"""
-    from database_schema import get_attachments_db_path
+    from .database_schema import get_attachments_db_path
     import aiosqlite
 
     db_path = get_attachments_db_path(guild_id)
@@ -183,7 +183,7 @@ async def store_attachments(guild_id, message_id, user_id, channel_id, timestamp
 
 async def store_embeds(guild_id, message_id, user_id, channel_id, timestamp, embeds):
     """Store message embeds in embeds.db"""
-    from database_schema import get_embeds_db_path
+    from .database_schema import get_embeds_db_path
     import aiosqlite
 
     db_path = get_embeds_db_path(guild_id)
@@ -234,7 +234,7 @@ async def store_urls(guild_id, message_id, user_id, channel_id, timestamp, conte
     Extract and store URLs from message content in urls.db.
     Excludes Discord CDN URLs (those are in attachments.db).
     """
-    from database_schema import get_urls_db_path
+    from .database_schema import get_urls_db_path
     from urllib.parse import urlparse
     import aiosqlite
 
@@ -289,7 +289,7 @@ async def count_links(conn, user_id, guild_id):
         user_id: Discord user ID
         guild_id: Discord guild ID
     """
-    from database_schema import get_urls_db_path
+    from .database_schema import get_urls_db_path
     import aiosqlite
 
     db_path = get_urls_db_path(guild_id)
@@ -316,7 +316,7 @@ async def count_attachments(conn, user_id, guild_id):
         user_id: Discord user ID
         guild_id: Discord guild ID
     """
-    from database_schema import get_attachments_db_path
+    from .database_schema import get_attachments_db_path
     import aiosqlite
 
     db_path = get_attachments_db_path(guild_id)

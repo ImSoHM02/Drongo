@@ -5,9 +5,9 @@ import signal
 import asyncio
 import webbrowser
 from discord.ext import commands
-from database import store_message, store_message_components, get_db_connection, set_last_message_id, get_last_message_id, initialize_database, flush_message_batches
-from database_pool import close_all_pools
-import command_database
+from database_modules.database import store_message, store_message_components, get_db_connection, set_last_message_id, get_last_message_id, initialize_database, flush_message_batches
+from database_modules.database_pool import close_all_pools
+from database_modules import command_database
 from dotenv import load_dotenv
 from modules.dashboard_manager import DashboardManager
 from web.dashboard_server import app as dashboard_app, set_bot_instance
@@ -136,7 +136,7 @@ class DrongoBot(commands.Bot):
 
                     # Cleanup inactive guild database pools
                     try:
-                        from database_pool import get_multi_guild_pool
+                        from database_modules.database_pool import get_multi_guild_pool
                         multi_pool = await get_multi_guild_pool()
                         await multi_pool.cleanup_inactive_pools()
                     except Exception as e:
@@ -326,7 +326,7 @@ class DrongoBot(commands.Bot):
         self.logger.info("Loaded all command modules.")
         
         # NOW process recent historical messages for all guilds after commands are loaded
-        from database_pool import get_multi_guild_pool
+        from database_modules.database_pool import get_multi_guild_pool
         multi_pool = await get_multi_guild_pool()
         self.logger.info('Processing recent historical chat messages for all guilds...')
         for guild in self.guilds:
@@ -388,15 +388,15 @@ class DrongoBot(commands.Bot):
 
                 # Store messages for all guilds (multi-guild support)
                 if message.guild:
-                    from database_utils import get_guild_settings, ensure_guild_database_exists
-                    from database_pool import get_multi_guild_pool
+                    from database_modules.database_utils import get_guild_settings, ensure_guild_database_exists
+                    from database_modules.database_pool import get_multi_guild_pool
 
                     # Check if logging is enabled for this guild
                     guild_settings = await get_guild_settings(str(message.guild.id))
 
                     # If guild not in config yet, initialize it
                     if not guild_settings:
-                        from database_utils import add_guild_to_config
+                        from database_modules.database_utils import add_guild_to_config
                         await ensure_guild_database_exists(str(message.guild.id))
                         await add_guild_to_config(str(message.guild.id), message.guild.name, logging_enabled=True)
                         guild_settings = {'logging_enabled': 1}
@@ -538,7 +538,7 @@ class DrongoBot(commands.Bot):
 
     async def on_guild_join(self, guild: discord.Guild):
         """Called when the bot joins a new guild."""
-        from database_utils import (
+        from database_modules.database_utils import (
             ensure_guild_database_exists,
             add_guild_to_config,
             queue_channel_for_historical_fetch
@@ -572,8 +572,8 @@ class DrongoBot(commands.Bot):
 
     async def on_guild_remove(self, guild: discord.Guild):
         """Called when the bot leaves a guild."""
-        from database_utils import update_guild_logging
-        from database_pool import get_multi_guild_pool
+        from database_modules.database_utils import update_guild_logging
+        from database_modules.database_pool import get_multi_guild_pool
 
         try:
             self.logger.info(f"Left guild: {guild.name} (ID: {guild.id})")
@@ -595,7 +595,7 @@ class DrongoBot(commands.Bot):
 
     async def initialize_existing_guilds(self):
         """Initialize databases for all guilds the bot is currently in."""
-        from database_utils import (
+        from database_modules.database_utils import (
             ensure_guild_database_exists,
             add_guild_to_config,
             queue_channel_for_historical_fetch,
@@ -680,7 +680,7 @@ def signal_handler(sig, frame):
                 await close_all_pools()
 
                 # Close multi-guild pools
-                from database_pool import get_multi_guild_pool
+                from database_modules.database_pool import get_multi_guild_pool
                 multi_pool = await get_multi_guild_pool()
                 await multi_pool.close_all()
 

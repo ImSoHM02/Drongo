@@ -7,8 +7,8 @@ import asyncio
 import time
 import logging
 from datetime import datetime
-from database_pool import get_main_pool
-from database_utils import optimized_db
+from .database_pool import get_main_pool
+from .database_utils import optimized_db
 
 async def benchmark_queries():
     """Benchmark common database operations."""
