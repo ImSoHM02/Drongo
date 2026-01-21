@@ -46,11 +46,11 @@ COMMAND_SETMODE_DESC = "Set the bot's response mode"
 COMMAND_LISTMODES_DESC = "List all available response modes"
 
 # Response format strings
-LISTMODES_HEADER = "**Eshay bah! Here's all me different moods ay:**\n"
+LISTMODES_HEADER = "**Available AI Modes:**\n"
 LISTMODES_NAME_FORMAT = "\n**{name}**"
-LISTMODES_CHANCE_FORMAT = "\n- Chance of me poppin' off: {chance:.1f}%"
-LISTMODES_RATIO_FORMAT = "\n- Ratio of insults to compliments: {insult:.0f}/{compliment:.0f}"
-LISTMODES_SEPARATOR = "\n- - - - - - - - - -"
+LISTMODES_CHANCE_FORMAT = "\n• Response chance: {chance:.1f}%"
+LISTMODES_RATIO_FORMAT = "\n• Ratio: {insult:.0f}% insults / {compliment:.0f}% compliments"
+LISTMODES_SEPARATOR = "\n"
 
 # File type constants
 TEXT_FILE_EXTENSIONS = ('.txt', '.py', '.js', '.html', '.css', '.json', '.xml', '.md')

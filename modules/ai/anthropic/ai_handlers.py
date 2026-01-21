@@ -123,12 +123,7 @@ class ProbabilityManager:
     def __init__(self):
         # Initialize default configuration
         self.default_config = ProbabilityConfig(**DEFAULT_CONFIG)
-        
-        # Current configuration
-        self.random_response_chance = self.default_config.total_chance
-        self.insult_weight = self.default_config.insult_weight
-        self.compliment_weight = self.default_config.compliment_weight
-        
+
         # Predefined configurations
         self.configs = {
             CONFIG_NAME_DEFAULT: self.default_config,
@@ -137,57 +132,74 @@ class ProbabilityManager:
             CONFIG_NAME_TEST_INSULTS: ProbabilityConfig(**TEST_INSULTS_CONFIG),
             CONFIG_NAME_TEST_COMPLIMENTS: ProbabilityConfig(**TEST_COMPLIMENTS_CONFIG)
         }
-        
-        # Timer task
-        self.active_timer: Optional[asyncio.Task] = None
 
-    def update_probabilities(self, total_chance: Optional[float] = None,
+        # Per-guild configuration storage
+        # Structure: {guild_id: {"chance": float, "insult": float, "compliment": float}}
+        self.guild_configs: Dict[str, Dict[str, float]] = {}
+
+        # Per-guild timer tasks
+        self.guild_timers: Dict[str, asyncio.Task] = {}
+
+    def get_guild_config(self, guild_id: str) -> Dict[str, float]:
+        # Get configuration for a specific guild, or default if not set
+        if guild_id not in self.guild_configs:
+            return {
+                "chance": self.default_config.total_chance,
+                "insult": self.default_config.insult_weight,
+                "compliment": self.default_config.compliment_weight
+            }
+        return self.guild_configs[guild_id]
+
+    def update_probabilities(self, guild_id: str, total_chance: Optional[float] = None,
                            insult_weight: Optional[float] = None,
                            compliment_weight: Optional[float] = None) -> None:
-        # Update the probability configuration
+        # Update the probability configuration for a specific guild
+        config = self.get_guild_config(guild_id)
+
         if total_chance is not None:
-            self.random_response_chance = max(0, min(1, total_chance))
-        
+            config["chance"] = max(0, min(1, total_chance))
+
         if insult_weight is not None and compliment_weight is not None:
             total_weight = insult_weight + compliment_weight
             if total_weight > 0:
-                self.insult_weight = insult_weight / total_weight
-                self.compliment_weight = compliment_weight / total_weight
+                config["insult"] = insult_weight / total_weight
+                config["compliment"] = compliment_weight / total_weight
 
-    async def reset_to_default(self) -> None:
-        # Reset probabilities to default configuration
-        self.update_probabilities(
-            self.default_config.total_chance,
-            self.default_config.insult_weight,
-            self.default_config.compliment_weight
-        )
+        self.guild_configs[guild_id] = config
 
-    async def set_config(self, config_name: str, duration: Optional[int] = None) -> None:
-        # Set a predefined configuration with optional duration
+    async def reset_to_default(self, guild_id: str) -> None:
+        # Reset probabilities to default configuration for a specific guild
+        if guild_id in self.guild_configs:
+            del self.guild_configs[guild_id]
+
+    async def set_config(self, guild_id: str, config_name: str, duration: Optional[int] = None) -> None:
+        # Set a predefined configuration with optional duration for a specific guild
         if config_name not in self.configs:
             raise ValueError(ERROR_MESSAGES["mode_error"])
-            
+
         config = self.configs[config_name]
         self.update_probabilities(
+            guild_id,
             config.total_chance,
             config.insult_weight,
             config.compliment_weight
         )
-        
-        # Cancel any existing timer
-        if self.active_timer:
-            self.active_timer.cancel()
-            self.active_timer = None
-            
+
+        # Cancel any existing timer for this guild
+        if guild_id in self.guild_timers:
+            self.guild_timers[guild_id].cancel()
+            del self.guild_timers[guild_id]
+
         # Set up new timer if duration is specified
         if duration:
-            self.active_timer = asyncio.create_task(self._config_timer(duration))
+            self.guild_timers[guild_id] = asyncio.create_task(self._config_timer(guild_id, duration))
 
-    async def _config_timer(self, duration: int) -> None:
-        # Internal timer for resetting configuration after duration
+    async def _config_timer(self, guild_id: str, duration: int) -> None:
+        # Internal timer for resetting configuration after duration for a specific guild
         await asyncio.sleep(duration)
-        await self.reset_to_default()
-        self.active_timer = None
+        await self.reset_to_default(guild_id)
+        if guild_id in self.guild_timers:
+            del self.guild_timers[guild_id]
 
     def get_config(self, config_name: str) -> ProbabilityConfig:
         # Get a configuration by name

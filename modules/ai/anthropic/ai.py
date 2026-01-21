@@ -185,11 +185,11 @@ class AIHandler:
     async def process_message(self, message: discord.Message) -> str:
         # Process a message and generate appropriate responses.
         self.bot.logger.info(f"Processing message: {message.content}")
-        
+
         # Process text attachments
         text_contents = []
         image_attachments = []
-        
+
         for attachment in message.attachments:
             if attachment.filename.lower().endswith(TEXT_FILE_EXTENSIONS):
                 content = await self.attachment_handler.process_text_attachment(attachment)
@@ -212,15 +212,19 @@ class AIHandler:
         cleaned_content = re.sub(TRIGGER_PATTERN, '', message.clean_content, flags=re.IGNORECASE).strip()
         full_message_content = f"{referenced_content}{cleaned_content}\n\n{''.join(text_contents)}".strip()
 
+        # Get guild-specific configuration
+        guild_id = str(message.guild.id) if message.guild else "DM"
+        guild_config = self.probability_manager.get_guild_config(guild_id)
+
         # Check for trigger phrase
         if message.content.lower().startswith(TRIGGER_PHRASE):
             self.bot.logger.info(f"Detected '{TRIGGER_PHRASE}' trigger")
             await self.handle_oi_drongo(message, full_message_content, image_attachments)
-        # Check for random response using configured probabilities
-        elif random.random() < self.probability_manager.random_response_chance:
+        # Check for random response using guild-specific configured probabilities
+        elif random.random() < guild_config["chance"]:
             self.bot.logger.info("Random response triggered")
             # Use weighted random choice for insult vs compliment
-            if random.random() < self.probability_manager.insult_weight:
+            if random.random() < guild_config["insult"]:
                 await self.generate_insult(message, full_message_content)
             else:
                 await self.generate_compliment(message, full_message_content)
@@ -263,34 +267,53 @@ class AIHandler:
             return ERROR_MESSAGES["mode_change_error"].format(error=str(e))
 
     async def setmode_command(self, interaction: discord.Interaction, mode: str, duration: Optional[int] = None) -> None:
-        # Set the bot's response mode with optional duration.
+        # Set the bot's response mode with optional duration for this server.
         if str(interaction.user.id) != self.bot.authorized_user_id:
             await interaction.response.send_message(ERROR_MESSAGES["unauthorized"], ephemeral=True)
             return
 
-        await interaction.response.defer()
+        # Get guild ID
+        guild_id = str(interaction.guild.id) if interaction.guild else "DM"
 
         try:
-            await self.probability_manager.set_config(mode, duration)
-            response = await self.generate_mode_response(mode, duration)
-            await interaction.followup.send(response)
+            await self.probability_manager.set_config(guild_id, mode, duration)
+            config = self.probability_manager.get_config(mode)
+
+            # Build confirmation message
+            if duration:
+                confirmation = f"Mode set to **{mode}** for {duration} seconds.\n"
+            else:
+                confirmation = f"Mode set to **{mode}**.\n"
+
+            confirmation += f"Response chance: {config.total_chance * 100}%\n"
+            confirmation += f"Ratio: {config.insult_weight * 100}% insults, {config.compliment_weight * 100}% compliments\n\n"
+
+            # List all available modes
+            confirmation += "**Available modes:**\n"
+            for name, cfg in self.probability_manager.list_configs().items():
+                confirmation += f"• `{name}`: {cfg.total_chance * 100}% chance, "
+                confirmation += f"{cfg.insult_weight * 100}% insults / {cfg.compliment_weight * 100}% compliments\n"
+
+            await interaction.response.send_message(confirmation, ephemeral=True)
         except ValueError as e:
             error_msg = f"""
                             Error setting mode (ValueError):
                             Time: {datetime.datetime.now()}
                             User: {interaction.user} ({interaction.user.id})
+                            Guild: {guild_id}
                             Mode: {mode}
                             Duration: {duration}
                             Error: {str(e)}
                         """
             self.bot.logger.error(error_msg)
-            await interaction.followup.send(str(e), ephemeral=True)
+            await interaction.response.send_message(str(e), ephemeral=True)
         except Exception as e:
             error_traceback = traceback.format_exc()
             error_msg = f"""
                             Error setting mode:
                             Time: {datetime.datetime.now()}
                             User: {interaction.user} ({interaction.user.id})
+                            Guild: {guild_id}
                             Mode: {mode}
                             Duration: {duration}
                             Error: {str(e)}
@@ -298,7 +321,7 @@ class AIHandler:
                             {error_traceback}
                         """
             self.bot.logger.error(error_msg)
-            await interaction.followup.send(f"Error: {str(e)}", ephemeral=True)
+            await interaction.response.send_message(f"Error: {str(e)}", ephemeral=True)
 
     async def listmodes_command(self, interaction: discord.Interaction) -> None:
         # List all available response modes.
@@ -315,8 +338,8 @@ class AIHandler:
                 compliment=config.compliment_weight * 100
             )
             response += LISTMODES_SEPARATOR
-        
-        await interaction.response.send_message(response)
+
+        await interaction.response.send_message(response, ephemeral=True)
 
 def setup(bot: discord.Client) -> None:
     # Set up the AI handler and register commands.

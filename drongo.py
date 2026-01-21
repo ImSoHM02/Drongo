@@ -275,7 +275,6 @@ class DrongoBot(commands.Bot):
         await self.load_extension("modules.cogs.wordcount_cog")
         await self.load_extension("modules.cogs.emoji_downloader_cog")
         await self.load_extension("modules.cogs.clearchat_cog")
-        await self.load_extension("modules.cogs.message_stats_cog")
         await self.load_extension("modules.cogs.restart_cog")
         await self.load_extension("modules.cogs.steam_commands_cog")
         await self.load_extension("modules.cogs.wordrank_cog")
