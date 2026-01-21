@@ -16,3 +16,10 @@ export interface BotStatus {
   uptime: string
   guilds: number
 }
+
+export interface BotConfig {
+  guild_id: string
+  guild_name: string
+  bot_name: string
+  current_nickname: string | null
+}

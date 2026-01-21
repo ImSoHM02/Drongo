@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS guild_settings (
     guild_id TEXT PRIMARY KEY,
     guild_name TEXT NOT NULL,
     logging_enabled INTEGER DEFAULT 1,
+    bot_name TEXT DEFAULT 'drongo',
     date_joined TEXT NOT NULL,
     last_updated TEXT NOT NULL
 );

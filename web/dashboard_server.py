@@ -715,6 +715,119 @@ async def api_bot_shutdown():
         return jsonify({"error": str(e)}), 500
 
 # =========================================================================
+# BOT CONFIGURATION API ROUTES
+# =========================================================================
+
+@app.route('/api/bot/config/<guild_id>', methods=['GET'])
+async def api_get_bot_config(guild_id):
+    """Get bot configuration for a specific guild."""
+    try:
+        from database_modules.database_utils import get_guild_settings
+
+        # Validate guild_id
+        validated_guild_id = validate_guild_id(guild_id)
+        if validated_guild_id is None:
+            return jsonify({"error": "Invalid guild_id"}), 400
+
+        settings = await get_guild_settings(str(validated_guild_id))
+
+        if not settings:
+            return jsonify({"error": "Guild not found"}), 404
+
+        # Get current nickname from Discord
+        current_nickname = None
+        if bot_instance and bot_instance.is_ready():
+            try:
+                guild = bot_instance.get_guild(validated_guild_id)
+                if guild and guild.me:
+                    current_nickname = guild.me.nick
+            except Exception as e:
+                logging.error(f"Error getting nickname: {e}")
+
+        return jsonify({
+            "guild_id": str(validated_guild_id),
+            "guild_name": settings.get('guild_name', ''),
+            "bot_name": settings.get('bot_name', 'drongo'),
+            "current_nickname": current_nickname
+        })
+    except Exception as e:
+        logging.error(f"Error getting bot config: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/bot/config/<guild_id>', methods=['POST'])
+async def api_update_bot_config(guild_id):
+    """Update bot configuration for a specific guild."""
+    try:
+        from database_modules.database_utils import update_guild_bot_name
+
+        # Validate guild_id
+        validated_guild_id = validate_guild_id(guild_id)
+        if validated_guild_id is None:
+            return jsonify({"error": "Invalid guild_id"}), 400
+
+        data = await request.get_json()
+        bot_name = data.get('bot_name', '').strip().lower()
+
+        if not bot_name:
+            return jsonify({"error": "bot_name is required"}), 400
+
+        if len(bot_name) > 32:
+            return jsonify({"error": "bot_name must be 32 characters or less"}), 400
+
+        # Update bot name in database
+        await update_guild_bot_name(str(validated_guild_id), bot_name)
+
+        # Clear the AI handler's bot name cache for this guild
+        if bot_instance and hasattr(bot_instance, 'ai_handler'):
+            bot_instance.ai_handler.clear_bot_name_cache(str(validated_guild_id))
+
+        return jsonify({
+            "success": True,
+            "message": "Bot configuration updated",
+            "bot_name": bot_name
+        })
+    except Exception as e:
+        logging.error(f"Error updating bot config: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/bot/nickname/<guild_id>', methods=['POST'])
+async def api_update_bot_nickname(guild_id):
+    """Update bot nickname for a specific guild."""
+    try:
+        # Validate guild_id
+        validated_guild_id = validate_guild_id(guild_id)
+        if validated_guild_id is None:
+            return jsonify({"error": "Invalid guild_id"}), 400
+
+        data = await request.get_json()
+        nickname = data.get('nickname', '').strip()
+
+        if len(nickname) > 32:
+            return jsonify({"error": "nickname must be 32 characters or less"}), 400
+
+        # Update nickname via Discord API
+        if not bot_instance or not bot_instance.is_ready():
+            return jsonify({"error": "Bot is not ready"}), 503
+
+        guild = bot_instance.get_guild(validated_guild_id)
+        if not guild:
+            return jsonify({"error": "Guild not found"}), 404
+
+        # Set the nickname (None to reset to default)
+        await guild.me.edit(nick=nickname if nickname else None)
+
+        return jsonify({
+            "success": True,
+            "message": "Nickname updated",
+            "nickname": nickname if nickname else None
+        })
+    except discord.Forbidden:
+        return jsonify({"error": "Bot lacks permissions to change nickname"}), 403
+    except Exception as e:
+        logging.error(f"Error updating nickname: {e}")
+        return jsonify({"error": str(e)}), 500
+
+# =========================================================================
 # LEVELING SYSTEM API ROUTES
 # =========================================================================
 

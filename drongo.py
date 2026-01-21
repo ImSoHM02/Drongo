@@ -267,6 +267,10 @@ class DrongoBot(commands.Bot):
         # Initialize guild databases for multi-guild chat history
         await self.initialize_existing_guilds()
 
+        # Run database migration for bot_name column
+        from database_modules.database_utils import migrate_guild_config_add_bot_name
+        await migrate_guild_config_add_bot_name()
+
         # PRIORITY: Load commands FIRST before processing messages
         self.logger.info("Loading command modules...")
         

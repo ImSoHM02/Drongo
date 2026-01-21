@@ -384,7 +384,7 @@ async def initialize_guild_database(guild_id: str):
 
     logging.info(f"Initialized all databases for guild {guild_id}")
 
-async def add_guild_to_config(guild_id: str, guild_name: str, logging_enabled: bool = True):
+async def add_guild_to_config(guild_id: str, guild_name: str, logging_enabled: bool = True, bot_name: str = 'drongo'):
     """
     Add or update a guild in the configuration database.
 
@@ -392,6 +392,7 @@ async def add_guild_to_config(guild_id: str, guild_name: str, logging_enabled: b
         guild_id: Discord guild ID
         guild_name: Name of the guild
         logging_enabled: Whether logging is enabled for this guild
+        bot_name: Custom bot name for the guild (defaults to 'drongo')
     """
     config_db_path = get_guild_config_db_path()
 
@@ -399,12 +400,12 @@ async def add_guild_to_config(guild_id: str, guild_name: str, logging_enabled: b
         now = datetime.now().isoformat()
 
         await conn.execute("""
-            INSERT INTO guild_settings (guild_id, guild_name, logging_enabled, date_joined, last_updated)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO guild_settings (guild_id, guild_name, logging_enabled, bot_name, date_joined, last_updated)
+            VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(guild_id) DO UPDATE SET
                 guild_name=excluded.guild_name,
                 last_updated=excluded.last_updated
-        """, (guild_id, guild_name, 1 if logging_enabled else 0, now, now))
+        """, (guild_id, guild_name, 1 if logging_enabled else 0, bot_name.lower(), now, now))
 
         await conn.commit()
 
@@ -593,3 +594,66 @@ async def is_guild_scanning(guild_id: str) -> bool:
         """, (guild_id,)) as cursor:
             result = await cursor.fetchone()
             return result[0] > 0 if result else False
+
+async def migrate_guild_config_add_bot_name():
+    """
+    Migration to add bot_name column to existing guild_settings table.
+    Safe to run multiple times - only adds column if it doesn't exist.
+    """
+    config_db_path = get_guild_config_db_path()
+
+    async with aiosqlite.connect(config_db_path) as conn:
+        # Check if bot_name column exists
+        async with conn.execute("PRAGMA table_info(guild_settings)") as cursor:
+            columns = await cursor.fetchall()
+            column_names = [col[1] for col in columns]
+
+        # Add bot_name column if it doesn't exist
+        if 'bot_name' not in column_names:
+            await conn.execute("""
+                ALTER TABLE guild_settings ADD COLUMN bot_name TEXT DEFAULT 'drongo'
+            """)
+            await conn.commit()
+            logging.info("Added bot_name column to guild_settings table")
+        else:
+            logging.debug("bot_name column already exists in guild_settings table")
+
+async def update_guild_bot_name(guild_id: str, bot_name: str):
+    """
+    Update the bot name for a specific guild.
+
+    Args:
+        guild_id: Discord guild ID
+        bot_name: Custom bot name for the guild
+    """
+    config_db_path = get_guild_config_db_path()
+
+    async with aiosqlite.connect(config_db_path) as conn:
+        await conn.execute("""
+            UPDATE guild_settings
+            SET bot_name = ?, last_updated = ?
+            WHERE guild_id = ?
+        """, (bot_name.lower(), datetime.now().isoformat(), guild_id))
+
+        await conn.commit()
+
+    logging.info(f"Updated bot name for guild {guild_id} to '{bot_name}'")
+
+async def get_guild_bot_name(guild_id: str) -> str:
+    """
+    Get the custom bot name for a specific guild.
+
+    Args:
+        guild_id: Discord guild ID
+
+    Returns:
+        str: Bot name for the guild (defaults to 'drongo' if not set)
+    """
+    config_db_path = get_guild_config_db_path()
+
+    async with aiosqlite.connect(config_db_path) as conn:
+        async with conn.execute("""
+            SELECT bot_name FROM guild_settings WHERE guild_id = ?
+        """, (guild_id,)) as cursor:
+            result = await cursor.fetchone()
+            return result[0] if result and result[0] else 'drongo'

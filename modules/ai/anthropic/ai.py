@@ -20,7 +20,7 @@ from .ai_constants import (
     LISTMODES_SEPARATOR
 )
 from .prompts import (
-    SYSTEM_PROMPT, get_insult_prompt,
+    SYSTEM_PROMPT, get_system_prompt, get_insult_prompt,
     get_compliment_prompt, get_mode_change_prompt
 )
 from .ai_handlers import (
@@ -33,20 +33,47 @@ class AIHandler:
         # Initialize the AI handler with required components.
         self.bot = bot
         self.anthropic_client = AsyncAnthropic(api_key=anthropic_api_key)
-        
+
         # Initialize handlers
         self.message_handler = MessageHandler()
         self.attachment_handler = AttachmentHandler()
         self.conversation_manager = ConversationManager()
         self.probability_manager = ProbabilityManager()
 
-    async def handle_oi_drongo(self, message: discord.Message, full_message_content: str, image_attachments: List[Dict[str, Any]]) -> None:
+        # Cache for bot names per guild
+        self.bot_name_cache = {}
+
+    async def get_bot_name_for_guild(self, guild_id: str) -> str:
+        """Get the custom bot name for a guild with caching."""
+        if guild_id not in self.bot_name_cache:
+            from database_modules.database_utils import get_guild_bot_name
+            self.bot_name_cache[guild_id] = await get_guild_bot_name(guild_id)
+        return self.bot_name_cache[guild_id]
+
+    def clear_bot_name_cache(self, guild_id: str = None):
+        """Clear bot name cache for a guild or all guilds."""
+        if guild_id:
+            self.bot_name_cache.pop(guild_id, None)
+        else:
+            self.bot_name_cache.clear()
+
+    def get_trigger_phrase(self, bot_name: str) -> str:
+        """Generate trigger phrase for a bot name."""
+        return f"oi {bot_name.lower()}"
+
+    def get_trigger_pattern(self, bot_name: str):
+        """Generate trigger pattern for a bot name."""
+        return re.compile(rf'^oi\s+{re.escape(bot_name.lower())}\s*', re.IGNORECASE)
+
+    async def handle_oi_drongo(self, message: discord.Message, full_message_content: str, image_attachments: List[Dict[str, Any]], bot_name: str) -> None:
         # Handle messages starting with trigger phrase
-        self.bot.logger.info(f"Handling '{TRIGGER_PHRASE}' message")
+        trigger_phrase = self.get_trigger_phrase(bot_name)
+        trigger_pattern = self.get_trigger_pattern(bot_name)
+        self.bot.logger.info(f"Handling '{trigger_phrase}' message")
         async with message.channel.typing():
             try:
                 # Remove trigger phrase from the beginning of the message
-                cleaned_content = re.sub(TRIGGER_PATTERN, '', full_message_content, flags=re.IGNORECASE).strip()
+                cleaned_content = trigger_pattern.sub('', full_message_content).strip()
                 self.bot.logger.info(f"Cleaned content: {cleaned_content}")
 
                 # Construct the message content array with both text and images
@@ -68,11 +95,11 @@ class AIHandler:
                     for i, entry in enumerate(conversation)
                 ]
 
-                # Prepare API call arguments
+                # Prepare API call arguments with custom bot name
                 api_call_args = {
                     "model": DEFAULT_MODEL,
                     "max_tokens": DEFAULT_MAX_TOKENS,
-                    "system": SYSTEM_PROMPT,
+                    "system": get_system_prompt(bot_name.capitalize()),
                     "messages": messages_for_api,
                     "temperature": DEFAULT_TEMPERATURE,
                     "tools": [{
@@ -166,25 +193,31 @@ class AIHandler:
                 self.bot.logger.error(error_msg)
                 return f"Error generating {response_type}: {str(e)}"
 
-    async def generate_insult(self, message: discord.Message, full_message_content: str) -> str:
+    async def generate_insult(self, message: discord.Message, full_message_content: str, bot_name: str = "Jaxon") -> str:
         # Generate an insult based on the message content and any images
         return await self._generate_brief_response(
             message,
-            get_insult_prompt(full_message_content),
+            get_insult_prompt(full_message_content, bot_name.capitalize()),
             "insult"
         )
 
-    async def generate_compliment(self, message: discord.Message, full_message_content: str) -> str:
+    async def generate_compliment(self, message: discord.Message, full_message_content: str, bot_name: str = "Jaxon") -> str:
         # Generate a compliment based on the message content and any images
         return await self._generate_brief_response(
             message,
-            get_compliment_prompt(full_message_content),
+            get_compliment_prompt(full_message_content, bot_name.capitalize()),
             "compliment"
         )
 
     async def process_message(self, message: discord.Message) -> str:
         # Process a message and generate appropriate responses.
         self.bot.logger.info(f"Processing message: {message.content}")
+
+        # Get guild-specific bot name
+        guild_id = str(message.guild.id) if message.guild else "DM"
+        bot_name = await self.get_bot_name_for_guild(guild_id) if message.guild else 'drongo'
+        trigger_phrase = self.get_trigger_phrase(bot_name)
+        trigger_pattern = self.get_trigger_pattern(bot_name)
 
         # Process text attachments
         text_contents = []
@@ -209,25 +242,24 @@ class AIHandler:
                 self.bot.logger.error(f"Failed to fetch referenced message: {fetch_err}")
 
         # Remove trigger phrase from the beginning of the message
-        cleaned_content = re.sub(TRIGGER_PATTERN, '', message.clean_content, flags=re.IGNORECASE).strip()
+        cleaned_content = trigger_pattern.sub('', message.clean_content).strip()
         full_message_content = f"{referenced_content}{cleaned_content}\n\n{''.join(text_contents)}".strip()
 
         # Get guild-specific configuration
-        guild_id = str(message.guild.id) if message.guild else "DM"
         guild_config = self.probability_manager.get_guild_config(guild_id)
 
         # Check for trigger phrase
-        if message.content.lower().startswith(TRIGGER_PHRASE):
-            self.bot.logger.info(f"Detected '{TRIGGER_PHRASE}' trigger")
-            await self.handle_oi_drongo(message, full_message_content, image_attachments)
+        if message.content.lower().startswith(trigger_phrase):
+            self.bot.logger.info(f"Detected '{trigger_phrase}' trigger")
+            await self.handle_oi_drongo(message, full_message_content, image_attachments, bot_name)
         # Check for random response using guild-specific configured probabilities
         elif random.random() < guild_config["chance"]:
             self.bot.logger.info("Random response triggered")
             # Use weighted random choice for insult vs compliment
             if random.random() < guild_config["insult"]:
-                await self.generate_insult(message, full_message_content)
+                await self.generate_insult(message, full_message_content, bot_name)
             else:
-                await self.generate_compliment(message, full_message_content)
+                await self.generate_compliment(message, full_message_content, bot_name)
 
         return full_message_content
 

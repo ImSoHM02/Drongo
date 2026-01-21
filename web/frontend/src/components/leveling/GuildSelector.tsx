@@ -2,7 +2,11 @@ import { Select, FormControl, FormLabel, Spinner, Box } from '@chakra-ui/react'
 import { useGuilds } from '@/hooks/useLeveling'
 import { useLevelingStore } from '@/stores/levelingStore'
 
-const GuildSelector = () => {
+interface GuildSelectorProps {
+  showUserCount?: boolean
+}
+
+const GuildSelector = ({ showUserCount = true }: GuildSelectorProps) => {
   const { data: guilds = [], isLoading } = useGuilds()
   const { selectedGuild, setSelectedGuild } = useLevelingStore()
 
@@ -22,7 +26,7 @@ const GuildSelector = () => {
         >
           {guilds.map((guild) => (
             <option key={guild.id} value={guild.id}>
-              {guild.name} ({guild.user_count} users)
+              {showUserCount ? `${guild.name} (${guild.user_count} users)` : guild.name}
             </option>
           ))}
         </Select>

@@ -9,6 +9,7 @@ import CommandsView from './components/commands/CommandsView'
 import StatsView from './components/stats/StatsView'
 import LevelingDashboard from './components/leveling/LevelingDashboard'
 import ChatHistoryView from './components/chat/ChatHistoryView'
+import SettingsView from './components/SettingsView'
 
 // Create a client
 const queryClient = new QueryClient({
@@ -33,6 +34,7 @@ function App() {
               <Route path="stats" element={<StatsView />} />
               <Route path="leveling" element={<LevelingDashboard />} />
               <Route path="chat-history" element={<ChatHistoryView />} />
+              <Route path="settings" element={<SettingsView />} />
             </Route>
           </Routes>
         </HashRouter>
