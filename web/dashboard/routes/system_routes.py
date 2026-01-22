@@ -1,0 +1,239 @@
+import logging
+import os
+import subprocess
+import sys
+
+import discord
+from quart import Blueprint, jsonify, request
+
+from .. import state
+from ..broadcast import broadcast_stats
+from ..name_resolution import validate_guild_id
+from ..stats_service import get_enhanced_stats, real_time_stats
+
+system_bp = Blueprint("dashboard_system", __name__)
+
+
+@system_bp.route("/api/stats")
+async def api_stats():
+    """REST API endpoint for stats."""
+    return jsonify(await get_enhanced_stats())
+
+
+@system_bp.route("/api/system_info")
+async def system_info():
+    """Get system information."""
+    try:
+        import psutil
+
+        cpu_percent = psutil.cpu_percent(interval=1)
+        memory = psutil.virtual_memory()
+        disk = psutil.disk_usage("/")
+
+        return jsonify({
+            "cpu_usage": cpu_percent,
+            "memory_usage": memory.percent,
+            "memory_total": memory.total // (1024 ** 3),
+            "memory_used": memory.used // (1024 ** 3),
+            "disk_usage": disk.percent,
+            "disk_total": disk.total // (1024 ** 3),
+            "disk_used": disk.used // (1024 ** 3)
+        })
+    except ImportError:
+        return jsonify({
+            "error": "psutil not available",
+            "cpu_usage": 0,
+            "memory_usage": 0
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+
+@system_bp.route("/api/commands/list")
+async def api_commands_list():
+    """Get list of available commands from register_commands.py."""
+    try:
+        from utilities.register_commands import get_commands
+
+        commands = get_commands()
+        return jsonify(commands)
+    except Exception as e:
+        logging.error(f"Error loading commands: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@system_bp.route("/api/commands/register", methods=["POST"])
+async def api_commands_register():
+    """Register Discord commands."""
+    try:
+        return jsonify({"error": "Guild-specific registration is disabled; commands are synced by the bot"}), 400
+    except Exception as e:
+        logging.error(f"Error registering commands: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@system_bp.route("/api/commands/delete", methods=["POST"])
+async def api_commands_delete():
+    """Delete all Discord commands."""
+    try:
+        return jsonify({"error": "Command deletion via dashboard is disabled"}), 400
+    except Exception as e:
+        logging.error(f"Error deleting commands: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@system_bp.route("/api/bot/restart", methods=["POST"])
+async def api_bot_restart():
+    """Restart the bot."""
+    try:
+        real_time_stats.add_event_log("Bot restart requested via dashboard", "system")
+        await broadcast_stats()
+
+        def restart_bot():
+            import threading
+            import time
+
+            time.sleep(1)
+            script_path = sys.argv[0]
+            python_executable = sys.executable
+            subprocess.Popen([python_executable] + sys.argv)
+            os._exit(0)
+
+        import threading
+        restart_thread = threading.Thread(target=restart_bot)
+        restart_thread.daemon = True
+        restart_thread.start()
+
+        return jsonify({"success": True, "message": "Bot restart initiated"})
+    except Exception as e:
+        logging.error(f"Error restarting bot: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@system_bp.route("/api/bot/shutdown", methods=["POST"])
+async def api_bot_shutdown():
+    """Shutdown the bot."""
+    try:
+        real_time_stats.add_event_log("Bot shutdown requested via dashboard", "system")
+        await broadcast_stats()
+
+        def shutdown_bot():
+            import threading
+            import time
+
+            time.sleep(1)
+            os._exit(0)
+
+        import threading
+        shutdown_thread = threading.Thread(target=shutdown_bot)
+        shutdown_thread.daemon = True
+        shutdown_thread.start()
+
+        return jsonify({"success": True, "message": "Bot shutdown initiated"})
+    except Exception as e:
+        logging.error(f"Error shutting down bot: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@system_bp.route("/api/bot/config/<guild_id>", methods=["GET"])
+async def api_get_bot_config(guild_id):
+    """Get bot configuration for a specific guild."""
+    try:
+        from database_modules.database_utils import get_guild_settings
+
+        validated_guild_id = validate_guild_id(guild_id)
+        if validated_guild_id is None:
+            return jsonify({"error": "Invalid guild_id"}), 400
+
+        settings = await get_guild_settings(str(validated_guild_id))
+
+        if not settings:
+            return jsonify({"error": "Guild not found"}), 404
+
+        current_nickname = None
+        if state.bot_instance and state.bot_instance.is_ready():
+            try:
+                guild = state.bot_instance.get_guild(validated_guild_id)
+                if guild and guild.me:
+                    current_nickname = guild.me.nick
+            except Exception as e:
+                logging.error(f"Error getting nickname: {e}")
+
+        return jsonify({
+            "guild_id": str(validated_guild_id),
+            "guild_name": settings.get("guild_name", ""),
+            "bot_name": settings.get("bot_name", "drongo"),
+            "current_nickname": current_nickname
+        })
+    except Exception as e:
+        logging.error(f"Error getting bot config: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@system_bp.route("/api/bot/config/<guild_id>", methods=["POST"])
+async def api_update_bot_config(guild_id):
+    """Update bot configuration for a specific guild."""
+    try:
+        from database_modules.database_utils import update_guild_bot_name
+
+        validated_guild_id = validate_guild_id(guild_id)
+        if validated_guild_id is None:
+            return jsonify({"error": "Invalid guild_id"}), 400
+
+        data = await request.get_json()
+        bot_name = data.get("bot_name", "").strip().lower()
+
+        if not bot_name:
+            return jsonify({"error": "bot_name is required"}), 400
+
+        if len(bot_name) > 32:
+            return jsonify({"error": "bot_name must be 32 characters or less"}), 400
+
+        await update_guild_bot_name(str(validated_guild_id), bot_name)
+
+        if state.bot_instance and hasattr(state.bot_instance, "ai_handler"):
+            state.bot_instance.ai_handler.clear_bot_name_cache(str(validated_guild_id))
+
+        return jsonify({
+            "success": True,
+            "message": "Bot configuration updated",
+            "bot_name": bot_name
+        })
+    except Exception as e:
+        logging.error(f"Error updating bot config: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@system_bp.route("/api/bot/nickname/<guild_id>", methods=["POST"])
+async def api_update_bot_nickname(guild_id):
+    """Update bot nickname for a specific guild."""
+    try:
+        validated_guild_id = validate_guild_id(guild_id)
+        if validated_guild_id is None:
+            return jsonify({"error": "Invalid guild_id"}), 400
+
+        data = await request.get_json()
+        nickname = data.get("nickname", "").strip()
+
+        if len(nickname) > 32:
+            return jsonify({"error": "nickname must be 32 characters or less"}), 400
+
+        if not state.bot_instance or not state.bot_instance.is_ready():
+            return jsonify({"error": "Bot is not ready"}), 503
+
+        guild = state.bot_instance.get_guild(validated_guild_id)
+        if not guild:
+            return jsonify({"error": "Guild not found"}), 404
+
+        await guild.me.edit(nick=nickname if nickname else None)
+
+        return jsonify({
+            "success": True,
+            "message": "Nickname updated",
+            "nickname": nickname if nickname else None
+        })
+    except discord.Forbidden:
+        return jsonify({"error": "Bot lacks permissions to change nickname"}), 403
+    except Exception as e:
+        logging.error(f"Error updating nickname: {e}")
+        return jsonify({"error": str(e)}), 500

@@ -10,7 +10,7 @@ from database_modules.database_pool import close_all_pools
 from database_modules import command_database
 from dotenv import load_dotenv
 from modules.dashboard_manager import DashboardManager
-from web.dashboard_server import app as dashboard_app, set_bot_instance
+from web.dashboard import app as dashboard_app, set_bot_instance
 from discord import Client
 from modules.ai import AIHandler
 from modules.leveling_system import get_leveling_system

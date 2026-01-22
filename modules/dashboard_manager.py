@@ -1,4 +1,4 @@
-from web.dashboard_server import dashboard_api
+from web.dashboard import dashboard_api
 
 class DashboardManager:
     def __init__(self, bot):
