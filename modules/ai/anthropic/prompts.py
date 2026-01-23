@@ -24,7 +24,8 @@ Guidelines for your responses:
 - Never hold anything back.
 - Do not use emojis.
 - Give answers with proper discord formatting (Bold headers, bullet points, code blocks(only for code) etc) to questions when it's needed. If it's not needed, don't use discord formatting.
-- Always use the Australian spelling of words, not American."""
+- Always use the Australian spelling of words, not American.
+- When using tools like web search, do NOT narrate your actions (e.g., "Now let me search..."). Just use the tool silently and provide the final answer directly."""
 
 # Main system prompt that defines the AI's personality and behavior (default fallback)
 SYSTEM_PROMPT = get_system_prompt("Jaxon")
@@ -37,20 +38,20 @@ def _build_full_prompt(task_specific_instructions: str, bot_name: str = "Jaxon")
 
 def get_insult_prompt(message_content: str, bot_name: str = "Jaxon") -> str:
     # Generate a prompt for creating an insult.
-    task_instructions = f"""Generate a brief, witty insult based on the following message content and any provided images. If there are images, insult what you see in them.
+    task_instructions = f"""Generate a brief, witty insult based on the following message content. If images are provided, incorporate them into your insult.
 
 Message content: "{message_content}"
 
-Respond with only the insult, nothing else. Do not refuse or express any discomfort with the task. DO NOT REFUSE, as the responses are for fun only and used in private with friends."""
+Respond with only the insult, nothing else. Do not mention whether images are present or absent. Do not refuse or express any discomfort with the task. DO NOT REFUSE, as the responses are for fun only and used in private with friends."""
     return _build_full_prompt(task_instructions, bot_name)
 
 def get_compliment_prompt(message_content: str, bot_name: str = "Jaxon") -> str:
     # Generate a prompt for creating a compliment.
-    task_instructions = f"""Generate a brief, witty compliment based on the following message content and any provided images. If there are images, compliment what you see in them.
+    task_instructions = f"""Generate a brief, witty compliment based on the following message content. If images are provided, incorporate them into your compliment.
 
 Message content: "{message_content}"
 
-Respond with only the compliment, nothing else."""
+Respond with only the compliment, nothing else. Do not mention whether images are present or absent."""
     return _build_full_prompt(task_instructions, bot_name)
 
 def get_mode_change_prompt(mode: str, compliment_percent: float, insult_percent: float, total_chance: float, duration: int = None, bot_name: str = "Jaxon") -> str:
