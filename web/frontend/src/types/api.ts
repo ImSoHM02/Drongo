@@ -11,6 +11,14 @@ export interface Command {
   category?: string
 }
 
+export interface GuildCommand {
+  name: string
+  description: string
+  type: string
+  subcommands?: string[]
+  enabled: boolean
+}
+
 export interface BotStatus {
   status: 'online' | 'offline' | 'restarting'
   uptime: string

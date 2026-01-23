@@ -105,6 +105,8 @@ class DrongoBot(commands.Bot):
         self.start_time = None  # Will be set when bot is ready
         self.dashboard_opened = False
         self.add_listener(self.track_command_usage, 'on_interaction')
+        self._command_sync_lock = asyncio.Lock()
+        self._global_commands_cleared = False
 
     async def setup_hook(self):
         self.dashboard_manager.start()
@@ -301,10 +303,6 @@ class DrongoBot(commands.Bot):
         
         # Log commands before sync
         self.logger.info(f"Commands before sync: {[cmd.name for cmd in self.tree.get_commands()]}")
-        
-        # Sync application commands (BEFORE loading leveling cog)
-        await self.tree.sync()
-        self.logger.info("Initial command sync completed (before cogs)")
 
         # Load remaining Cogs
         await self.load_extension("modules.cogs.web_link_cog")
@@ -320,10 +318,9 @@ class DrongoBot(commands.Bot):
         
         # Log commands after loading leveling cog
         self.logger.info(f"Commands after loading leveling cog: {[cmd.name for cmd in self.tree.get_commands()]}")
-        
-        # Sync commands again after loading leveling cog
-        await self.tree.sync()
-        self.logger.info("Final command sync completed (after leveling cog)")
+
+        # Apply per-guild command overrides and sync
+        await self.sync_all_guild_commands()
 
         # Ensure primary guild has the latest commands immediately
         self.logger.info("Loaded all command modules.")
@@ -572,6 +569,11 @@ class DrongoBot(commands.Bot):
 
         except Exception as e:
             logging.error(f"Error handling guild join: {e}")
+        else:
+            try:
+                await self.sync_guild_commands(str(guild.id))
+            except Exception as sync_error:
+                logging.error(f"Error syncing commands for new guild {guild.id}: {sync_error}")
 
     async def on_guild_remove(self, guild: discord.Guild):
         """Called when the bot leaves a guild."""
@@ -638,6 +640,61 @@ class DrongoBot(commands.Bot):
 
         except Exception as e:
             logging.error(f"Error initializing existing guilds: {e}")
+
+    async def _clear_global_commands(self):
+        """Remove global commands so guild-specific sets control visibility."""
+        if self._global_commands_cleared:
+            return
+
+        application_id = self.application_id or (self.user.id if self.user else None)
+        if not application_id:
+            logging.warning("Cannot clear global commands: application_id is not available")
+            return
+
+        try:
+            await self.http.bulk_upsert_global_commands(application_id, [])
+            self._global_commands_cleared = True
+            self.logger.info("Cleared global commands before guild sync")
+        except Exception as e:
+            logging.error(f"Failed to clear global commands: {e}")
+
+    async def sync_guild_commands(self, guild_id: str):
+        """Sync commands for a single guild, applying per-guild overrides."""
+        from database_modules.command_overrides import get_command_overrides
+
+        async with self._command_sync_lock:
+            await self._clear_global_commands()
+
+            guild_obj = discord.Object(id=int(guild_id))
+            overrides = await get_command_overrides(guild_id)
+            disabled = {name.lower() for name, enabled in overrides.items() if not enabled}
+
+            # Reset guild commands, copy all globals, then remove disabled ones
+            self.tree.clear_commands(guild=guild_obj)
+            self.tree.copy_global_to(guild=guild_obj)
+
+            for command in list(self.tree.get_commands(guild=guild_obj)):
+                if command.name.lower() in disabled:
+                    cmd_type = getattr(command, "type", discord.AppCommandType.chat_input)
+                    self.tree.remove_command(command.name, type=cmd_type, guild=guild_obj)
+
+            synced = await self.tree.sync(guild=guild_obj)
+            self.logger.info(
+                f"Synced {len(synced)} commands for guild {guild_id} (disabled: {sorted(disabled) if disabled else 'none'})"
+            )
+            return synced
+
+    async def sync_all_guild_commands(self):
+        """Sync commands for all connected guilds using stored overrides."""
+        if not self.guilds:
+            self.logger.info("No guilds available for command sync")
+            return
+
+        for guild in self.guilds:
+            try:
+                await self.sync_guild_commands(str(guild.id))
+            except Exception as e:
+                logging.error(f"Failed to sync commands for guild {guild.id}: {e}")
 
     async def run_dashboard(self):
         """Run the Quart dashboard server using Hypercorn."""

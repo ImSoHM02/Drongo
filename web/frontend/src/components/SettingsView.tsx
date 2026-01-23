@@ -2,6 +2,7 @@ import { Box, Heading, VStack } from '@chakra-ui/react'
 import { useLevelingStore } from '@/stores/levelingStore'
 import { BotConfigCard } from './BotConfigCard'
 import GuildSelector from './leveling/GuildSelector'
+import GuildCommandsCard from './settings/GuildCommandsCard'
 
 const SettingsView = () => {
   const { selectedGuild } = useLevelingStore()
@@ -16,6 +17,7 @@ const SettingsView = () => {
         <GuildSelector showUserCount={false} />
 
         {selectedGuild && <BotConfigCard guildId={selectedGuild} />}
+        <GuildCommandsCard />
       </VStack>
     </Box>
   )

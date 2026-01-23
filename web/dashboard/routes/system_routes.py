@@ -62,6 +62,96 @@ async def api_commands_list():
         return jsonify({"error": str(e)}), 500
 
 
+@system_bp.route("/api/commands/guild/<guild_id>", methods=["GET"])
+async def api_guild_commands(guild_id):
+    """Get commands and per-guild enablement states."""
+    try:
+        from database_modules.command_overrides import get_disabled_commands
+
+        validated_guild_id = validate_guild_id(guild_id)
+        if validated_guild_id is None:
+            return jsonify({"error": "Invalid guild_id"}), 400
+
+        if not state.bot_instance or not state.bot_instance.is_ready():
+            return jsonify({"error": "Bot is not ready"}), 503
+
+        disabled = await get_disabled_commands(str(validated_guild_id))
+        commands = []
+
+        for command in state.bot_instance.tree.get_commands():
+            subcommands = []
+            if hasattr(command, "commands"):
+                subcommands = [child.name for child in getattr(command, "commands", [])]
+
+            commands.append({
+                "name": command.name,
+                "description": command.description,
+                "type": getattr(getattr(command, "type", None), "name", "chat_input"),
+                "subcommands": subcommands,
+                "enabled": command.name.lower() not in disabled
+            })
+
+        return jsonify(commands)
+    except Exception as e:
+        logging.error(f"Error loading guild commands: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@system_bp.route("/api/commands/guild/<guild_id>", methods=["POST"])
+async def api_update_guild_commands(guild_id):
+    """Update per-guild command enablement and sync to Discord."""
+    try:
+        from database_modules.command_overrides import set_command_overrides
+
+        validated_guild_id = validate_guild_id(guild_id)
+        if validated_guild_id is None:
+            return jsonify({"error": "Invalid guild_id"}), 400
+
+        data = await request.get_json()
+        overrides = data.get("overrides") if data else None
+
+        # Allow enabled/disabled lists as alternative input
+        enabled_list = data.get("enabled_commands") if data else None
+        disabled_list = data.get("disabled_commands") if data else None
+        if (enabled_list or disabled_list) and overrides is None:
+            overrides = {}
+            if enabled_list:
+                overrides.update({name: True for name in enabled_list})
+            if disabled_list:
+                overrides.update({name: False for name in disabled_list})
+
+        if not overrides:
+            return jsonify({"error": "No overrides provided"}), 400
+
+        # Filter to known commands if bot is available
+        bot_ready = state.bot_instance and state.bot_instance.is_ready()
+        if bot_ready:
+            available = {cmd.name.lower() for cmd in state.bot_instance.tree.get_commands()}
+            overrides = {name: enabled for name, enabled in overrides.items() if name.lower() in available}
+
+        if not overrides:
+            return jsonify({"error": "No valid commands provided"}), 400
+
+        await set_command_overrides(str(validated_guild_id), overrides)
+
+        sync_status = "pending"
+        if bot_ready:
+            try:
+                await state.bot_instance.sync_guild_commands(str(validated_guild_id))
+                sync_status = "synced"
+            except Exception as e:
+                logging.error(f"Error syncing commands for guild {validated_guild_id}: {e}")
+                sync_status = "sync_failed"
+
+        return jsonify({
+            "success": True,
+            "sync_status": sync_status
+        })
+    except Exception as e:
+        logging.error(f"Error updating guild commands: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 @system_bp.route("/api/commands/register", methods=["POST"])
 async def api_commands_register():
     """Register Discord commands."""

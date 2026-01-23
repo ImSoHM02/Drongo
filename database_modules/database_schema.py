@@ -40,6 +40,14 @@ ON fetch_queue (status, priority DESC, created_at ASC);
 
 CREATE INDEX IF NOT EXISTS idx_fetch_progress_guild
 ON historical_fetch_progress (guild_id, is_scanning);
+
+CREATE TABLE IF NOT EXISTS command_overrides (
+    guild_id TEXT NOT NULL,
+    command_name TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (guild_id, command_name)
+);
 """
 
 # Per-guild database schema (chat history only)
