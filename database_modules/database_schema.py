@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS ai_mode_overrides (
     mode TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
+
 """
 
 # Per-guild database schema (chat history only)

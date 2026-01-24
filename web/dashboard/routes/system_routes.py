@@ -52,11 +52,18 @@ async def system_info():
 
 @system_bp.route("/api/commands/list")
 async def api_commands_list():
-    """Get list of available commands from register_commands.py."""
+    """Get live list of available commands from the bot's command tree."""
     try:
-        from utilities.register_commands import get_commands
+        if not state.bot_instance or not state.bot_instance.is_ready():
+            return jsonify({"error": "Bot is not ready"}), 503
 
-        commands = get_commands()
+        commands = []
+        for cmd in state.bot_instance.tree.get_commands():
+            # For groups, include top-level info; children handled in per-guild view
+            commands.append({
+                "name": cmd.name,
+                "description": getattr(cmd, "description", "") or "No description",
+            })
         return jsonify(commands)
     except Exception as e:
         logging.error(f"Error loading commands: {e}")
@@ -255,20 +262,9 @@ async def api_bot_restart():
         real_time_stats.add_event_log("Bot restart requested via dashboard", "system")
         await broadcast_stats()
 
-        def restart_bot():
-            import threading
-            import time
-
-            time.sleep(1)
-            script_path = sys.argv[0]
-            python_executable = sys.executable
-            subprocess.Popen([python_executable] + sys.argv)
-            os._exit(0)
-
-        import threading
-        restart_thread = threading.Thread(target=restart_bot)
-        restart_thread.daemon = True
-        restart_thread.start()
+        # Schedule the restart as an async task
+        import asyncio
+        asyncio.create_task(_perform_graceful_restart())
 
         return jsonify({"success": True, "message": "Bot restart initiated"})
     except Exception as e:
@@ -283,22 +279,108 @@ async def api_bot_shutdown():
         real_time_stats.add_event_log("Bot shutdown requested via dashboard", "system")
         await broadcast_stats()
 
-        def shutdown_bot():
-            import threading
-            import time
-
-            time.sleep(1)
-            os._exit(0)
-
-        import threading
-        shutdown_thread = threading.Thread(target=shutdown_bot)
-        shutdown_thread.daemon = True
-        shutdown_thread.start()
+        # Schedule the shutdown as an async task
+        import asyncio
+        asyncio.create_task(_perform_graceful_shutdown())
 
         return jsonify({"success": True, "message": "Bot shutdown initiated"})
     except Exception as e:
         logging.error(f"Error shutting down bot: {e}")
         return jsonify({"error": str(e)}), 500
+
+
+async def _perform_graceful_restart():
+    """Perform graceful shutdown and restart."""
+    try:
+        import asyncio
+        # Wait for the response to send
+        await asyncio.sleep(1)
+
+        logging.info("Starting graceful restart...")
+
+        await _cleanup_bot()
+
+        # Wait for everything to settle
+        await asyncio.sleep(1)
+
+        # Restart the process
+        logging.info("Executing restart...")
+
+        # Use subprocess.Popen to start new process, then exit
+        import subprocess
+        subprocess.Popen([sys.executable] + sys.argv)
+        logging.info("New process started, exiting...")
+        sys.exit(0)
+
+    except Exception as e:
+        logging.error(f"Error during restart: {e}")
+        # Still attempt to restart even if cleanup fails
+        import subprocess
+        subprocess.Popen([sys.executable] + sys.argv)
+        sys.exit(1)
+
+
+async def _perform_graceful_shutdown():
+    """Perform graceful shutdown."""
+    try:
+        import asyncio
+        # Wait for the response to send
+        await asyncio.sleep(1)
+
+        logging.info("Starting graceful shutdown...")
+
+        await _cleanup_bot()
+
+        # Wait for everything to settle
+        await asyncio.sleep(1)
+
+        # Exit gracefully
+        logging.info("Exiting...")
+        sys.exit(0)
+
+    except Exception as e:
+        logging.error(f"Error during shutdown: {e}")
+        # Force exit if cleanup fails
+        sys.exit(1)
+
+
+async def _cleanup_bot():
+    """Perform bot cleanup operations."""
+    from database_modules.database import flush_message_batches
+    from database_modules.database_pool import get_multi_guild_pool, close_all_pools
+    import asyncio
+
+    # Cancel the Hypercorn server task
+    if state.bot_instance and hasattr(state.bot_instance, 'hypercorn_task'):
+        state.bot_instance.hypercorn_task.cancel()
+        try:
+            await state.bot_instance.hypercorn_task
+        except asyncio.CancelledError:
+            pass
+        logging.info("Dashboard server stopped")
+
+    # Stop historical fetcher if it exists
+    if state.bot_instance and hasattr(state.bot_instance, 'historical_fetcher') and state.bot_instance.historical_fetcher:
+        await state.bot_instance.historical_fetcher.stop()
+        logging.info("Historical fetcher stopped")
+
+    # Flush any pending database writes
+    await flush_message_batches()
+    logging.info("Message batches flushed")
+
+    # Close all database pools
+    await close_all_pools()
+    logging.info("Database pools closed")
+
+    # Close multi-guild pools
+    multi_pool = await get_multi_guild_pool()
+    await multi_pool.close_all()
+    logging.info("Multi-guild pools closed")
+
+    # Close the bot connection
+    if state.bot_instance:
+        await state.bot_instance.close()
+        logging.info("Bot connection closed")
 
 
 @system_bp.route("/api/bot/config/<guild_id>", methods=["GET"])

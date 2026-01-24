@@ -285,6 +285,8 @@ class DrongoBot(commands.Bot):
         await self.load_extension("modules.cogs.steam_commands_cog")
         await self.load_extension("modules.cogs.wordrank_cog")
         await self.load_extension("modules.cogs.jellyfin_cog")
+        await self.load_extension("modules.cogs.wow_profile_cog")
+        await self.load_extension("modules.cogs.wow_main_cog")
 
         # Initialize and set up AI handler
         self.ai_handler = AIHandler(self, self.anthropic_api_key)

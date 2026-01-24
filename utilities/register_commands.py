@@ -150,6 +150,30 @@ def get_commands():
             "description": "Get the link to the Jellyfin server"
         },
         {
+            "name": "wow_profile",
+            "description": "Lookup a WoW character profile",
+            "options": [
+                {
+                    "name": "region",
+                    "description": "Region code (us, eu, kr, tw)",
+                    "type": 3,
+                    "required": True
+                },
+                {
+                    "name": "realm",
+                    "description": "Realm name or slug",
+                    "type": 3,
+                    "required": True
+                },
+                {
+                    "name": "character",
+                    "description": "Character name",
+                    "type": 3,
+                    "required": True
+                }
+            ]
+        },
+        {
             "name": "level",
             "description": "Leveling system commands",
             "options": [
