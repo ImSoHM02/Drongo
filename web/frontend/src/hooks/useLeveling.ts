@@ -223,6 +223,93 @@ export const useDeleteRank = () => {
   })
 }
 
+// Admin actions
+const adminToastError = (toast: ReturnType<typeof useToast>, message: string) =>
+  toast({
+    title: message,
+    status: 'error',
+    duration: 3000,
+    position: 'top-right',
+  })
+
+export const useAdminAddXp = () => {
+  const toast = useToast()
+
+  return useMutation({
+    mutationFn: async (payload: { guildId: string; userId: string; xp: number; adminId: string }) => {
+      const { guildId, userId, xp, adminId } = payload
+      const { data } = await api.post('/leveling/admin/add_xp', {
+        guild_id: guildId,
+        user_id: userId,
+        xp,
+        admin_id: adminId,
+      })
+      return data
+    },
+    onSuccess: () => {
+      toast({
+        title: 'XP added',
+        status: 'success',
+        duration: 3000,
+        position: 'top-right',
+      })
+    },
+    onError: () => adminToastError(toast, 'Failed to add XP'),
+  })
+}
+
+export const useAdminAddLevels = () => {
+  const toast = useToast()
+
+  return useMutation({
+    mutationFn: async (payload: { guildId: string; userId: string; levels: number; adminId: string }) => {
+      const { guildId, userId, levels, adminId } = payload
+      const { data } = await api.post('/leveling/admin/add_levels', {
+        guild_id: guildId,
+        user_id: userId,
+        levels,
+        admin_id: adminId,
+      })
+      return data
+    },
+    onSuccess: () => {
+      toast({
+        title: 'Levels added',
+        status: 'success',
+        duration: 3000,
+        position: 'top-right',
+      })
+    },
+    onError: () => adminToastError(toast, 'Failed to add levels'),
+  })
+}
+
+export const useAdminRemoveLevels = () => {
+  const toast = useToast()
+
+  return useMutation({
+    mutationFn: async (payload: { guildId: string; userId: string; levels: number; adminId: string }) => {
+      const { guildId, userId, levels, adminId } = payload
+      const { data } = await api.post('/leveling/admin/remove_levels', {
+        guild_id: guildId,
+        user_id: userId,
+        levels,
+        admin_id: adminId,
+      })
+      return data
+    },
+    onSuccess: () => {
+      toast({
+        title: 'Levels removed',
+        status: 'success',
+        duration: 3000,
+        position: 'top-right',
+      })
+    },
+    onError: () => adminToastError(toast, 'Failed to remove levels'),
+  })
+}
+
 // Templates
 export const useTemplates = (guildId: string | null) => {
   const { setTemplates } = useLevelingStore()

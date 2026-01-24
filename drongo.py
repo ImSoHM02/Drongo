@@ -290,6 +290,7 @@ class DrongoBot(commands.Bot):
         self.ai_handler = AIHandler(self, self.anthropic_api_key)
         from modules.ai.anthropic import ai
         ai.setup(self)
+        await self.ai_handler.load_persisted_modes()
         
         # Initialize leveling system
         self.leveling_system = get_leveling_system(self)
@@ -305,13 +306,7 @@ class DrongoBot(commands.Bot):
         self.logger.info(f"Commands before sync: {[cmd.name for cmd in self.tree.get_commands()]}")
 
         # Load remaining Cogs
-        await self.load_extension("modules.cogs.web_link_cog")
-        
-        # Load version tracker after AI handler is initialized
         await self.load_extension("modules.cogs.version_tracker_cog")
-        
-        # Load database management cog
-        await self.load_extension("modules.cogs.database_management_cog")
         
         # Load leveling cog
         await self.load_extension("modules.cogs.leveling_cog")

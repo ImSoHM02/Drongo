@@ -48,6 +48,12 @@ CREATE TABLE IF NOT EXISTS command_overrides (
     updated_at TEXT NOT NULL,
     PRIMARY KEY (guild_id, command_name)
 );
+
+CREATE TABLE IF NOT EXISTS ai_mode_overrides (
+    guild_id TEXT PRIMARY KEY,
+    mode TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
 """
 
 # Per-guild database schema (chat history only)

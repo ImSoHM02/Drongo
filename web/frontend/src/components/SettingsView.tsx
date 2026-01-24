@@ -3,6 +3,7 @@ import { useLevelingStore } from '@/stores/levelingStore'
 import { BotConfigCard } from './BotConfigCard'
 import GuildSelector from './leveling/GuildSelector'
 import GuildCommandsCard from './settings/GuildCommandsCard'
+import AIModeCard from './settings/AIModeCard'
 
 const SettingsView = () => {
   const { selectedGuild } = useLevelingStore()
@@ -17,6 +18,7 @@ const SettingsView = () => {
         <GuildSelector showUserCount={false} />
 
         {selectedGuild && <BotConfigCard guildId={selectedGuild} />}
+        <AIModeCard />
         <GuildCommandsCard />
       </VStack>
     </Box>

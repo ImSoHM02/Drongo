@@ -1,10 +1,12 @@
 import json
 import logging
 from datetime import datetime
+import os
 
 from quart import Blueprint, jsonify, request
 
 from database_modules.database import get_leveling_db_connection
+from database_modules.database_pool import get_leveling_pool
 from modules.leveling_system import get_leveling_system
 from .. import state
 from ..name_resolution import bulk_resolve_names
@@ -670,36 +672,231 @@ async def api_leveling_rewards_delete(reward_id):
         return jsonify({"error": str(e)}), 500
 
 
+def _is_authorized_admin(admin_id: str) -> bool:
+    """Validate admin identity against AUTHORIZED_USER_ID if provided."""
+    authorized = os.getenv("AUTHORIZED_USER_ID")
+    if not authorized:
+        return True  # fallback if not set
+    return str(admin_id) == str(authorized)
+
+
+@leveling_bp.route("/api/leveling/admin/add_xp", methods=["POST"])
+async def api_leveling_admin_add_xp():
+    """Admin endpoint to add raw XP to a user."""
+    try:
+        data = await request.get_json()
+        guild_id = data.get("guild_id")
+        user_id = data.get("user_id")
+        xp = int(data.get("xp", 0))
+        admin_id = str(data.get("admin_id", ""))
+
+        if not guild_id or not user_id:
+            return jsonify({"error": "guild_id and user_id are required"}), 400
+        if xp <= 0:
+            return jsonify({"error": "xp must be positive"}), 400
+        if not _is_authorized_admin(admin_id):
+            return jsonify({"error": "unauthorized"}), 403
+
+        class MockBot:
+            pass
+
+        leveling = get_leveling_system(MockBot())
+        pool = await get_leveling_pool()
+
+        today = datetime.utcnow().date().isoformat()
+        user_data = await leveling.get_user_level_data(user_id, guild_id)
+        new_daily = (
+            user_data.get("daily_xp_earned", 0) + xp
+            if user_data and user_data.get("daily_reset_date") == today
+            else xp
+        )
+
+        if user_data:
+            await pool.execute_write(
+                """
+                UPDATE user_levels
+                SET total_xp = total_xp + ?,
+                    current_xp = current_xp + ?,
+                    daily_xp_earned = ?,
+                    daily_reset_date = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE user_id = ? AND guild_id = ?
+                """,
+                (xp, xp, new_daily, today, user_id, guild_id),
+            )
+        else:
+            await pool.execute_write(
+                """
+                INSERT INTO user_levels (user_id, guild_id, current_xp, current_level, total_xp, messages_sent, daily_xp_earned, daily_reset_date)
+                VALUES (?, ?, ?, 0, ?, 0, ?, ?)
+                """,
+                (user_id, guild_id, xp, xp, new_daily, today),
+            )
+
+        await pool.execute_write(
+            """
+            INSERT INTO xp_transactions (user_id, guild_id, channel_id, xp_awarded, reason, message_length, word_count, char_count, daily_cap_applied)
+            VALUES (?, ?, 'ADMIN', ?, 'admin_add_xp', 0, 0, 0, 0)
+            """,
+            (user_id, guild_id, xp),
+        )
+
+        cache_key = f"{user_id}:{guild_id}"
+        leveling._user_cache.pop(cache_key, None)
+        leveling._user_cache_expiry.pop(cache_key, None)
+
+        level_up_result = await leveling.check_level_up(user_id, guild_id)
+        updated_data = await leveling.get_user_level_data(user_id, guild_id)
+
+        total_xp = updated_data["total_xp"] if updated_data else xp
+        current_level = (
+            updated_data["current_level"]
+            if updated_data
+            else leveling.calculate_level_from_xp(total_xp)
+        )
+
+        return jsonify(
+            {
+                "success": True,
+                "total_xp": total_xp,
+                "current_level": current_level,
+                "level_up": bool(level_up_result and level_up_result.get("level_up")),
+                "new_level": level_up_result.get("new_level") if level_up_result else current_level,
+                "old_level": level_up_result.get("old_level") if level_up_result else current_level,
+            }
+        )
+    except Exception as e:
+        logging.error(f"Error adding XP: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@leveling_bp.route("/api/leveling/admin/add_levels", methods=["POST"])
+async def api_leveling_admin_add_levels():
+    """Admin endpoint to add levels to a user."""
+    try:
+        data = await request.get_json()
+        guild_id = data.get("guild_id")
+        user_id = data.get("user_id")
+        levels = int(data.get("levels", 0))
+        admin_id = str(data.get("admin_id", ""))
+
+        if not guild_id or not user_id:
+            return jsonify({"error": "guild_id and user_id are required"}), 400
+        if levels <= 0:
+            return jsonify({"error": "levels must be positive"}), 400
+        if not _is_authorized_admin(admin_id):
+            return jsonify({"error": "unauthorized"}), 403
+
+        class MockBot:
+            pass
+
+        leveling = get_leveling_system(MockBot())
+        user_data = await leveling.get_user_level_data(user_id, guild_id)
+        current_level = user_data["current_level"] if user_data else 0
+        total_xp = user_data["total_xp"] if user_data else 0
+
+        new_level = current_level + levels
+        required_xp = leveling.get_xp_required_for_level(new_level)
+        xp_to_add = required_xp - total_xp
+
+        if xp_to_add > 0:
+            pool = await get_leveling_pool()
+            await pool.execute_write(
+                "UPDATE user_levels SET total_xp = ?, current_xp = ? WHERE user_id = ? AND guild_id = ?",
+                (
+                    required_xp,
+                    required_xp - leveling.get_xp_required_for_level(new_level),
+                    user_id,
+                    guild_id,
+                ),
+            )
+            level_up_result = await leveling.check_level_up(user_id, guild_id)
+        else:
+            level_up_result = None
+
+        return jsonify(
+            {
+                "success": True,
+                "new_level": new_level,
+                "total_xp": required_xp,
+                "level_up": bool(level_up_result and level_up_result.get("level_up")),
+            }
+        )
+    except Exception as e:
+        logging.error(f"Error adding levels: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@leveling_bp.route("/api/leveling/admin/remove_levels", methods=["POST"])
+async def api_leveling_admin_remove_levels():
+    """Admin endpoint to remove levels from a user."""
+    try:
+        data = await request.get_json()
+        guild_id = data.get("guild_id")
+        user_id = data.get("user_id")
+        levels = int(data.get("levels", 0))
+        admin_id = str(data.get("admin_id", ""))
+
+        if not guild_id or not user_id:
+            return jsonify({"error": "guild_id and user_id are required"}), 400
+        if levels <= 0:
+            return jsonify({"error": "levels must be positive"}), 400
+        if not _is_authorized_admin(admin_id):
+            return jsonify({"error": "unauthorized"}), 403
+
+        class MockBot:
+            pass
+
+        leveling = get_leveling_system(MockBot())
+        user_data = await leveling.get_user_level_data(user_id, guild_id)
+        if not user_data:
+            return jsonify({"error": "User has no levels to remove"}), 400
+
+        current_level = user_data["current_level"]
+        new_level = max(0, current_level - levels)
+        required_xp = leveling.get_xp_required_for_level(new_level)
+
+        pool = await get_leveling_pool()
+        await pool.execute_write(
+            "UPDATE user_levels SET total_xp = ?, current_xp = 0, current_level = ? WHERE user_id = ? AND guild_id = ?",
+            (required_xp, new_level, user_id, guild_id),
+        )
+
+        return jsonify({"success": True, "new_level": new_level, "total_xp": required_xp})
+    except Exception as e:
+        logging.error(f"Error removing levels: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 @leveling_bp.route("/api/leveling/guilds")
 async def api_leveling_guilds():
     """Get available guilds for leveling dashboard with resolved names."""
     try:
-        conn = await get_leveling_db_connection()
+        if not state.bot_instance or not state.bot_instance.is_ready():
+            return jsonify({"error": "Bot is not ready"}), 503
 
+        # Get leveling user counts per guild for enrichment
+        guild_counts = {}
+        conn = await get_leveling_db_connection()
         async with conn.execute("""
-            SELECT DISTINCT guild_id, COUNT(*) as user_count
+            SELECT guild_id, COUNT(*) as user_count
             FROM user_levels
             GROUP BY guild_id
-            ORDER BY user_count DESC
         """) as cursor:
-            guild_data = await cursor.fetchall()
-
+            rows = await cursor.fetchall()
+            guild_counts = {row[0]: row[1] for row in rows}
         await conn.close()
 
-        guild_ids = [guild[0] for guild in guild_data]
-        resolved_names = await bulk_resolve_names(None, guild_ids)
-
         guilds = []
-        for guild in guild_data:
-            guild_id = guild[0]
-            guild_name = resolved_names.get(f"guild_{guild_id}", f"Unknown Guild ({guild_id[-4:]})")
-
+        for guild in state.bot_instance.guilds:
+            guild_id = str(guild.id)
             guilds.append({
                 "id": guild_id,
-                "name": guild_name,
-                "user_count": guild[1]
+                "name": guild.name,
+                "user_count": guild_counts.get(guild_id, 0)
             })
 
+        guilds.sort(key=lambda g: g["name"].lower())
         return jsonify(guilds)
 
     except Exception as e:

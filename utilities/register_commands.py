@@ -116,39 +116,6 @@ def get_commands():
             ]
         },
         {
-            "name": "ai_setmode",
-            "description": "Set the bot's response mode with optional duration",
-            "options": [
-                {
-                    "name": "mode",
-                    "description": "The mode to set",
-                    "type": 3,  # STRING
-                    "required": True,
-                    "choices": [
-                        {"name": "Default", "value": "default"},
-                        {"name": "Friendly", "value": "friendly"},
-                        {"name": "Not-Friendly", "value": "not-friendly"},
-                        {"name": "Test Insults", "value": "test-insults"},
-                        {"name": "Test Compliments", "value": "test-compliments"}
-                    ]
-                },
-                {
-                    "name": "duration",
-                    "description": "Duration in seconds before reverting to default mode",
-                    "type": 4,  # INTEGER
-                    "required": False
-                }
-            ]
-        },
-        {
-            "name": "ai_listmodes",
-            "description": "List all available response modes"
-        },
-        {
-            "name": "webstats",
-            "description": "Get the link to the web statistics interface"
-        },
-        {
             "name": "sra",
             "description": "Get a random Steam achievement",
             "options": [
@@ -181,35 +148,6 @@ def get_commands():
         {
             "name": "jellyfin",
             "description": "Get the link to the Jellyfin server"
-        },
-        {
-            "name": "db",
-            "description": "Database management commands",
-            "options": [
-                {
-                    "name": "health",
-                    "description": "Check database health and performance metrics",
-                    "type": 1  # SUB_COMMAND
-                },
-                {
-                    "name": "stats",
-                    "description": "Get database statistics",
-                    "type": 1,  # SUB_COMMAND
-                    "options": [
-                        {
-                            "name": "user",
-                            "description": "User to get detailed stats for",
-                            "type": 6,  # USER
-                            "required": False
-                        }
-                    ]
-                },
-                {
-                    "name": "flush",
-                    "description": "Flush pending message batches to database",
-                    "type": 1  # SUB_COMMAND
-                }
-            ]
         },
         {
             "name": "level",

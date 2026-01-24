@@ -194,6 +194,18 @@ class ProbabilityManager:
         if duration:
             self.guild_timers[guild_id] = asyncio.create_task(self._config_timer(guild_id, duration))
 
+    def apply_mode(self, guild_id: str, config_name: str) -> None:
+        """Apply a configuration without timers (used for persisted settings)."""
+        if config_name not in self.configs:
+            raise ValueError(ERROR_MESSAGES["mode_error"])
+        config = self.configs[config_name]
+        self.update_probabilities(
+            guild_id,
+            config.total_chance,
+            config.insult_weight,
+            config.compliment_weight
+        )
+
     async def _config_timer(self, guild_id: str, duration: int) -> None:
         # Internal timer for resetting configuration after duration for a specific guild
         await asyncio.sleep(duration)

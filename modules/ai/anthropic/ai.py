@@ -27,6 +27,7 @@ from .ai_handlers import (
     MessageHandler, AttachmentHandler,
     ConversationManager, ProbabilityManager
 )
+from database_modules.ai_mode_overrides import get_all_ai_modes, set_ai_mode
 
 class AIHandler:
     def __init__(self, bot: discord.Client, anthropic_api_key: str):
@@ -263,6 +264,25 @@ class AIHandler:
 
         return full_message_content
 
+    async def load_persisted_modes(self) -> None:
+        """Load persisted AI modes from storage and apply them."""
+        try:
+            stored_modes = await get_all_ai_modes()
+            for guild_id, mode in stored_modes.items():
+                try:
+                    self.probability_manager.apply_mode(guild_id, mode)
+                except Exception as e:
+                    self.bot.logger.error(f"Failed to apply stored AI mode '{mode}' for guild {guild_id}: {e}")
+            if stored_modes:
+                self.bot.logger.info(f"Loaded AI modes for {len(stored_modes)} guild(s)")
+        except Exception as e:
+            self.bot.logger.error(f"Error loading persisted AI modes: {e}")
+
+    async def set_mode_for_guild(self, guild_id: str, mode: str, duration: Optional[int] = None) -> None:
+        """Set mode for a guild and persist it (duration ignored for persistence)."""
+        await self.probability_manager.set_config(guild_id, mode, duration)
+        await set_ai_mode(guild_id, mode)
+
     async def generate_mode_response(self, mode: str, duration: Optional[int] = None) -> str:
         # Generate a response announcing a mode change.
         config = self.probability_manager.get_config(mode)
@@ -374,15 +394,5 @@ class AIHandler:
         await interaction.response.send_message(response, ephemeral=True)
 
 def setup(bot: discord.Client) -> None:
-    # Set up the AI handler and register commands.
-    @bot.tree.command(name=COMMAND_AI_SETMODE, description=COMMAND_SETMODE_DESC)
-    async def ai_setmode_command(interaction: discord.Interaction,
-                               mode: str,
-                               duration: Optional[int] = None) -> None:
-        # Set the bot's response mode.
-        await bot.ai_handler.setmode_command(interaction, mode, duration)
-
-    @bot.tree.command(name=COMMAND_AI_LISTMODES, description=COMMAND_LISTMODES_DESC)
-    async def ai_listmodes_command(interaction: discord.Interaction) -> None:
-        # List all available response modes.
-        await bot.ai_handler.listmodes_command(interaction)
+    # Dashboard-driven; slash commands removed.
+    return

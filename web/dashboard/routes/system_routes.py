@@ -10,6 +10,7 @@ from .. import state
 from ..broadcast import broadcast_stats
 from ..name_resolution import validate_guild_id
 from ..stats_service import get_enhanced_stats, real_time_stats
+from database_modules.ai_mode_overrides import get_ai_mode
 
 system_bp = Blueprint("dashboard_system", __name__)
 
@@ -169,6 +170,81 @@ async def api_commands_delete():
         return jsonify({"error": "Command deletion via dashboard is disabled"}), 400
     except Exception as e:
         logging.error(f"Error deleting commands: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@system_bp.route("/api/ai/modes", methods=["GET"])
+async def api_ai_modes():
+    """List available AI modes."""
+    try:
+        if not state.bot_instance or not state.bot_instance.is_ready():
+            return jsonify({"error": "Bot is not ready"}), 503
+
+        configs = state.bot_instance.ai_handler.probability_manager.list_configs()
+        modes = [
+            {
+                "name": cfg.name,
+                "chance": cfg.total_chance,
+                "insult_weight": cfg.insult_weight,
+                "compliment_weight": cfg.compliment_weight,
+            }
+            for cfg in configs.values()
+        ]
+        return jsonify({"modes": modes})
+    except Exception as e:
+        logging.error(f"Error listing AI modes: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@system_bp.route("/api/ai/mode/<guild_id>", methods=["GET"])
+async def api_get_ai_mode(guild_id):
+    """Get current AI mode for a guild."""
+    try:
+        validated_guild_id = validate_guild_id(guild_id)
+        if validated_guild_id is None:
+            return jsonify({"error": "Invalid guild_id"}), 400
+
+        if not state.bot_instance or not state.bot_instance.is_ready():
+            return jsonify({"error": "Bot is not ready"}), 503
+
+        stored_mode = await get_ai_mode(str(validated_guild_id))
+        active_mode = stored_mode or "default"
+
+        return jsonify({
+            "guild_id": str(validated_guild_id),
+            "mode": active_mode
+        })
+    except Exception as e:
+        logging.error(f"Error getting AI mode: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@system_bp.route("/api/ai/mode/<guild_id>", methods=["POST"])
+async def api_set_ai_mode(guild_id):
+    """Set AI mode for a guild and apply immediately."""
+    try:
+        validated_guild_id = validate_guild_id(guild_id)
+        if validated_guild_id is None:
+            return jsonify({"error": "Invalid guild_id"}), 400
+
+        data = await request.get_json()
+        mode = (data or {}).get("mode")
+        if not mode:
+            return jsonify({"error": "mode is required"}), 400
+
+        if not state.bot_instance or not state.bot_instance.is_ready():
+            return jsonify({"error": "Bot is not ready"}), 503
+
+        # Validate mode
+        configs = state.bot_instance.ai_handler.probability_manager.list_configs()
+        if mode not in configs:
+            return jsonify({"error": "Invalid mode"}), 400
+
+        await state.bot_instance.ai_handler.set_mode_for_guild(str(validated_guild_id), mode)
+
+        return jsonify({"success": True, "mode": mode})
+    except Exception as e:
+        logging.error(f"Error setting AI mode: {e}")
         return jsonify({"error": str(e)}), 500
 
 

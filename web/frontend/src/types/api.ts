@@ -19,6 +19,13 @@ export interface GuildCommand {
   enabled: boolean
 }
 
+export interface AIMode {
+  name: string
+  chance: number
+  insult_weight: number
+  compliment_weight: number
+}
+
 export interface BotStatus {
   status: 'online' | 'offline' | 'restarting'
   uptime: string

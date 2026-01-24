@@ -17,6 +17,7 @@ import RankManagement from './RankManagement'
 import TemplateManagement from './TemplateManagement'
 import LevelRangeManagement from './LevelRangeManagement'
 import UserLookup from './UserLookup'
+import AdminPanel from './AdminPanel'
 
 const LevelingDashboard = () => {
   return (
@@ -42,6 +43,7 @@ const LevelingDashboard = () => {
             <Tab>Templates</Tab>
             <Tab>Level Ranges</Tab>
             <Tab>User Lookup</Tab>
+            <Tab>Admin</Tab>
           </TabList>
 
           <TabPanels>
@@ -59,6 +61,9 @@ const LevelingDashboard = () => {
             </TabPanel>
             <TabPanel px={0}>
               <UserLookup />
+            </TabPanel>
+            <TabPanel px={0}>
+              <AdminPanel />
             </TabPanel>
           </TabPanels>
         </Tabs>
