@@ -1,4 +1,5 @@
-import { Box, Heading, Text } from '@chakra-ui/react'
+import { Box, Heading, Text, VStack } from '@chakra-ui/react'
+import GitHubUpdateCard from './settings/GitHubUpdateCard'
 
 const MainView = () => {
   return (
@@ -6,9 +7,12 @@ const MainView = () => {
       <Heading size="lg" mb={6}>
         Main
       </Heading>
-      <Text color="gray.400">
-        Welcome to the Drongo dashboard. Use the navigation menu to access different features.
-      </Text>
+      <VStack spacing={6} align="stretch">
+        <Text color="gray.400">
+          Welcome to the Drongo dashboard. Use the navigation menu to access different features.
+        </Text>
+        <GitHubUpdateCard />
+      </VStack>
     </Box>
   )
 }

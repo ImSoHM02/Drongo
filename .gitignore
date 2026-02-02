@@ -27,3 +27,4 @@ tools/final_system_verification.py
 .gitignore
 tools/migrations/apply_template_migration.py
 CHAT_HISTORY_IMPLEMENTATION_PLAN.md
+GITHUB_UPDATE_PLAN.md

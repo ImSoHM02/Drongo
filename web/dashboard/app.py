@@ -10,6 +10,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".
 
 from .broadcast import stats_broadcast_loop
 from .routes.chat_routes import chat_bp
+from .routes.github_routes import github_bp
 from .routes.leveling_routes import leveling_bp
 from .routes.spa_routes import spa_bp
 from .routes.system_routes import system_bp
@@ -23,6 +24,7 @@ def create_app() -> Quart:
 
     app.register_blueprint(ws_bp)
     app.register_blueprint(system_bp)
+    app.register_blueprint(github_bp)
     app.register_blueprint(leveling_bp)
     app.register_blueprint(chat_bp)
     app.register_blueprint(spa_bp)
