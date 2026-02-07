@@ -45,7 +45,7 @@ class MessageLoggingCog(commands.Cog):
             try:
                 clean_text = message.clean_content.strip() if message.clean_content else ""
 
-                ai_response = getattr(message, '_ai_response', None)
+                ai_response = self.bot.ai_responses.pop(message.id, None)
                 if ai_response:
                     clean_text = f"{clean_text} {ai_response}".strip()
 

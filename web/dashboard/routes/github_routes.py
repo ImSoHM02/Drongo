@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 import subprocess
 import sys
 
@@ -305,14 +306,11 @@ async def _perform_update_and_restart():
         # Wait for everything to settle
         await asyncio.sleep(1)
 
-        # Restart the process
-        logging.info("Executing restart...")
-        subprocess.Popen([sys.executable] + sys.argv)
-        logging.info("New process started, exiting...")
-        sys.exit(0)
+        # Exit with non-zero code so systemd restarts the service
+        logging.info("Exiting for systemd restart...")
+        os._exit(1)
 
     except Exception as e:
         logging.error(f"Error during update and restart: {e}")
-        # Still attempt to restart even if cleanup fails (recovery mechanism)
-        subprocess.Popen([sys.executable] + sys.argv)
-        sys.exit(1)
+        # Still attempt to exit for restart even if cleanup fails
+        os._exit(1)

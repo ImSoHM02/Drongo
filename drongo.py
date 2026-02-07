@@ -26,6 +26,7 @@ class DrongoBot(commands.Bot):
         self.max_reconnect_attempts = 5
         self.anthropic_api_key = anthropic_api_key
         self.ai_handler = None
+        self.ai_responses = {}
         self.leveling_system = None
         self.historical_fetcher = None
         self.start_time = None
@@ -185,7 +186,7 @@ class DrongoBot(commands.Bot):
             try:
                 ai_response = await self.ai_handler.process_message(message)
                 if ai_response:
-                    message._ai_response = ai_response
+                    self.ai_responses[message.id] = ai_response
             except Exception as e:
                 logging.error(f"Error processing AI message: {str(e)}")
 

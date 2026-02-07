@@ -340,7 +340,7 @@ async def api_bot_shutdown():
 
 
 async def _perform_graceful_restart():
-    """Perform graceful shutdown and restart."""
+    """Perform graceful shutdown and restart. Exits with code 1 so systemd restarts the service."""
     try:
         import asyncio
         # Wait for the response to send
@@ -354,14 +354,14 @@ async def _perform_graceful_restart():
         # Wait for everything to settle
         await asyncio.sleep(0.5)
 
-        # Restart the process using os.execv to replace current process
-        logging.info("Executing restart...")
-        os.execv(sys.executable, [sys.executable] + sys.argv)
+        # Exit with non-zero code so systemd restarts the service
+        logging.info("Exiting for systemd restart...")
+        os._exit(1)
 
     except Exception as e:
         logging.error(f"Error during restart: {e}")
-        # Still attempt to restart even if cleanup fails
-        os.execv(sys.executable, [sys.executable] + sys.argv)
+        # Still attempt to exit for restart even if cleanup fails
+        os._exit(1)
 
 
 async def _perform_graceful_shutdown():
