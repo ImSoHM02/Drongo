@@ -3,6 +3,7 @@ from discord.ext import commands
 from discord import app_commands
 import aiohttp
 import random
+import urllib.parse
 from datetime import datetime, timedelta
 from typing import Dict, List, Tuple, Optional
 
@@ -31,15 +32,20 @@ class SteamAPI:
         self._cache[app_id] = (achievements, datetime.now())
 
     async def get_app_id(self, session: aiohttp.ClientSession, game_name: str) -> Optional[str]:
-        url = f"https://api.steampowered.com/ISteamApps/GetAppList/v2/"
+        """Search for a game using Steam Store search API (supports fuzzy matching)"""
+        encoded_name = urllib.parse.quote(game_name)
+        url = f"https://store.steampowered.com/api/storesearch/?term={encoded_name}&cc=us"
         async with session.get(url) as response:
             if response.status != 200:
                 return None
             data = await response.json()
-            apps = data['applist']['apps']
-            for app in apps:
-                if app['name'].lower() == game_name.lower():
-                    return str(app['appid'])
+            items = data.get('items', [])
+            if not items:
+                return None
+            # Return the first matching app
+            for item in items:
+                if item.get('type') == 'app':
+                    return str(item['id'])
         return None
 
     async def get_achievements(self, session: aiohttp.ClientSession, game_identifier: str) -> Tuple[bool, Optional[List[dict]], str]:
