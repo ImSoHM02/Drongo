@@ -323,26 +323,20 @@ async def _perform_graceful_restart():
 
         logging.info("Starting graceful restart...")
 
-        await _cleanup_bot()
+        # Perform cleanup but don't close the bot (that would kill the event loop)
+        await _cleanup_for_restart()
 
         # Wait for everything to settle
-        await asyncio.sleep(1)
+        await asyncio.sleep(0.5)
 
-        # Restart the process
+        # Restart the process using os.execv to replace current process
         logging.info("Executing restart...")
-
-        # Use subprocess.Popen to start new process, then exit
-        import subprocess
-        subprocess.Popen([sys.executable] + sys.argv)
-        logging.info("New process started, exiting...")
-        sys.exit(0)
+        os.execv(sys.executable, [sys.executable] + sys.argv)
 
     except Exception as e:
         logging.error(f"Error during restart: {e}")
         # Still attempt to restart even if cleanup fails
-        import subprocess
-        subprocess.Popen([sys.executable] + sys.argv)
-        sys.exit(1)
+        os.execv(sys.executable, [sys.executable] + sys.argv)
 
 
 async def _perform_graceful_shutdown():
@@ -369,8 +363,37 @@ async def _perform_graceful_shutdown():
         sys.exit(1)
 
 
+async def _cleanup_for_restart():
+    """Perform cleanup for restart - doesn't close bot to avoid killing event loop."""
+    import asyncio
+    from database_modules.database import flush_message_batches
+    from database_modules.database_pool import get_multi_guild_pool, close_all_pools
+
+    # Cancel the Hypercorn server task first to free up the port
+    if state.bot_instance and hasattr(state.bot_instance, 'hypercorn_task'):
+        state.bot_instance.hypercorn_task.cancel()
+        try:
+            await state.bot_instance.hypercorn_task
+        except asyncio.CancelledError:
+            pass
+        logging.info("Dashboard server stopped")
+
+    # Flush any pending database writes
+    await flush_message_batches()
+    logging.info("Message batches flushed")
+
+    # Close all database pools
+    await close_all_pools()
+    logging.info("Database pools closed")
+
+    # Close multi-guild pools
+    multi_pool = await get_multi_guild_pool()
+    await multi_pool.close_all()
+    logging.info("Multi-guild pools closed")
+
+
 async def _cleanup_bot():
-    """Perform bot cleanup operations."""
+    """Perform full bot cleanup operations for shutdown."""
     from database_modules.database import flush_message_batches
     from database_modules.database_pool import get_multi_guild_pool, close_all_pools
     import asyncio

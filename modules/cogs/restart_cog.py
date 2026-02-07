@@ -30,11 +30,11 @@ class RestartCog(commands.Cog):
 
             logging.info("Starting graceful restart...")
 
-            # Perform cleanup in the correct order
+            # Perform cleanup (but don't close the bot - that kills the event loop)
             from database_modules.database import flush_message_batches
             from database_modules.database_pool import get_multi_guild_pool, close_all_pools
 
-            # Cancel the Hypercorn server task
+            # Cancel the Hypercorn server task first to free up the port
             if hasattr(self.bot, 'hypercorn_task'):
                 self.bot.hypercorn_task.cancel()
                 try:
@@ -42,11 +42,6 @@ class RestartCog(commands.Cog):
                 except asyncio.CancelledError:
                     pass
                 logging.info("Dashboard server stopped")
-
-            # Stop historical fetcher if it exists
-            if hasattr(self.bot, 'historical_fetcher') and self.bot.historical_fetcher:
-                await self.bot.historical_fetcher.stop()
-                logging.info("Historical fetcher stopped")
 
             # Flush any pending database writes
             await flush_message_batches()
@@ -61,28 +56,17 @@ class RestartCog(commands.Cog):
             await multi_pool.close_all()
             logging.info("Multi-guild pools closed")
 
-            # Close the bot connection
-            await self.bot.close()
-            logging.info("Bot connection closed")
-
             # Wait for everything to settle
-            await asyncio.sleep(1)
+            await asyncio.sleep(0.5)
 
-            # Restart the process
+            # Restart the process using os.execv to replace current process
             logging.info("Executing restart...")
-
-            # Use subprocess.Popen to start new process, then exit
-            import subprocess
-            subprocess.Popen([sys.executable] + sys.argv)
-            logging.info("New process started, exiting...")
-            sys.exit(0)
+            os.execv(sys.executable, [sys.executable] + sys.argv)
 
         except Exception as e:
             logging.error(f"Error during restart: {e}")
             # Still attempt to restart even if cleanup fails
-            import subprocess
-            subprocess.Popen([sys.executable] + sys.argv)
-            sys.exit(1)
+            os.execv(sys.executable, [sys.executable] + sys.argv)
 
 async def setup(bot):
     await bot.add_cog(RestartCog(bot))

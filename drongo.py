@@ -449,7 +449,7 @@ class DrongoBot(commands.Bot):
                         if messages:
                             await set_last_message_id(conn, channel.id, messages[-1].id)
                     except discord.Forbidden:
-                        self.logger.debug(f"Skipping channel {channel.name} - no access")
+                        logging.debug(f"Skipping channel {channel.name} - no access")
                         continue
 
         self.logger.info("Finished processing recent historical messages.")
@@ -797,16 +797,21 @@ class DrongoBot(commands.Bot):
 
     async def run_dashboard(self):
         """Run the Quart dashboard server using Hypercorn."""
-        from hypercorn.asyncio import serve
-        from hypercorn.config import Config
+        try:
+            from hypercorn.asyncio import serve
+            from hypercorn.config import Config
 
-        config = Config()
-        config.bind = ["0.0.0.0:5001"]
-        config.use_reloader = False
-        
-        self.hypercorn_task = self.loop.create_task(
-            serve(dashboard_app, config)
-        )
+            config = Config()
+            config.bind = ["0.0.0.0:5001"]
+            config.use_reloader = False
+
+            logging.info("Starting dashboard server on port 5001...")
+            self.hypercorn_task = self.loop.create_task(
+                serve(dashboard_app, config)
+            )
+            logging.info("Dashboard server started")
+        except Exception as e:
+            logging.error(f"Failed to start dashboard server: {e}")
 
 intents = discord.Intents.default()
 intents.message_content = True
