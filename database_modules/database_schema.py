@@ -55,6 +55,13 @@ CREATE TABLE IF NOT EXISTS ai_mode_overrides (
     updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS birthday_settings (
+    guild_id TEXT PRIMARY KEY,
+    channel_id TEXT,
+    message_template TEXT DEFAULT 'Happy birthday, {user}! 🎂',
+    updated_at TEXT NOT NULL
+);
+
 """
 
 # Per-guild database schema (chat history only)
@@ -85,6 +92,25 @@ ON messages (channel_id, timestamp DESC);
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_discord_id
 ON messages (discord_message_id);
+"""
+
+# Birthdays database schema (per-guild)
+BIRTHDAYS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS birthdays (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    guild_id TEXT NOT NULL,
+    month INTEGER NOT NULL,
+    day INTEGER NOT NULL,
+    timezone TEXT NOT NULL,
+    last_announced_year INTEGER,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(user_id, guild_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_birthdays_date
+ON birthdays (month, day);
 """
 
 # Attachments database schema (per-guild)
@@ -205,3 +231,7 @@ def get_urls_db_path(guild_id):
     URLs are stored alongside embeds; keep this helper for backward compatibility.
     """
     return get_embeds_db_path(guild_id)
+
+def get_birthdays_db_path(guild_id):
+    """Get path to guild-specific birthdays database"""
+    return f'database/{guild_id}/birthdays.db'

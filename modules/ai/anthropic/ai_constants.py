@@ -36,6 +36,7 @@ KEY_DATA = "data"
 CONFIG_NAME_DEFAULT = "default"
 CONFIG_NAME_FRIENDLY = "friendly"
 CONFIG_NAME_NOT_FRIENDLY = "not-friendly"
+CONFIG_NAME_DISABLED = "disabled"
 CONFIG_NAME_TEST_INSULTS = "test-insults"
 CONFIG_NAME_TEST_COMPLIMENTS = "test-compliments"
 
@@ -82,6 +83,13 @@ NOT_FRIENDLY_CONFIG = {
     "total_chance": 0.01,
     "insult_weight": 1,
     "compliment_weight": 0
+}
+
+DISABLED_CONFIG = {
+    "name": CONFIG_NAME_DISABLED,
+    "total_chance": 0.0,
+    "insult_weight": 0.5,
+    "compliment_weight": 0.5
 }
 
 # Test configurations for image feature

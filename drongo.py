@@ -4,10 +4,12 @@ import logging
 import signal
 import asyncio
 import webbrowser
+from zoneinfo import ZoneInfo
 from discord.ext import commands
 from database_modules.database import store_message, store_message_components, get_db_connection, set_last_message_id, get_last_message_id, initialize_database, flush_message_batches
 from database_modules.database_pool import close_all_pools
 from database_modules import command_database
+from database_modules import birthdays
 from dotenv import load_dotenv
 from modules.dashboard_manager import DashboardManager
 from web.dashboard import app as dashboard_app, set_bot_instance
@@ -104,6 +106,7 @@ class DrongoBot(commands.Bot):
         self.historical_fetcher = None  # Initialize historical_fetcher as None
         self.start_time = None  # Will be set when bot is ready
         self.dashboard_opened = False
+        self.birthday_task = None
         self.add_listener(self.track_command_usage, 'on_interaction')
         self._command_sync_lock = asyncio.Lock()
         self._global_commands_cleared = False
@@ -116,6 +119,9 @@ class DrongoBot(commands.Bot):
         
         # Start periodic maintenance task
         self.loop.create_task(self.periodic_maintenance())
+
+        # Start birthday announcer loop
+        self.birthday_task = self.loop.create_task(self.birthday_announcer_loop())
     
     async def periodic_maintenance(self):
         """Periodic maintenance task for database optimization."""
@@ -150,6 +156,97 @@ class DrongoBot(commands.Bot):
                 break
             except Exception as e:
                 logging.error(f"Error in periodic maintenance: {e}")
+
+    async def birthday_announcer_loop(self):
+        """Check and announce birthdays periodically."""
+        while not self.is_closed():
+            try:
+                await self._announce_birthdays()
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logging.error(f"Error in birthday announcer: {e}")
+            finally:
+                # Run roughly every hour
+                await asyncio.sleep(3600)
+
+    async def _announce_birthdays(self):
+        """Announce birthdays for all guilds based on user timezones."""
+        if not self.guilds:
+            return
+
+        for guild in self.guilds:
+            try:
+                records = await birthdays.get_all_birthdays(str(guild.id))
+            except Exception as e:
+                logging.error(f"Failed to load birthdays for guild {guild.id}: {e}")
+                continue
+
+            if not records:
+                continue
+
+            # Get guild settings for message template and target channel
+            try:
+                settings = await birthdays.get_birthday_settings(str(guild.id))
+            except Exception as e:
+                logging.error(f"Failed to load birthday settings for guild {guild.id}: {e}")
+                settings = {"channel_id": None, "message_template": "Happy birthday, {user}! 🎂"}
+
+            for record in records:
+                tz_name = record.get("timezone")
+                try:
+                    tz = ZoneInfo(tz_name)
+                except Exception:
+                    continue
+
+                today = discord.utils.utcnow().astimezone(tz).date()
+                if today.month != record.get("month") or today.day != record.get("day"):
+                    continue
+
+                last_year = record.get("last_announced_year")
+                if last_year and last_year >= today.year:
+                    continue  # Already announced this calendar year
+
+                member = guild.get_member(int(record["user_id"]))
+                if not member:
+                    try:
+                        member = await guild.fetch_member(int(record["user_id"]))
+                    except Exception:
+                        member = None
+
+                target_channel = None
+                if settings.get("channel_id"):
+                    target_channel = guild.get_channel(int(settings["channel_id"]))
+
+                if not target_channel:
+                    target_channel = guild.system_channel
+                if not target_channel:
+                    # fallback to first text channel with send perms
+                    target_channel = next(
+                        (c for c in guild.text_channels if c.permissions_for(guild.me).send_messages),
+                        None,
+                    )
+                if not target_channel:
+                    continue
+
+                template = settings.get("message_template") or "Happy birthday, {user}! 🎂"
+                mention = member.mention if member else f"<@{record['user_id']}>"
+                display = member.display_name if member else f"User {record['user_id']}"
+                message = (
+                    template.replace("{user}", mention)
+                    .replace("{mention}", mention)
+                    .replace("{username}", display)
+                )
+
+                try:
+                    await target_channel.send(message)
+                    await birthdays.mark_announced(str(guild.id), record["user_id"], today.year)
+                    if hasattr(self, "dashboard_manager"):
+                        self.dashboard_manager.log_event(
+                            f"Sent birthday message for user {record['user_id']} in guild {guild.id}"
+                        )
+                except Exception as e:
+                    logging.error(f"Failed to send birthday message in guild {guild.id}: {e}")
 
     async def on_ready(self):
         self.dashboard_manager.set_status("Connected")
@@ -287,6 +384,7 @@ class DrongoBot(commands.Bot):
         await self.load_extension("modules.cogs.jellyfin_cog")
         await self.load_extension("modules.cogs.wow_profile_cog")
         await self.load_extension("modules.cogs.wow_main_cog")
+        await self.load_extension("modules.cogs.birthday_cog")
 
         # Initialize and set up AI handler
         self.ai_handler = AIHandler(self, self.anthropic_api_key)
@@ -329,26 +427,30 @@ class DrongoBot(commands.Bot):
         for guild in self.guilds:
             async with multi_pool.get_guild_connection(str(guild.id)) as conn:
                 for channel in guild.text_channels:
-                    last_message_id = await get_last_message_id(conn, channel.id)
-                    if last_message_id:
-                        messages = [message async for message in channel.history(limit=200, after=discord.Object(id=last_message_id))]
-                    else:
-                        messages = [message async for message in channel.history(limit=200)]
+                    try:
+                        last_message_id = await get_last_message_id(conn, channel.id)
+                        if last_message_id:
+                            messages = [message async for message in channel.history(limit=200, after=discord.Object(id=last_message_id))]
+                        else:
+                            messages = [message async for message in channel.history(limit=200)]
 
-                    for message in reversed(messages):
-                        if message.author != self.user:  # Allow bot messages during setup
-                            # Extract clean text only
-                            clean_text = message.clean_content.strip() if message.clean_content else ""
+                        for message in reversed(messages):
+                            if message.author != self.user:  # Allow bot messages during setup
+                                # Extract clean text only
+                                clean_text = message.clean_content.strip() if message.clean_content else ""
 
-                            # Store clean text
-                            message_id = await store_message(conn, message, clean_text)
+                                # Store clean text
+                                message_id = await store_message(conn, message, clean_text)
 
-                            # Store components separately
-                            if message_id:
-                                await store_message_components(message, message_id)
+                                # Store components separately
+                                if message_id:
+                                    await store_message_components(message, message_id)
 
-                    if messages:
-                        await set_last_message_id(conn, channel.id, messages[-1].id)
+                        if messages:
+                            await set_last_message_id(conn, channel.id, messages[-1].id)
+                    except discord.Forbidden:
+                        self.logger.debug(f"Skipping channel {channel.name} - no access")
+                        continue
 
         self.logger.info("Finished processing recent historical messages.")
 
@@ -732,6 +834,10 @@ def signal_handler(sig, frame):
                 # Stop historical fetcher
                 if hasattr(bot, 'historical_fetcher') and bot.historical_fetcher:
                     await bot.historical_fetcher.stop()
+
+                # Stop birthday task
+                if hasattr(bot, 'birthday_task') and bot.birthday_task:
+                    bot.birthday_task.cancel()
 
                 await flush_message_batches()
                 await close_all_pools()

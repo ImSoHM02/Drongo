@@ -295,12 +295,14 @@ from .database_schema import (
     PER_GUILD_SCHEMA,
     ATTACHMENTS_SCHEMA,
     EMBEDS_SCHEMA,
+    BIRTHDAYS_SCHEMA,
     get_guild_config_db_path,
     get_guild_db_path,
     get_guild_db_dir,
     get_attachments_db_path,
     get_embeds_db_path,
-    get_urls_db_path
+    get_urls_db_path,
+    get_birthdays_db_path
 )
 
 async def initialize_guild_config_db():
@@ -347,12 +349,18 @@ async def ensure_guild_database_exists(guild_id: str):
         logging.info(f"Created new database for guild {guild_id}")
         return True
 
+    # Ensure new auxiliary databases (e.g., birthdays) exist even for older guilds
+    birthdays_path = get_birthdays_db_path(guild_id)
+    if not os.path.exists(birthdays_path):
+        await initialize_guild_database(guild_id)
+        logging.info(f"Added birthdays database for existing guild {guild_id}")
+
     return False
 
 async def initialize_guild_database(guild_id: str):
     """
     Initialize a guild-specific database with schema and optimizations.
-    Creates all four database files for the guild.
+    Creates all database files for the guild (chat, attachments, embeds/urls, birthdays).
 
     Args:
         guild_id: Discord guild ID
@@ -360,6 +368,7 @@ async def initialize_guild_database(guild_id: str):
     guild_db_path = get_guild_db_path(guild_id)
     attachments_db_path = get_attachments_db_path(guild_id)
     embeds_db_path = get_embeds_db_path(guild_id)
+    birthdays_db_path = get_birthdays_db_path(guild_id)
     # Initialize chat_history.db
     async with aiosqlite.connect(guild_db_path) as conn:
         await conn.execute("PRAGMA journal_mode=WAL")
@@ -380,6 +389,13 @@ async def initialize_guild_database(guild_id: str):
         await conn.execute("PRAGMA journal_mode=WAL")
         await conn.execute("PRAGMA synchronous=NORMAL")
         await conn.executescript(EMBEDS_SCHEMA)
+        await conn.commit()
+
+    # Initialize birthdays.db
+    async with aiosqlite.connect(birthdays_db_path) as conn:
+        await conn.execute("PRAGMA journal_mode=WAL")
+        await conn.execute("PRAGMA synchronous=NORMAL")
+        await conn.executescript(BIRTHDAYS_SCHEMA)
         await conn.commit()
 
     logging.info(f"Initialized all databases for guild {guild_id}")

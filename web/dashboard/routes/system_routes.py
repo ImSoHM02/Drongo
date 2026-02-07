@@ -11,6 +11,7 @@ from ..broadcast import broadcast_stats
 from ..name_resolution import validate_guild_id
 from ..stats_service import get_enhanced_stats, real_time_stats
 from database_modules.ai_mode_overrides import get_ai_mode
+from database_modules import birthdays
 
 system_bp = Blueprint("dashboard_system", __name__)
 
@@ -177,6 +178,30 @@ async def api_commands_delete():
         return jsonify({"error": "Command deletion via dashboard is disabled"}), 400
     except Exception as e:
         logging.error(f"Error deleting commands: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@system_bp.route("/api/birthdays/settings/<guild_id>", methods=["GET", "POST"])
+async def api_birthday_settings(guild_id):
+    """Get or update birthday announcement settings for a guild."""
+    validated_guild_id = validate_guild_id(guild_id)
+    if validated_guild_id is None:
+        return jsonify({"error": "Invalid guild_id"}), 400
+
+    try:
+        if request.method == "GET":
+            settings = await birthdays.get_birthday_settings(str(validated_guild_id))
+            return jsonify(settings)
+
+        data = await request.get_json()
+        channel_id = data.get("channel_id")
+        message_template = data.get("message_template")
+        updated = await birthdays.update_birthday_settings(
+            str(validated_guild_id), channel_id, message_template
+        )
+        return jsonify({"success": True, "settings": updated})
+    except Exception as e:
+        logging.error(f"Error handling birthday settings for guild {guild_id}: {e}")
         return jsonify({"error": str(e)}), 500
 
 

@@ -54,6 +54,13 @@ export interface CommitInfo {
   message: string
 }
 
+export interface BirthdaySettings {
+  guild_id: string
+  channel_id: string | null
+  message_template: string
+  updated_at?: string
+}
+
 export interface UpdateCheckResult {
   updates_available: boolean
   current_commit: string
