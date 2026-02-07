@@ -12,6 +12,7 @@ from ..name_resolution import validate_guild_id
 from ..stats_service import get_enhanced_stats, real_time_stats
 from database_modules.ai_mode_overrides import get_ai_mode
 from database_modules import birthdays
+from database_modules import events as events_db
 from database_modules import update_announcements
 
 system_bp = Blueprint("dashboard_system", __name__)
@@ -556,4 +557,27 @@ async def api_update_bot_nickname(guild_id):
         return jsonify({"error": "Bot lacks permissions to change nickname"}), 403
     except Exception as e:
         logging.error(f"Error updating nickname: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@system_bp.route("/api/events/settings/<guild_id>", methods=["GET", "POST"])
+async def api_event_settings(guild_id):
+    """Get or update event reminder channel settings for a guild."""
+    validated_guild_id = validate_guild_id(guild_id)
+    if validated_guild_id is None:
+        return jsonify({"error": "Invalid guild_id"}), 400
+
+    try:
+        if request.method == "GET":
+            settings = await events_db.get_event_settings(str(validated_guild_id))
+            return jsonify(settings)
+
+        data = await request.get_json()
+        channel_id = data.get("channel_id")
+        updated = await events_db.update_event_settings(
+            str(validated_guild_id), channel_id
+        )
+        return jsonify({"success": True, "settings": updated})
+    except Exception as e:
+        logging.error(f"Error handling event settings for guild {guild_id}: {e}")
         return jsonify({"error": str(e)}), 500

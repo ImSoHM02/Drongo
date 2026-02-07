@@ -77,3 +77,9 @@ export interface UpdateSettings {
   channel_id: string | null
   updated_at?: string
 }
+
+export interface EventSettings {
+  guild_id: string
+  channel_id: string | null
+  updated_at?: string
+}

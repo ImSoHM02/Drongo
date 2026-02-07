@@ -6,6 +6,7 @@ import GuildCommandsCard from './settings/GuildCommandsCard'
 import AIModeCard from './settings/AIModeCard'
 import BirthdaySettingsCard from './settings/BirthdaySettingsCard'
 import UpdateSettingsCard from './settings/UpdateSettingsCard'
+import EventSettingsCard from './settings/EventSettingsCard'
 
 const SettingsView = () => {
   const { selectedGuild } = useLevelingStore()
@@ -21,6 +22,7 @@ const SettingsView = () => {
 
         {selectedGuild && <BotConfigCard guildId={selectedGuild} />}
         <BirthdaySettingsCard />
+        <EventSettingsCard />
         <UpdateSettingsCard />
         <AIModeCard />
         <GuildCommandsCard />

@@ -151,6 +151,7 @@ class DrongoBot(commands.Bot):
         await self.load_extension("modules.cogs.wow_profile_cog")
         await self.load_extension("modules.cogs.wow_main_cog")
         await self.load_extension("modules.cogs.birthday_cog")
+        await self.load_extension("modules.cogs.event_cog")
         await self.load_extension("modules.cogs.feature_request_cog")
         await self.load_extension("modules.cogs.message_logging_cog")
 

@@ -68,6 +68,12 @@ CREATE TABLE IF NOT EXISTS update_announcement_settings (
     updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS event_settings (
+    guild_id TEXT PRIMARY KEY,
+    channel_id TEXT,
+    updated_at TEXT NOT NULL
+);
+
 """
 
 # Per-guild database schema (chat history only)
@@ -211,6 +217,36 @@ CREATE INDEX IF NOT EXISTS idx_urls_domain
 ON urls (domain);
 """
 
+# Events database schema (per-guild)
+EVENTS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    guild_id TEXT NOT NULL,
+    creator_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    event_time TEXT NOT NULL,
+    event_timestamp INTEGER NOT NULL,
+    reminder_sent INTEGER DEFAULT 0,
+    cancelled INTEGER DEFAULT 0,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS event_attendees (
+    event_id INTEGER NOT NULL,
+    user_id TEXT NOT NULL,
+    joined_at TEXT NOT NULL,
+    PRIMARY KEY (event_id, user_id),
+    FOREIGN KEY (event_id) REFERENCES events (id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_events_time
+ON events (event_timestamp);
+
+CREATE INDEX IF NOT EXISTS idx_events_active
+ON events (cancelled, reminder_sent, event_timestamp);
+"""
+
 # Database paths
 def get_guild_config_db_path():
     """Get path to global guild configuration database"""
@@ -241,3 +277,7 @@ def get_urls_db_path(guild_id):
 def get_birthdays_db_path(guild_id):
     """Get path to guild-specific birthdays database"""
     return f'database/{guild_id}/birthdays.db'
+
+def get_events_db_path(guild_id):
+    """Get path to guild-specific events database"""
+    return f'database/{guild_id}/events.db'
