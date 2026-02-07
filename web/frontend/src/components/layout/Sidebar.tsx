@@ -73,6 +73,7 @@ const Sidebar = () => {
         <NavLink to="/leveling">Leveling</NavLink>
         <NavLink to="/chat-history">Chat History</NavLink>
         <NavLink to="/settings">Settings</NavLink>
+        <NavLink to="/updates">Updates</NavLink>
       </VStack>
     </Box>
   )

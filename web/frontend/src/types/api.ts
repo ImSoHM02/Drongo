@@ -49,6 +49,7 @@ export interface GitHubStatus {
 
 export interface CommitInfo {
   hash: string
+  short_hash: string
   author: string
   date: string
   message: string
@@ -69,4 +70,10 @@ export interface UpdateCheckResult {
   latest_commit_short: string
   commits_behind: number
   commit_log: CommitInfo[]
+}
+
+export interface UpdateSettings {
+  guild_id: string
+  channel_id: string | null
+  updated_at?: string
 }

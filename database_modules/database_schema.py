@@ -62,6 +62,12 @@ CREATE TABLE IF NOT EXISTS birthday_settings (
     updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS update_announcement_settings (
+    guild_id TEXT PRIMARY KEY,
+    channel_id TEXT,
+    updated_at TEXT NOT NULL
+);
+
 """
 
 # Per-guild database schema (chat history only)

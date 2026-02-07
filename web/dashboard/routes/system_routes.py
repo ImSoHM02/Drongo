@@ -12,6 +12,7 @@ from ..name_resolution import validate_guild_id
 from ..stats_service import get_enhanced_stats, real_time_stats
 from database_modules.ai_mode_overrides import get_ai_mode
 from database_modules import birthdays
+from database_modules import update_announcements
 
 system_bp = Blueprint("dashboard_system", __name__)
 
@@ -202,6 +203,29 @@ async def api_birthday_settings(guild_id):
         return jsonify({"success": True, "settings": updated})
     except Exception as e:
         logging.error(f"Error handling birthday settings for guild {guild_id}: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@system_bp.route("/api/updates/settings/<guild_id>", methods=["GET", "POST"])
+async def api_update_settings(guild_id):
+    """Get or update announcement channel settings for a guild."""
+    validated_guild_id = validate_guild_id(guild_id)
+    if validated_guild_id is None:
+        return jsonify({"error": "Invalid guild_id"}), 400
+
+    try:
+        if request.method == "GET":
+            settings = await update_announcements.get_update_settings(str(validated_guild_id))
+            return jsonify(settings)
+
+        data = await request.get_json()
+        channel_id = data.get("channel_id")
+        updated = await update_announcements.update_settings(
+            str(validated_guild_id), channel_id
+        )
+        return jsonify({"success": True, "settings": updated})
+    except Exception as e:
+        logging.error(f"Error handling update settings for guild {guild_id}: {e}")
         return jsonify({"error": str(e)}), 500
 
 

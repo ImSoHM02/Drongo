@@ -3,8 +3,9 @@ import logging
 import subprocess
 import sys
 
-from quart import Blueprint, jsonify
+from quart import Blueprint, jsonify, request
 
+from .. import state
 from ..broadcast import broadcast_stats
 from ..stats_service import real_time_stats
 from .system_routes import _cleanup_bot
@@ -171,6 +172,112 @@ async def api_github_update():
         return jsonify({"success": True, "message": "Update and restart initiated"})
     except Exception as e:
         logging.error(f"Error initiating update: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@github_bp.route("/api/github/commits")
+async def api_github_commits():
+    """Get git commits from local repository."""
+    try:
+        limit = request.args.get("limit", 50, type=int)
+
+        result = await run_git_command(
+            "log",
+            f"--pretty=format:%H|%h|%an|%aI|%s",
+            f"-{limit}"
+        )
+
+        if result["returncode"] != 0:
+            return jsonify({"error": "Failed to get commits"}), 500
+
+        commits = []
+        if result["stdout"]:
+            for line in result["stdout"].split("\n"):
+                if line.strip():
+                    parts = line.split("|", 4)
+                    if len(parts) == 5:
+                        commits.append({
+                            "hash": parts[0],
+                            "short_hash": parts[1],
+                            "author": parts[2],
+                            "date": parts[3],
+                            "message": parts[4]
+                        })
+
+        return jsonify({"commits": commits})
+    except Exception as e:
+        logging.error(f"Error getting commits: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@github_bp.route("/api/github/push-updates", methods=["POST"])
+async def api_push_updates():
+    """Push selected commits as update announcements to all configured channels."""
+    try:
+        from database_modules import update_announcements
+
+        if not state.bot_instance or not state.bot_instance.is_ready():
+            return jsonify({"error": "Bot is not ready"}), 503
+
+        data = await request.get_json()
+        commit_hashes = data.get("commits", [])
+
+        if not commit_hashes:
+            return jsonify({"error": "No commits selected"}), 400
+
+        # Get commit details for selected hashes
+        commits_info = []
+        for hash in commit_hashes:
+            result = await run_git_command(
+                "log", "--pretty=format:%h|%s", "-1", hash
+            )
+            if result["returncode"] == 0 and result["stdout"]:
+                parts = result["stdout"].split("|", 1)
+                if len(parts) == 2:
+                    commits_info.append({
+                        "short_hash": parts[0],
+                        "message": parts[1]
+                    })
+
+        if not commits_info:
+            return jsonify({"error": "Could not resolve commits"}), 400
+
+        # Format update message
+        message_parts = ["**Bot Update:**"]
+        for commit in commits_info:
+            message_parts.append(f"`{commit['short_hash']}` - {commit['message']}")
+        message = "\n".join(message_parts)
+
+        # Get all configured channels
+        configured = await update_announcements.get_all_configured_channels()
+
+        sent_count = 0
+        failed_count = 0
+
+        for config in configured:
+            try:
+                channel = state.bot_instance.get_channel(int(config["channel_id"]))
+                if channel:
+                    await channel.send(message)
+                    sent_count += 1
+                else:
+                    failed_count += 1
+            except Exception as e:
+                logging.error(f"Failed to send to channel {config['channel_id']}: {e}")
+                failed_count += 1
+
+        real_time_stats.add_event_log(
+            f"Update announcement pushed to {sent_count} channels", "system"
+        )
+
+        return jsonify({
+            "success": True,
+            "sent": sent_count,
+            "failed": failed_count,
+            "message": f"Update sent to {sent_count} channel(s)"
+        })
+    except Exception as e:
+        logging.error(f"Error pushing updates: {e}")
         return jsonify({"error": str(e)}), 500
 
 
