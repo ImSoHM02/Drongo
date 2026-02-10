@@ -55,6 +55,7 @@ LISTMODES_SEPARATOR = "\n"
 
 # File type constants
 TEXT_FILE_EXTENSIONS = ('.txt', '.py', '.js', '.html', '.css', '.json', '.xml', '.md')
+IMAGE_FILE_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.gif', '.webp')
 
 # Model constants
 DEFAULT_MODEL = "claude-sonnet-4-20250514"

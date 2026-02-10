@@ -4,8 +4,10 @@ import aiohttp
 import io
 import base64
 import asyncio
+import mimetypes
 from .ai_constants import (
     MAX_MESSAGE_LENGTH, MAX_HISTORY_LENGTH,
+    TEXT_FILE_EXTENSIONS, IMAGE_FILE_EXTENSIONS,
     DEFAULT_CONFIG, FRIENDLY_CONFIG, NOT_FRIENDLY_CONFIG, DISABLED_CONFIG,
     TEST_INSULTS_CONFIG, TEST_COMPLIMENTS_CONFIG,
     ERROR_MESSAGES, ROLE_USER, ROLE_HUMAN,
@@ -43,6 +45,35 @@ class MessageHandler:
 
 class AttachmentHandler:
     @staticmethod
+    def is_text_attachment(attachment: discord.Attachment) -> bool:
+        # Identify plain-text/code files by extension.
+        filename = (attachment.filename or "").lower()
+        return filename.endswith(TEXT_FILE_EXTENSIONS)
+
+    @staticmethod
+    def is_image_attachment(attachment: discord.Attachment) -> bool:
+        # Prefer content-type, with filename extension fallback when missing.
+        content_type = (attachment.content_type or "").lower()
+        if content_type.startswith("image/"):
+            return True
+
+        filename = (attachment.filename or "").lower()
+        return filename.endswith(IMAGE_FILE_EXTENSIONS)
+
+    @staticmethod
+    def get_image_media_type(attachment: discord.Attachment) -> str:
+        # Resolve a valid image media type for Anthropic blocks.
+        content_type = (attachment.content_type or "").lower()
+        if content_type.startswith("image/"):
+            return content_type
+
+        guessed_type, _ = mimetypes.guess_type(attachment.filename or "")
+        if guessed_type and guessed_type.startswith("image/"):
+            return guessed_type
+
+        return DEFAULT_IMAGE_MEDIA_TYPE
+
+    @staticmethod
     async def download_attachment(attachment: discord.Attachment) -> Optional[BinaryIO]:
         # Download a Discord attachment
         async with aiohttp.ClientSession() as session:
@@ -73,7 +104,7 @@ class AttachmentHandler:
             return None
 
         image_data = base64.b64encode(file_content.getvalue()).decode('utf-8')
-        media_type = attachment.content_type or DEFAULT_IMAGE_MEDIA_TYPE
+        media_type = AttachmentHandler.get_image_media_type(attachment)
 
         return {
             KEY_TYPE: CONTENT_TYPE_IMAGE,

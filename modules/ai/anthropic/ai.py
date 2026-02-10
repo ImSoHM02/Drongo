@@ -8,7 +8,7 @@ import datetime
 
 from .ai_constants import (
     DEFAULT_MODEL, DEFAULT_MAX_TOKENS, DEFAULT_TEMPERATURE,
-    BRIEF_MAX_TOKENS, BRIEF_TEMPERATURE, TEXT_FILE_EXTENSIONS,
+    BRIEF_MAX_TOKENS, BRIEF_TEMPERATURE,
     ERROR_MESSAGES, TRIGGER_PHRASE, TRIGGER_PATTERN,
     ROLE_USER, ROLE_ASSISTANT, CONTENT_TYPE_TEXT, CONTENT_TYPE_IMAGE,
     TOOL_TYPE_WEB_SEARCH, TOOL_NAME_WEB_SEARCH,
@@ -21,7 +21,7 @@ from .ai_constants import (
 )
 from .prompts import (
     SYSTEM_PROMPT, get_system_prompt, get_insult_prompt,
-    get_compliment_prompt, get_mode_change_prompt
+    get_insult_fallback_prompt, get_compliment_prompt, get_mode_change_prompt
 )
 from .ai_handlers import (
     MessageHandler, AttachmentHandler,
@@ -65,6 +65,27 @@ class AIHandler:
     def get_trigger_pattern(self, bot_name: str):
         """Generate trigger pattern for a bot name."""
         return re.compile(rf'^oi\s+{re.escape(bot_name.lower())}\s*', re.IGNORECASE)
+
+    @staticmethod
+    def _looks_like_refusal(response_text: str) -> bool:
+        """Detect common refusal templates so we can retry with a safer roast prompt."""
+        lowered = response_text.lower()
+        refusal_markers = (
+            "i can't",
+            "i cannot",
+            "i’m not able",
+            "i'm not able",
+            "i won't",
+            "i will not",
+            "i understand you want me",
+            "can't help with",
+            "cannot help with",
+            "can't generate",
+            "cannot generate",
+            "happy to help with other",
+            "i can't assist with"
+        )
+        return any(marker in lowered for marker in refusal_markers)
 
     async def handle_oi_drongo(self, message: discord.Message, full_message_content: str, image_attachments: List[Dict[str, Any]], bot_name: str) -> None:
         # Handle messages starting with trigger phrase
@@ -148,17 +169,38 @@ class AIHandler:
                 self.bot.logger.error(error_msg)
                 await message.reply(ERROR_MESSAGES["general_error"])
 
-    async def _generate_brief_response(self, message: discord.Message, prompt_text: str, response_type: str) -> str:
+    async def _collect_attachments(self, message: discord.Message) -> tuple[List[str], List[Dict[str, Any]]]:
+        """Collect text and image attachment content for a message."""
+        text_contents: List[str] = []
+        image_attachments: List[Dict[str, Any]] = []
+
+        for attachment in message.attachments:
+            if self.attachment_handler.is_text_attachment(attachment):
+                content = await self.attachment_handler.process_text_attachment(attachment)
+                text_contents.append(f"Content of {attachment.filename}:\n{content}")
+            elif self.attachment_handler.is_image_attachment(attachment):
+                image_data = await self.attachment_handler.process_image_attachment(attachment)
+                if image_data:
+                    image_attachments.append(image_data)
+
+        return text_contents, image_attachments
+
+    async def _generate_brief_response(
+        self,
+        message: discord.Message,
+        prompt_text: str,
+        response_type: str,
+        image_attachments: Optional[List[Dict[str, Any]]] = None,
+        fallback_prompt_text: Optional[str] = None
+    ) -> str:
         # Helper method to generate brief responses (insults/compliments) with image support
         async with message.channel.typing():
             try:
-                # Process any image attachments
-                image_attachments = []
-                for attachment in message.attachments:
-                    if attachment.content_type and attachment.content_type.startswith('image/'):
-                        image_data = await self.attachment_handler.process_image_attachment(attachment)
-                        if image_data:
-                            image_attachments.append(image_data)
+                # Process image attachments if not already provided by process_message.
+                if image_attachments is None:
+                    _, image_attachments = await self._collect_attachments(message)
+                else:
+                    image_attachments = list(image_attachments)
 
                 # Construct message content array with both text and images
                 message_content = []
@@ -176,6 +218,25 @@ class AIHandler:
                 )
 
                 response_text = response.content[0].text.strip()
+
+                # Retry once with a stricter safe-roast prompt when the model refuses.
+                if fallback_prompt_text and self._looks_like_refusal(response_text):
+                    fallback_content = []
+                    fallback_content.extend(image_attachments)
+                    fallback_content.append({
+                        KEY_TYPE: CONTENT_TYPE_TEXT,
+                        "text": fallback_prompt_text
+                    })
+                    fallback_response = await self.anthropic_client.messages.create(
+                        model=DEFAULT_MODEL,
+                        max_tokens=BRIEF_MAX_TOKENS,
+                        messages=[{KEY_ROLE: ROLE_USER, KEY_CONTENT: fallback_content}],
+                        temperature=BRIEF_TEMPERATURE,
+                    )
+                    fallback_text = fallback_response.content[0].text.strip()
+                    if fallback_text:
+                        response_text = fallback_text
+
                 await message.reply(response_text)
                 return response_text
             except Exception as e:
@@ -194,20 +255,35 @@ class AIHandler:
                 self.bot.logger.error(error_msg)
                 return f"Error generating {response_type}: {str(e)}"
 
-    async def generate_insult(self, message: discord.Message, full_message_content: str, bot_name: str = "Jaxon") -> str:
-        # Generate an insult based on the message content and any images
+    async def generate_insult(
+        self,
+        message: discord.Message,
+        full_message_content: str,
+        bot_name: str = "Jaxon",
+        image_attachments: Optional[List[Dict[str, Any]]] = None
+    ) -> str:
+        # Generate a playful roast based on the message content and any images.
         return await self._generate_brief_response(
             message,
             get_insult_prompt(full_message_content, bot_name.capitalize()),
-            "insult"
+            "insult",
+            image_attachments=image_attachments,
+            fallback_prompt_text=get_insult_fallback_prompt(full_message_content, bot_name.capitalize())
         )
 
-    async def generate_compliment(self, message: discord.Message, full_message_content: str, bot_name: str = "Jaxon") -> str:
+    async def generate_compliment(
+        self,
+        message: discord.Message,
+        full_message_content: str,
+        bot_name: str = "Jaxon",
+        image_attachments: Optional[List[Dict[str, Any]]] = None
+    ) -> str:
         # Generate a compliment based on the message content and any images
         return await self._generate_brief_response(
             message,
             get_compliment_prompt(full_message_content, bot_name.capitalize()),
-            "compliment"
+            "compliment",
+            image_attachments=image_attachments
         )
 
     async def process_message(self, message: discord.Message) -> str:
@@ -220,18 +296,8 @@ class AIHandler:
         trigger_phrase = self.get_trigger_phrase(bot_name)
         trigger_pattern = self.get_trigger_pattern(bot_name)
 
-        # Process text attachments
-        text_contents = []
-        image_attachments = []
-
-        for attachment in message.attachments:
-            if attachment.filename.lower().endswith(TEXT_FILE_EXTENSIONS):
-                content = await self.attachment_handler.process_text_attachment(attachment)
-                text_contents.append(f"Content of {attachment.filename}:\n{content}")
-            elif attachment.content_type and attachment.content_type.startswith('image/'):
-                image_data = await self.attachment_handler.process_image_attachment(attachment)
-                if image_data:
-                    image_attachments.append(image_data)
+        # Process current message attachments
+        text_contents, image_attachments = await self._collect_attachments(message)
 
         # Check if this is a reply and get the referenced message if it exists
         referenced_content = ""
@@ -239,12 +305,21 @@ class AIHandler:
             try:
                 reply_message = await message.channel.fetch_message(message.reference.message_id)
                 referenced_content = f"Message being replied to: {reply_message.content}\n\n"
+
+                # Include referenced-message attachments so image-only replies still work.
+                reply_text_contents, reply_image_attachments = await self._collect_attachments(reply_message)
+                text_contents.extend(
+                    f"(From replied message) {text_content}"
+                    for text_content in reply_text_contents
+                )
+                image_attachments.extend(reply_image_attachments)
             except Exception as fetch_err:
                 self.bot.logger.error(f"Failed to fetch referenced message: {fetch_err}")
 
         # Remove trigger phrase from the beginning of the message
         cleaned_content = trigger_pattern.sub('', message.clean_content).strip()
-        full_message_content = f"{referenced_content}{cleaned_content}\n\n{''.join(text_contents)}".strip()
+        attachment_context = "\n\n".join(text_contents)
+        full_message_content = f"{referenced_content}{cleaned_content}\n\n{attachment_context}".strip()
 
         # Get guild-specific configuration
         guild_config = self.probability_manager.get_guild_config(guild_id)
@@ -258,9 +333,19 @@ class AIHandler:
             self.bot.logger.info("Random response triggered")
             # Use weighted random choice for insult vs compliment
             if random.random() < guild_config["insult"]:
-                await self.generate_insult(message, full_message_content, bot_name)
+                await self.generate_insult(
+                    message,
+                    full_message_content,
+                    bot_name,
+                    image_attachments=image_attachments
+                )
             else:
-                await self.generate_compliment(message, full_message_content, bot_name)
+                await self.generate_compliment(
+                    message,
+                    full_message_content,
+                    bot_name,
+                    image_attachments=image_attachments
+                )
 
         return full_message_content
 
