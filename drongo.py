@@ -155,6 +155,7 @@ class DrongoBot(commands.Bot):
         await self.load_extension("modules.cogs.event_cog")
         await self.load_extension("modules.cogs.feature_request_cog")
         await self.load_extension("modules.cogs.message_logging_cog")
+        await self.load_extension("modules.cogs.pokemon_cog")
 
         self.ai_handler = AIHandler(self, self.anthropic_api_key)
         from modules.ai.anthropic import ai
